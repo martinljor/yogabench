@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Veeam Proxy Benchmark - Prototipo</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; background:#f1efe8; margin:0; padding:24px; color:#2c2c2a; }
+  h1 { font-size: 20px; font-weight: 500; }
+  h3 { margin-bottom:6px; }
+  .card { background:#fff; border:1px solid #d3d1c7; border-radius:12px; padding:20px; margin-bottom:16px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  label { display:block; font-size:12px; color:#5f5e5a; margin-bottom:4px; }
+  input, select { padding:8px; border:1px solid #b4b2a9; border-radius:6px; font-size:14px; width:180px; }
+  button { padding:9px 16px; border:none; border-radius:6px; background:#185fa5; color:#fff; cursor:pointer; font-size:14px; }
+  button:hover { background:#0c447c; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:#e6f1fb; color:#185fa5; }
+  button.ghost:hover { background:#d2e6f9; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tab { padding:8px 16px; border-radius:6px; cursor:pointer; background:#e6f1fb; font-size:14px; }
+  .tab.active { background:#185fa5; color:#fff; }
+  .tabs.disabled { opacity:.45; pointer-events:none; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid #e5e3da; }
+  .error { color:#a32d2d; font-size:13px; margin-top:8px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; background:#eeedfe; color:#3c3489; }
+  .verdict { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:600; }
+  .verdict.ok   { background:#dcf3e8; color:#1a7a4f; }
+  .verdict.warn { background:#fbeecd; color:#8a6100; }
+  .verdict.low  { background:#f8d9d9; color:#a32d2d; }
+  .subcard { background:#faf9f5; border:1px solid #e5e3da; border-radius:8px; padding:14px; margin-top:12px; }
+  .step-ok { color:#1a7a4f; } .step-bad { color:#a32d2d; } .step-info { color:#5f5e5a; }
+  .connbar { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex:0 0 auto; }
+  .dot.on  { background:#1D9E75; box-shadow:0 0 0 3px rgba(29,158,117,.25); }
+  .dot.off { background:#b4b2a9; }
+  button.mini { padding:5px 12px; font-size:13px; }
+  .muted { color:#5f5e5a; font-size:13px; }
+  #flowCanvas { width:100%; height:440px; border:1px solid #d3d1c7; border-radius:8px; background:#fff; }
+  .bar-track { background:#eee9df; border-radius:4px; height:14px; width:120px; display:inline-block; vertical-align:middle; overflow:hidden; }
+  .bar-fill { background:#378ADD; height:100%; display:block; }
+  .progress { background:#eee9df; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
+  .progress > div { background:#1D9E75; height:100%; width:0; transition:width .3s; }
+</style>
+</head>
+<body>
+<h1>Veeam Proxy Benchmark - Prototipo</h1>
+
+<div class="card" id="connectCard">
+  <div class="row">
+    <div><label>Host / IP del VBR</label><input id="host" placeholder="192.168.0.10"></div>
+    <div><label>Puerto</label><input id="port" value="9419"></div>
+    <div><label>Usuario</label><input id="username" placeholder="administrator"></div>
+    <div><label>Password</label><input id="password" type="password"></div>
+    <div><label>API version</label>
+      <select id="apiVersion">
+        <option value="1.2-rev1">1.2-rev1</option>
+        <option value="1.1-rev0">1.1-rev0</option>
+        <option value="1.0-rev2">1.0-rev2</option>
+      </select>
+    </div>
+    <div><button onclick="connect()">Conectar</button></div>
+  </div>
+  <div class="error" id="connectError"></div>
+  <div class="connbar">
+    <span id="connDot" class="dot off"></span>
+    <span id="connectedAs" class="muted">Sin conectar</span>
+    <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;">Refrescar</button>
+    <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;">Desconectar</button>
+  </div>
+</div>
+
+<div class="tabs disabled" id="tabsBar">
+  <div class="tab active" id="tabInfra" onclick="showTab('infra')">Infraestructura</div>
+  <div class="tab" id="tabFlow" onclick="showTab('flow')">Arquitectura</div>
+  <div class="tab" id="tabBench" onclick="showTab('bench')">Benchmark</div>
+</div>
+
+<div class="card" id="infraPanel">
+  <p class="muted">Conectate a un VBR para ver proxies y repositorios.</p>
+</div>
+
+<div class="card" id="flowPanel" style="display:none;">
+  <p class="muted">Camino de datos del backup: <b>proxy → repositorio → mount server</b>. Se arma dinamicamente desde la API.</p>
+  <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<div class="card" id="benchPanel" style="display:none;">
+  <h3>Prueba de rendimiento</h3>
+  <p class="muted">El <b>destino es el repositorio</b>. Segun la accion se le ata
+    otro nodo: en <b>Backup</b> el <b>proxy</b> que escribe (proxy → repositorio);
+    en <b>Restore</b> el <b>mount server</b> que lee (repositorio → mount server).
+    Elegi que recurso medir: <b>Disco</b>, <b>Red</b>, <b>Computo</b> o <b>Todo</b>
+    (ideal para repos iSCSI / appliance, donde el disco va por la red).</p>
+
+  <div class="row" style="margin-top:12px;">
+    <div><label>Repositorio (destino)</label><select id="benchRepo" style="width:240px;" onchange="onRepoChange()"></select></div>
+    <div><label>Accion</label>
+      <select id="benchOperation" style="width:150px;" onchange="onOperationChange()">
+        <option value="backup" selected>Backup (escritura)</option>
+        <option value="restore">Restore (lectura)</option>
+      </select>
+    </div>
+    <div id="assocProxy"><label>Proxy (backup)</label><select id="benchProxy" style="width:200px;"></select></div>
+    <div id="assocMount" style="display:none;"><label>Mount server (restore)</label><input id="benchMount" disabled style="width:200px;"></div>
+  </div>
+
+  <div class="row" style="margin-top:12px;">
+    <div><label>Recurso</label>
+      <select id="benchResource" style="width:150px;" onchange="onResourceChange()">
+        <option value="disk" selected>Disco</option>
+        <option value="net">Red</option>
+        <option value="compute">Computo</option>
+        <option value="all">Todo</option>
+      </select>
+    </div>
+    <div id="wrapDiskBaseline"><label>Disco esperado</label><select id="benchDiskBaseline" style="width:170px;"></select></div>
+    <div id="wrapNetBaseline" style="display:none;"><label>Enlace esperado</label><select id="benchNetBaseline" style="width:150px;"></select></div>
+    <div><label>Duracion (s)</label><input id="benchDuration" value="8" style="width:80px;"></div>
+    <div><button onclick="runBenchmark()" id="benchBtn">Correr benchmark</button></div>
+  </div>
+
+  <div class="subcard" id="prepCard">
+    <div class="muted" style="margin-bottom:8px;">Ejecucion real de <b>disco</b> en el
+      host del repositorio (fio/diskspd). Con usuario/password <b>vacios</b> = modo
+      <b>simulado (mock)</b>; con credenciales de un host Windows, va por WinRM real.
+      (Red y Computo son simulados en esta version.)</div>
+    <div class="row">
+      <div><label>Host / IP del repositorio</label><input id="proxyHost" placeholder="(vacio = mock)"></div>
+      <div><label>Usuario</label><input id="proxyUser" placeholder="(vacio = mock)"></div>
+      <div><label>Password</label><input id="proxyPass" type="password" placeholder="(vacio = mock)"></div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="ghost" onclick="testConnection()" id="btnConn">1. Probar conexion</button>
+      <button class="ghost" onclick="checkTools()" id="btnCheck" disabled>2. Verificar herramienta</button>
+      <button class="ghost" onclick="deployTools()" id="btnDeploy" disabled>3. Desplegar</button>
+    </div>
+    <div id="prepStatus" style="margin-top:8px;font-size:13px;"></div>
+  </div>
+
+  <div class="error" id="benchError"></div>
+  <div id="benchStatus" style="margin-top:14px;"></div>
+  <div id="benchResults"></div>
+</div>
+
+<script>
+// El backend sirve este HTML, asi que la API vive en el mismo origen.
+// Dejar vacio = rutas relativas ("/api/...").
+const BACKEND = "";
+let sessionId = null;
+let activeTab = 'infra';
+
+function showTab(tab) {
+  // Sin sesion, solo Infraestructura (con su placeholder); el resto bloqueado.
+  if (!sessionId && tab !== 'infra') return;
+  activeTab = tab;
+  const ids = { infra:'tabInfra', flow:'tabFlow', bench:'tabBench' };
+  for (const [k, id] of Object.entries(ids))
+    document.getElementById(id).classList.toggle('active', tab === k);
+  document.getElementById('infraPanel').style.display = tab === 'infra' ? 'block' : 'none';
+  document.getElementById('flowPanel').style.display  = tab === 'flow'  ? 'block' : 'none';
+  document.getElementById('benchPanel').style.display = tab === 'bench' ? 'block' : 'none';
+  if (!sessionId) return;
+  if (tab === 'infra') loadInfra();
+  if (tab === 'flow') loadFlow();
+  if (tab === 'bench') loadBenchOptions();
+}
+
+// Recarga los componentes de TODAS las solapas desde el backend.
+function refreshComponents() {
+  if (!sessionId) return;
+  loadInfra();
+  loadFlow();
+  loadBenchOptions();
+}
+
+async function disconnect() {
+  if (sessionId) {
+    try { await fetch(`${BACKEND}/api/${sessionId}/disconnect`, { method: 'POST' }); } catch (e) {}
+  }
+  sessionId = null;
+  document.getElementById('connDot').className = 'dot off';
+  const c = document.getElementById('connectedAs');
+  c.textContent = 'Sin conectar'; c.className = 'muted';
+  document.getElementById('btnRefresh').style.display = 'none';
+  document.getElementById('btnDisconnect').style.display = 'none';
+  // Deshabilitar las solapas y volver a Infraestructura.
+  document.getElementById('tabsBar').classList.add('disabled');
+  showTab('infra');
+  document.getElementById('infraPanel').innerHTML =
+    '<p class="muted">Conectate a un VBR para ver proxies y repositorios.</p>';
+  const svg = document.getElementById('flowCanvas'); if (svg) svg.innerHTML = '';
+  document.getElementById('benchStatus').innerHTML = '';
+  document.getElementById('benchResults').innerHTML = '';
+}
+
+async function connect() {
+  const errEl = document.getElementById('connectError');
+  errEl.textContent = '';
+  const body = {
+    host: document.getElementById('host').value,
+    port: parseInt(document.getElementById('port').value || '9419'),
+    username: document.getElementById('username').value,
+    password: document.getElementById('password').value,
+    api_version: document.getElementById('apiVersion').value,
+    verify_ssl: false
+  };
+  try {
+    const resp = await fetch(`${BACKEND}/api/connect`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || 'Error de conexion');
+    onConnected(data, `${body.host}:${body.port}`);
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+function onConnected(data, where) {
+  sessionId = data.session_id;
+  document.getElementById('connDot').className = 'dot on';
+  const c = document.getElementById('connectedAs');
+  c.textContent = `Conectado a ${where} (sesion expira en ${data.expires_in}s)`;
+  c.className = 'step-ok';
+  document.getElementById('btnRefresh').style.display = '';
+  document.getElementById('btnDisconnect').style.display = '';
+  document.getElementById('tabsBar').classList.remove('disabled');
+  showTab('infra');
+}
+
+async function loadInfra() {
+  const panel = document.getElementById('infraPanel');
+  panel.innerHTML = '<p>Cargando...</p>';
+  try {
+    const [proxiesRes, reposRes] = await Promise.all([
+      fetch(`${BACKEND}/api/${sessionId}/proxies`).then(r => r.json()),
+      fetch(`${BACKEND}/api/${sessionId}/repositories`).then(r => r.json())
+    ]);
+    const proxies = proxiesRes.data || proxiesRes;
+    const repos = reposRes.data || reposRes;
+
+    let html = '<h3>Proxies</h3><table><tr><th>Nombre</th><th>Tipo</th><th>SO</th><th>Descripcion</th></tr>';
+    for (const p of proxies)
+      html += `<tr><td>${p.name || ''}</td><td><span class="pill">${p.type || 'proxy'}</span></td><td>${p.os || '-'}</td><td>${p.description || ''}</td></tr>`;
+    html += '</table>';
+
+    html += '<h3 style="margin-top:18px;">Repositorios</h3><table><tr><th>Nombre</th><th>Tipo</th><th>Path</th></tr>';
+    for (const r of repos) {
+      const path = (r.repository && (r.repository.path || r.repository.folder)) || '';
+      html += `<tr><td>${r.name || ''}</td><td><span class="pill">${r.type || 'repository'}</span></td><td>${path}</td></tr>`;
+    }
+    html += '</table>';
+    panel.innerHTML = html;
+  } catch (e) { panel.innerHTML = `<p class="error">${e.message}</p>`; }
+}
+
+async function loadFlow() {
+  try {
+    const graph = await fetch(`${BACKEND}/api/${sessionId}/flow`).then(r => r.json());
+    renderFlow(graph);
+  } catch (e) { console.error(e); }
+}
+
+// Layout: agrupa nodos por 'role' en columnas ordenadas segun el camino de datos.
+function renderFlow(graph) {
+  const svg = document.getElementById('flowCanvas');
+  svg.innerHTML = '';
+  const order = ['backup-server', 'proxy', 'repository', 'mount-server', 'gateway', 'managed-server'];
+  const present = order.filter(r => graph.nodes.some(n => n.role === r));
+  const roles = present.length ? present : [...new Set(graph.nodes.map(n => n.role))];
+  const colWidth = 900 / Math.max(roles.length, 1);
+  const colors = { proxy:'#378ADD', repository:'#1D9E75', 'mount-server':'#E08A1E',
+                   gateway:'#9B59B6', 'backup-server':'#555', 'managed-server':'#8a887f' };
+  const positions = {};
+
+  roles.forEach((role, colIdx) => {
+    const items = graph.nodes.filter(n => n.role === role);
+    const x = colIdx * colWidth + colWidth / 2;
+    const title = mk('text', { x, y:24, 'text-anchor':'middle', 'font-size':'13px', fill:'#5f5e5a', 'font-weight':'600' });
+    title.textContent = role;
+    svg.appendChild(title);
+
+    items.forEach((node, rowIdx) => {
+      const y = 64 + rowIdx * 64;
+      positions[node.id] = { x, y };
+      const c = colors[role] || '#7f77dd';
+      const rect = mk('rect', { x:x-90, y:y-18, width:180, height:36, rx:8,
+        fill:c+'22', stroke:c, 'stroke-width':1 });
+      svg.appendChild(rect);
+      const text = mk('text', { x, y:y+4, 'text-anchor':'middle', 'font-size':'12px' });
+      text.textContent = node.label;
+      svg.appendChild(text);
+    });
+  });
+
+  (graph.edges || []).forEach(e => {
+    const a = positions[e.from], b = positions[e.to];
+    if (!a || !b) return;
+    const x1 = a.x < b.x ? a.x + 90 : a.x - 90;
+    const x2 = a.x < b.x ? b.x - 90 : b.x + 90;
+    const line = mk('line', { x1, y1:a.y, x2, y2:b.y, stroke:'#b4b2a9', 'stroke-width':1 });
+    svg.appendChild(line);
+  });
+
+  if (graph.nodes.length === 0) {
+    const msg = mk('text', { x:450, y:210, 'text-anchor':'middle', fill:'#5f5e5a' });
+    msg.textContent = 'Sin datos todavia';
+    svg.appendChild(msg);
+  }
+}
+
+function mk(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+// --- Benchmark ---------------------------------------------------------------
+let benchRepos = [];
+
+async function loadBenchOptions() {
+  const res = await fetch(`${BACKEND}/api/${sessionId}/benchmark-options`).then(r => r.json());
+  benchRepos = res.repositories || [];
+  document.getElementById('benchRepo').innerHTML = benchRepos.map(r =>
+    `<option value="${r.id}">${r.name} (${r.host_os})</option>`).join('');
+  document.getElementById('benchProxy').innerHTML = (res.proxies || []).map(p =>
+    `<option value="${p.id}">${p.name} (${p.os})</option>`).join('');
+
+  const dsel = document.getElementById('benchDiskBaseline');
+  const nsel = document.getElementById('benchNetBaseline');
+  if (!dsel.options.length) {
+    const bl = await fetch(`${BACKEND}/api/baselines`).then(r => r.json());
+    dsel.innerHTML = bl.disk.data.map(b =>
+      `<option value="${b.key}" ${b.key === bl.disk.default ? 'selected' : ''}>${b.label}</option>`).join('');
+    nsel.innerHTML = bl.net.data.map(b =>
+      `<option value="${b.key}" ${b.key === bl.net.default ? 'selected' : ''}>${b.label}</option>`).join('');
+  }
+  onOperationChange(); onResourceChange(); onRepoChange();
+}
+
+function selectedRepo() {
+  const id = document.getElementById('benchRepo').value;
+  return benchRepos.find(r => r.id === id);
+}
+
+function onRepoChange() {
+  const repo = selectedRepo();
+  const mount = repo && repo.mount ? `${repo.mount.name} (${repo.mount.os})` : '—';
+  document.getElementById('benchMount').value = mount;
+  resetPrep();
+}
+
+function onOperationChange() {
+  const op = document.getElementById('benchOperation').value;
+  document.getElementById('assocProxy').style.display = op === 'backup' ? 'block' : 'none';
+  document.getElementById('assocMount').style.display = op === 'restore' ? 'block' : 'none';
+}
+
+function onResourceChange() {
+  const res = document.getElementById('benchResource').value;
+  const showDisk = res === 'disk' || res === 'all';
+  const showNet = res === 'net' || res === 'all';
+  document.getElementById('wrapDiskBaseline').style.display = showDisk ? 'block' : 'none';
+  document.getElementById('wrapNetBaseline').style.display = showNet ? 'block' : 'none';
+}
+
+// --- Ciclo: conexion -> preflight -> deploy (host del repo) -----------------
+function currentRepoId() { return document.getElementById('benchRepo').value; }
+
+function resetPrep() {
+  document.getElementById('prepStatus').innerHTML = '';
+  document.getElementById('btnCheck').disabled = true;
+  document.getElementById('btnDeploy').disabled = true;
+}
+
+function setPrep(html) { document.getElementById('prepStatus').innerHTML = html; }
+
+async function testConnection() {
+  const body = {
+    repository_id: currentRepoId(),
+    host: document.getElementById('proxyHost').value || null,
+    username: document.getElementById('proxyUser').value || null,
+    password: document.getElementById('proxyPass').value || null,
+  };
+  setPrep('<span class="step-info">Probando conexion…</span>');
+  try {
+    const r = await fetch(`${BACKEND}/api/${sessionId}/bench-connection`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) { setPrep(`<span class="step-bad">✗ ${d.message || d.detail || 'Fallo la conexion'}</span>`); return; }
+    setPrep(`<span class="step-ok">✓ ${d.message}</span> — modo <b>${d.mode}</b>${d.hostname ? ' · host: ' + d.hostname : ''}`);
+    document.getElementById('btnCheck').disabled = false;
+  } catch (e) { setPrep(`<span class="step-bad">✗ ${e.message}</span>`); }
+}
+
+async function checkTools() {
+  setPrep('<span class="step-info">Verificando herramienta…</span>');
+  try {
+    const d = await fetch(`${BACKEND}/api/${sessionId}/bench-connection/${currentRepoId()}/tools`).then(r => r.json());
+    if (d.installed) {
+      setPrep(`<span class="step-ok">✓ ${d.detail}</span> — listo para correr.`);
+      document.getElementById('btnDeploy').disabled = true;
+    } else {
+      setPrep(`<span class="step-bad">✗ ${d.detail}</span> — hace falta desplegar.`);
+      document.getElementById('btnDeploy').disabled = false;
+    }
+  } catch (e) { setPrep(`<span class="step-bad">✗ ${e.message}</span>`); }
+}
+
+async function deployTools() {
+  setPrep('<span class="step-info">Desplegando…</span>');
+  try {
+    const d = await fetch(`${BACKEND}/api/${sessionId}/bench-connection/${currentRepoId()}/deploy`, { method: 'POST' }).then(r => r.json());
+    if (d.ok) {
+      setPrep(`<span class="step-ok">✓ ${d.message}</span>`);
+      document.getElementById('btnDeploy').disabled = true;
+    } else {
+      setPrep(`<span class="step-bad">✗ ${d.message}</span>`);
+    }
+  } catch (e) { setPrep(`<span class="step-bad">✗ ${e.message}</span>`); }
+}
+
+async function runBenchmark() {
+  const errEl = document.getElementById('benchError');
+  const btn = document.getElementById('benchBtn');
+  errEl.textContent = '';
+  document.getElementById('benchResults').innerHTML = '';
+  const op = document.getElementById('benchOperation').value;
+  const body = {
+    repository_id: currentRepoId(),
+    operation: op,
+    resource: document.getElementById('benchResource').value,
+    proxy_id: op === 'backup' ? document.getElementById('benchProxy').value : null,
+    disk_baseline: document.getElementById('benchDiskBaseline').value,
+    net_baseline: document.getElementById('benchNetBaseline').value,
+    duration: parseInt(document.getElementById('benchDuration').value || '8')
+  };
+  if (!body.repository_id) { errEl.textContent = 'Elegi un repositorio destino.'; return; }
+  btn.disabled = true;
+  try {
+    const start = await fetch(`${BACKEND}/api/${sessionId}/benchmark`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(r => r.json());
+    await pollJob(start.job_id);
+  } catch (e) { errEl.textContent = e.message; }
+  finally { btn.disabled = false; }
+}
+
+const JOB_STATES = ['queued', 'running', 'completed', 'failed'];
+
+async function pollJob(jobId) {
+  const statusEl = document.getElementById('benchStatus');
+  while (true) {
+    const resp = await fetch(`${BACKEND}/api/${sessionId}/benchmark/${jobId}`);
+    const job = await resp.json();
+    if (!resp.ok || !JOB_STATES.includes(job.status)) {
+      document.getElementById('benchError').textContent =
+        job.detail || 'No se pudo obtener el estado del job.';
+      statusEl.innerHTML = '';
+      return;
+    }
+    const op = { backup: 'Backup', restore: 'Restore' }[job.operation] || job.operation;
+    const resName = { disk: 'Disco', net: 'Red', compute: 'Computo', all: 'Todo' }[job.resource] || job.resource;
+    const assoc = job.operation === 'backup'
+      ? (job.proxy_label ? ` · proxy: ${job.proxy_label}` : '')
+      : (job.mount_label ? ` · mount: ${job.mount_label}` : '');
+    statusEl.innerHTML =
+      `<b>${op}</b> · recurso <b>${resName}</b> · repo <b>${job.repository_label}</b>${assoc} · ${job.tool}
+       — estado: ${job.status}
+       <div class="progress"><div style="width:${job.progress}%"></div></div>`;
+    if (job.status === 'completed') { renderResults(job); return; }
+    if (job.status === 'failed') { document.getElementById('benchError').textContent = job.error; return; }
+    await new Promise(r => setTimeout(r, 700));
+  }
+}
+
+const VERDICT_LABEL = { ok: 'OK', warn: 'Atencion', low: 'Bajo lo esperado' };
+function verdictPill(status) { return `<span class="verdict ${status}">${VERDICT_LABEL[status] || status}</span>`; }
+
+function renderResults(job) {
+  const r = job.results || {};
+  let html = '<h3 style="margin-top:16px;">Resultados</h3>';
+  if (r.disk) html += renderDisk(r.disk);
+  if (r.net) html += renderSimple('Red', r.net);
+  if (r.compute) html += renderSimple('Computo', r.compute);
+  document.getElementById('benchResults').innerHTML = html;
+}
+
+function renderDisk(rows) {
+  const maxBw = Math.max(...rows.map(r => r.bw_mbps), 1);
+  let html = `<h4 style="margin:14px 0 4px;">Disco</h4>
+    <table><tr><th>Test</th><th>Modo</th><th>MB/s</th><th></th><th>IOPS</th>
+      <th>Latencia (ms)</th><th>Esperado</th><th>% del esperado</th><th>Veredicto</th></tr>`;
+  for (const r of rows) {
+    const pct = (r.bw_mbps / maxBw) * 100;
+    html += `<tr>
+      <td>${r.name}</td>
+      <td><span class="pill">${r.mode}</span></td>
+      <td>${r.bw_mbps}</td>
+      <td><span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span></td>
+      <td>${r.iops.toLocaleString()}</td>
+      <td>${r.lat_ms}</td>
+      <td>${r.expected.toLocaleString()} ${r.expected_unit}</td>
+      <td>${r.pct_of_expected}%</td>
+      <td>${verdictPill(r.status)}</td>
+    </tr>`;
+  }
+  return html + '</table>';
+}
+
+function renderSimple(title, m) {
+  const exp = `${m.expected.toLocaleString()} ${m.unit}${m.expected_label ? ' (' + m.expected_label + ')' : ''}`;
+  return `<h4 style="margin:14px 0 4px;">${title}</h4>
+    <table><tr><th>Metrica</th><th>Medido</th><th>Esperado</th><th>% del esperado</th><th>Veredicto</th></tr>
+    <tr><td>${m.label}</td><td>${m.value} ${m.unit}</td><td>${exp}</td>
+      <td>${m.pct_of_expected}%</td><td>${verdictPill(m.status)}</td></tr></table>`;
+}
+</script>
+</body>
+</html>

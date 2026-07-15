@@ -1,0 +1,8 @@
+services:
+  yoga-benchmark:
+    build: .
+    image: yoga-benchmark:latest
+    container_name: yoga-benchmark
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

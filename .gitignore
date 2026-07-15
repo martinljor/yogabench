@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+
+# Local / runtime
+*.log
+
+# Dev-only (rutas locales)
+.claude/
