@@ -1,5 +1,18 @@
 # Prototipo - Consola de benchmark de proxies Veeam
 
+> [!CAUTION]
+> # 🚧 FASE ALPHA — PROTOTIPO EXPERIMENTAL 🚧
+> **Este proyecto está en fase _alpha_. NO es apto para producción.**
+>
+> - Es un prototipo en desarrollo activo: interfaces, endpoints y comportamiento
+>   **pueden cambiar o romperse** sin aviso.
+> - **Genera carga real** en proxies/repositorios al correr benchmarks. Usalo
+>   **solo en entornos de laboratorio/prueba y con autorización.**
+> - **Sin autenticación** en la consola y **credenciales en memoria** — no lo
+>   expongas en una red no confiable.
+> - No es un producto de Veeam ni tiene soporte oficial. **Uso bajo tu propia
+>   responsabilidad.**
+
 Prototipo con dos objetivos:
 
 1. **Arquitectura dinamica** (`/flow`): descubre y relaciona los roles que
