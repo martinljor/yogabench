@@ -105,6 +105,9 @@ async def _run(job: dict, executor: Executor, duration: int):
                 raw = await executor.run_disk_benchmark(
                     {"target_id": seed, "tests": tests, "duration": duration},
                     on_progress=on_progress)
+                # Guardamos la salida cruda para poder inspeccionar/depurar el
+                # formato real (ej: diskspd por version). Se ve en el GET del job.
+                job["disk_raw"] = raw
                 job["results"]["disk"] = baselines.annotate_disk(_parse(raw), job["disk_baseline"])
             elif res == "net":
                 await asyncio.sleep(min(duration, 3))

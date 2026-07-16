@@ -231,8 +231,11 @@ Copy-Item $exe.FullName '{self.exe}' -Force
         for i, name in enumerate(tests):
             bs, is_rand, wpct = test_params(name)
             rand = "-r" if is_rand else ""
+            # -L mide latencia (agrega columnas AvgLat/LatStdDev que parseamos).
+            # OJO: -D (IOPS std dev) NO mide latencia y corre las columnas.
+            # El archivo de prueba va como argumento POSICIONAL, al final.
             cmd = (f'& "{self.exe}" -c1G -d{duration} -b{bs} {rand} -w{wpct} '
-                   f'-o8 -t2 -W2 -Sh -D "{self.testfile}"')
+                   f'-o8 -t2 -W2 -Sh -L "{self.testfile}"')
             code, out, err = await self._run_ps(cmd)
             if code != 0:
                 raise RuntimeError(f"diskspd fallo en {name}: {err.strip() or out.strip()}")

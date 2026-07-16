@@ -17,7 +17,7 @@ Correr con:
 import os
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -105,6 +105,39 @@ async def get_managed_servers(session_id: str):
 async def get_flow(session_id: str):
     session = vbr.get_session(session_id)
     return await vbr.build_flow(session)
+
+
+# --- Carril B: telemetria del propio Veeam (compatible con appliances) -------
+@app.get("/api/{session_id}/sessions")
+async def get_sessions(session_id: str):
+    """Sesiones de jobs (backup/restore) segun las reporta el VBR."""
+    session = vbr.get_session(session_id)
+    return await vbr.vbr_get(
+        session, "v1/sessions?limit=50&orderColumn=CreationTime&orderAsc=false")
+
+
+@app.get("/api/{session_id}/analysis-range")
+async def get_analysis_range(session_id: str):
+    """Rango de dias con info disponible (para el selector, barato)."""
+    session = vbr.get_session(session_id)
+    return await vbr.analysis_range(session)
+
+
+@app.get("/api/{session_id}/analysis")
+async def get_analysis(session_id: str, days: Optional[int] = None):
+    """Estadistica de bottleneck agregada por repositorio y proxy sobre una
+    ventana de dias (lee la telemetria de Veeam; sin tocar nada)."""
+    session = vbr.get_session(session_id)
+    return await vbr.build_analysis(session, days=days)
+
+
+@app.get("/api/{session_id}/raw/{vbr_path:path}")
+async def raw_get(session_id: str, vbr_path: str, request: Request):
+    """DEV/EXPLORE (read-only): passthrough GET a cualquier ruta de la REST API
+    de VBR, para inspeccionar el schema real. Quitar antes de exponer."""
+    session = vbr.get_session(session_id)
+    qs = request.url.query
+    return await vbr.vbr_get(session, vbr_path + (("?" + qs) if qs else ""))
 
 
 # --- Objetivo 2: benchmark ---------------------------------------------------

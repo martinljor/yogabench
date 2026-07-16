@@ -30,6 +30,14 @@
   .verdict.low  { background:#f8d9d9; color:#a32d2d; }
   .subcard { background:#faf9f5; border:1px solid #e5e3da; border-radius:8px; padding:14px; margin-top:12px; }
   .step-ok { color:#1a7a4f; } .step-bad { color:#a32d2d; } .step-info { color:#5f5e5a; }
+  .jobcard { border:1px solid #e5e3da; border-radius:8px; padding:14px; margin-bottom:12px; }
+  .bnk { margin:10px 0; max-width:520px; }
+  .bnk-row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:12px; }
+  .bnk-row .lbl { width:64px; color:#5f5e5a; }
+  .bnk-row .val { width:38px; text-align:right; }
+  .bnk-track { flex:1; background:#eee9df; border-radius:4px; height:14px; overflow:hidden; }
+  .bnk-fill { height:100%; background:#378ADD; display:block; }
+  .bnk-fill.dom { background:#a32d2d; }
   .connbar { display:flex; align-items:center; gap:10px; margin-top:10px; }
   .dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex:0 0 auto; }
   .dot.on  { background:#1D9E75; box-shadow:0 0 0 3px rgba(29,158,117,.25); }
@@ -48,9 +56,9 @@
 
 <div class="card" id="connectCard">
   <div class="row">
-    <div><label>Host / IP del VBR</label><input id="host" placeholder="192.168.0.10"></div>
+    <div><label>Host / IP del VBR</label><input id="host" value="192.168.1.202" placeholder="192.168.0.10"></div>
     <div><label>Puerto</label><input id="port" value="9419"></div>
-    <div><label>Usuario</label><input id="username" placeholder="administrator"></div>
+    <div><label>Usuario</label><input id="username" value="Administrator" placeholder="administrator"></div>
     <div><label>Password</label><input id="password" type="password"></div>
     <div><label>API version</label>
       <select id="apiVersion">
@@ -74,6 +82,7 @@
   <div class="tab active" id="tabInfra" onclick="showTab('infra')">Infraestructura</div>
   <div class="tab" id="tabFlow" onclick="showTab('flow')">Arquitectura</div>
   <div class="tab" id="tabBench" onclick="showTab('bench')">Benchmark</div>
+  <div class="tab" id="tabAnalysis" onclick="showTab('analysis')">Analisis</div>
 </div>
 
 <div class="card" id="infraPanel">
@@ -143,10 +152,25 @@
   <div id="benchResults"></div>
 </div>
 
+<div class="card" id="analysisPanel" style="display:none;">
+  <h3>Analisis de rendimiento — por repositorio y proxy</h3>
+  <p class="muted">Estadistica de los jobs ya ejecutados en el VBR, agrupada por
+    <b>repositorio</b> y por <b>proxy</b> — <b>sin correr nada</b> (compatible con
+    appliances). Elegi la ventana de tiempo, toca Analizar, y expandi cada fila
+    para ver los jobs por debajo.</p>
+  <div class="row">
+    <div><label>Dias a considerar</label><input id="anDays" style="width:90px;"></div>
+    <div style="align-self:flex-end;"><span id="anRange" class="muted"></span></div>
+    <div><button onclick="runAnalysis()" id="anBtn">Analizar</button></div>
+  </div>
+  <div id="analysisContent" style="margin-top:12px;"><p class="muted">Elegi los dias y toca Analizar.</p></div>
+</div>
+
 <script>
-// El backend sirve este HTML, asi que la API vive en el mismo origen.
-// Dejar vacio = rutas relativas ("/api/...").
-const BACKEND = "";
+// Servido por el backend -> API en el mismo origen (rutas relativas "/api/...").
+// Si se abre el archivo suelto (file://) no hay origen http valido: caemos al
+// backend local por defecto.
+const BACKEND = location.protocol.startsWith("http") ? "" : "http://localhost:8000";
 let sessionId = null;
 let activeTab = 'infra';
 
@@ -154,16 +178,18 @@ function showTab(tab) {
   // Sin sesion, solo Infraestructura (con su placeholder); el resto bloqueado.
   if (!sessionId && tab !== 'infra') return;
   activeTab = tab;
-  const ids = { infra:'tabInfra', flow:'tabFlow', bench:'tabBench' };
+  const ids = { infra:'tabInfra', flow:'tabFlow', bench:'tabBench', analysis:'tabAnalysis' };
   for (const [k, id] of Object.entries(ids))
     document.getElementById(id).classList.toggle('active', tab === k);
-  document.getElementById('infraPanel').style.display = tab === 'infra' ? 'block' : 'none';
-  document.getElementById('flowPanel').style.display  = tab === 'flow'  ? 'block' : 'none';
-  document.getElementById('benchPanel').style.display = tab === 'bench' ? 'block' : 'none';
+  document.getElementById('infraPanel').style.display    = tab === 'infra'    ? 'block' : 'none';
+  document.getElementById('flowPanel').style.display     = tab === 'flow'     ? 'block' : 'none';
+  document.getElementById('benchPanel').style.display    = tab === 'bench'    ? 'block' : 'none';
+  document.getElementById('analysisPanel').style.display = tab === 'analysis' ? 'block' : 'none';
   if (!sessionId) return;
   if (tab === 'infra') loadInfra();
   if (tab === 'flow') loadFlow();
   if (tab === 'bench') loadBenchOptions();
+  if (tab === 'analysis') loadAnalysis();
 }
 
 // Recarga los componentes de TODAS las solapas desde el backend.
@@ -172,6 +198,7 @@ function refreshComponents() {
   loadInfra();
   loadFlow();
   loadBenchOptions();
+  loadAnalysis();
 }
 
 async function disconnect() {
@@ -517,6 +544,122 @@ function renderSimple(title, m) {
     <table><tr><th>Metrica</th><th>Medido</th><th>Esperado</th><th>% del esperado</th><th>Veredicto</th></tr>
     <tr><td>${m.label}</td><td>${m.value} ${m.unit}</td><td>${exp}</td>
       <td>${m.pct_of_expected}%</td><td>${verdictPill(m.status)}</td></tr></table>`;
+}
+
+// --- Analisis (Carril B): por repositorio y proxy ---------------------------
+async function loadAnalysis() {
+  // Al abrir la solapa solo traemos el rango disponible (barato).
+  const rangeEl = document.getElementById('anRange');
+  try {
+    const r = await fetch(`${BACKEND}/api/${sessionId}/analysis-range`).then(x => x.json());
+    if (r.from) {
+      document.getElementById('anDays').value = r.days_available || 7;
+      rangeEl.textContent = `Info disponible: ${r.days_available} dia(s) (${r.from} → ${r.to})`;
+    } else {
+      rangeEl.textContent = 'Sin datos de jobs en el historial.';
+    }
+  } catch (e) { rangeEl.textContent = e.message; }
+}
+
+async function runAnalysis() {
+  const days = parseInt(document.getElementById('anDays').value || '7');
+  const el = document.getElementById('analysisContent');
+  el.innerHTML = '<p class="muted">Analizando…</p>';
+  try {
+    const d = await fetch(`${BACKEND}/api/${sessionId}/analysis?days=${days}`).then(x => x.json());
+    renderAnalysis(d);
+  } catch (e) { el.innerHTML = `<p class="error">${e.message}</p>`; }
+}
+
+function renderAnalysis(d) {
+  const el = document.getElementById('analysisContent');
+  const repo = (d && d.byRepository) || [];
+  const prx = (d && d.byProxy) || [];
+  if (!repo.length && !prx.length) {
+    el.innerHTML = '<p class="muted">No hay jobs de datos en esa ventana de tiempo.</p>';
+    return;
+  }
+  el.innerHTML =
+    `<h3 style="margin-top:8px;">Por proxy</h3>
+     ${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : '<p class="muted">Sin proxy identificado en la config de los jobs.</p>'}
+     <h3 style="margin-top:18px;">Por repositorio (destino)</h3>
+     ${repo.map(g => groupCard(g, 'repo')).join('')}`;
+}
+
+let _grpN = 0;
+function groupCard(g, kind) {
+  const gid = `grp_${kind}_${_grpN++}`;
+  const res = g.results || {};
+  const badges = ['Success', 'Warning', 'Failed']
+    .filter(k => res[k]).map(k => `${resultBadge(k)}×${res[k]}`).join(' ');
+  const prim = Object.entries(g.primaryCounts || {})
+    .map(([k, v]) => `${k} ×${v}`).join(', ') || '—';
+  return `<div class="jobcard">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <b>${g.name}</b>
+      <span class="muted" style="font-size:12px;">${g.runs} run(s)</span>
+      ${badges}
+      <span class="muted" style="font-size:12px;">· ${fmtGB(g.transferredSize)} transferidos</span>
+    </div>
+    <div style="font-size:13px;margin-top:6px;">Cuello principal por run: <b>${prim}</b></div>
+    ${bottleneckBars(g.bottleneckAvg)}
+    <button class="ghost mini" onclick="toggleGroup('${gid}')">Expandir jobs</button>
+    <div id="${gid}" style="display:none;margin-top:10px;">${(g.jobs || []).map(renderJobCard).join('')}</div>
+  </div>`;
+}
+
+function toggleGroup(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function resultBadge(r) {
+  const c = r === 'Success' ? 'ok' : r === 'Failed' ? 'low' : 'warn';
+  return `<span class="verdict ${c}">${r || '?'}</span>`;
+}
+
+function fmtGB(b) { return b ? (b / 1073741824).toFixed(1) + ' GB' : '-'; }
+
+function bottleneckBars(b) {
+  if (!b) return '<p class="muted" style="font-size:12px;">Sin datos de bottleneck para este job.</p>';
+  let h = `<div class="bnk"><div style="font-size:13px;margin-bottom:4px;">Cuello de botella principal: <b>${b.primary || '?'}</b></div>`;
+  if (b.source === undefined) return h + '</div>';
+  const primary = (b.primary || '').toLowerCase();
+  for (const [label, key] of [['Source','source'],['Proxy','proxy'],['Network','network'],['Target','target']]) {
+    const v = b[key] != null ? b[key] : 0;
+    const dom = label.toLowerCase() === primary ? ' dom' : '';
+    h += `<div class="bnk-row"><span class="lbl">${label}</span>
+      <span class="bnk-track"><span class="bnk-fill${dom}" style="width:${v}%"></span></span>
+      <span class="val">${v}%</span></div>`;
+  }
+  return h + '</div>';
+}
+
+function tasksTable(tasks) {
+  if (!tasks || !tasks.length) return '';
+  let h = `<table><tr><th>Objeto</th><th>Resultado</th><th>Bottleneck</th><th>Tasa</th>
+    <th>Procesado</th><th>Leido</th><th>Transferido</th><th>Reduccion</th><th>Duracion</th></tr>`;
+  for (const t of tasks) {
+    h += `<tr><td>${t.name || ''}</td><td>${t.result || ''}</td><td>${t.bottleneck || '-'}</td>
+      <td>${t.processingRate || '-'}</td><td>${fmtGB(t.processedSize)}</td><td>${fmtGB(t.readSize)}</td>
+      <td>${fmtGB(t.transferredSize)}</td><td>${t.reduction ? t.reduction + 'x' : '-'}</td>
+      <td>${t.duration || '-'}</td></tr>`;
+  }
+  return h + '</table>';
+}
+
+function renderJobCard(j) {
+  const when = (j.endTime || j.creationTime || '').replace('T', ' ').slice(0, 19);
+  let h = `<div class="jobcard">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <b>${j.name || 'job'}</b> ${resultBadge(j.result)}
+      <span class="muted" style="font-size:12px;">${j.type || ''} · ${when}</span>
+    </div>`;
+  if (j.result === 'Failed' && j.message)
+    h += `<div class="step-bad" style="font-size:12px;margin-top:4px;">${j.message}</div>`;
+  h += bottleneckBars(j.bottleneck);
+  h += tasksTable(j.tasks);
+  return h + '</div>';
 }
 </script>
 </body>
