@@ -44,7 +44,7 @@
   .dot.off { background:#b4b2a9; }
   button.mini { padding:5px 12px; font-size:13px; }
   .muted { color:#5f5e5a; font-size:13px; }
-  #flowCanvas { width:100%; height:440px; border:1px solid #d3d1c7; border-radius:8px; background:#fff; }
+  #flowCanvas { width:100%; height:auto; border:1px solid #d3d1c7; border-radius:8px; background:#fff; }
   .bar-track { background:#eee9df; border-radius:4px; height:14px; width:120px; display:inline-block; vertical-align:middle; overflow:hidden; }
   .bar-fill { background:#378ADD; height:100%; display:block; }
   .progress { background:#eee9df; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
@@ -322,6 +322,12 @@ function renderFlow(graph) {
   // (para no confundir el color de rol con una severidad).
   const NEUTRAL = '#9a988f';
   const positions = {};
+
+  // Alto dinamico: el lienzo crece con la columna mas larga, asi no se corta.
+  const maxRows = Math.max(1, ...roles.map(r => graph.nodes.filter(n => n.role === r).length));
+  const H = 60 + maxRows * 64;
+  svg.setAttribute('viewBox', `0 0 900 ${H}`);
+  svg.setAttribute('height', H);
 
   roles.forEach((role, colIdx) => {
     const items = graph.nodes.filter(n => n.role === role);

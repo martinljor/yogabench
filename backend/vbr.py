@@ -177,21 +177,13 @@ async def build_flow(session: dict) -> dict:
     for p in proxies:
         pid = p.get("id")
         add_node(pid, p.get("name", "proxy"), "proxy", p, info=_proxy_tasks_info(p))
-        host = _extract_id(p, _PROXY_HOST_KEYS)
-        if host and host in by_id:
-            edges.append({"from": host, "to": pid, "kind": "runs-on"})
 
     for r in repos:
         rid = r.get("id")
         add_node(rid, r.get("name", "repository"), "repository", r, info=_repo_tasks_info(r))
-
-        # proxy -> repo: camino de escritura del backup. Sin un campo fiable
-        # que lo declare, conectamos todos los proxies al repo (topologia
-        # "cualquier proxy puede escribir a cualquier repo", que es lo comun).
-        for p in proxies:
-            edges.append({"from": p.get("id"), "to": rid, "kind": "writes-to"})
-
-        # repo -> mount server (rol relevante en restore).
+        # repo -> mount server (relacion real, del propio repo). NO dibujamos
+        # proxy->repo: no conocemos el mapeo real y el "todos con todos" era una
+        # maraña sin informacion util.
         mount_id = _extract_id(r, _MOUNT_KEYS)
         if mount_id:
             add_node(mount_id, _label_for(managed, mount_id, "mount server"),
@@ -199,6 +191,10 @@ async def build_flow(session: dict) -> dict:
             promote_role(mount_id, "mount-server")
             edges.append({"from": rid, "to": mount_id, "kind": "mount"})
 
+    # Ocultamos los managed-server "de contexto" (hosts sueltos): agregan ruido
+    # sin sumar al camino de datos. Quedan proxy / repository / mount-server /
+    # gateway / backup-server (los roles funcionales).
+    nodes = [n for n in nodes if n["role"] != "managed-server"]
     return {"nodes": nodes, "edges": edges}
 
 
