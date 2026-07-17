@@ -143,9 +143,9 @@ async def build_flow(session: dict) -> dict:
     Es defensivo frente al schema real: si un campo no existe, simplemente no
     dibuja esa relacion en lugar de romper.
     """
-    proxies = _items(await vbr_get(session, "v1/backupInfrastructure/proxies"))
-    repos = _items(await vbr_get(session, "v1/backupInfrastructure/repositories"))
-    managed = _items(await vbr_get(session, "v1/backupInfrastructure/managedServers"))
+    proxies = _items(await vbr_get(session, "v1/backupInfrastructure/proxies?limit=1000"))
+    repos = await all_repositories(session)
+    managed = _items(await vbr_get(session, "v1/backupInfrastructure/managedServers?limit=1000"))
 
     nodes = []
     edges = []
@@ -270,6 +270,17 @@ def resolve_proxy_os(proxy: dict, managed_items: list) -> str:
     return host_os(host_id, managed_items, default=(proxy.get("os") or "linux").lower())
 
 
+async def all_repositories(session: dict) -> list:
+    """Todos los repositorios: normales + scale-out (SOBR), unificados.
+    Los SOBR se marcan con type 'ScaleOut' si no traen tipo."""
+    repos = _items(await vbr_get(session, "v1/backupInfrastructure/repositories?limit=1000"))
+    sobrs = _items(await _safe_get(session, "v1/backupInfrastructure/scaleOutRepositories?limit=1000"))
+    for s in sobrs:
+        if not s.get("type"):
+            s["type"] = "ScaleOut"
+    return repos + sobrs
+
+
 def resolve_repo(repo: dict, managed_items: list) -> dict:
     """Datos del repo relevantes para el benchmark: host (donde esta el disco)
     y mount server (rol de restore), con sus SO resueltos."""
@@ -353,29 +364,40 @@ def _range_of(sessions: list) -> dict:
 
 
 async def analysis_range(session: dict) -> dict:
-    """Rango de dias con info disponible (barato: una sola llamada)."""
-    sess = _items(await vbr_get(
-        session, "v1/sessions?limit=200&orderColumn=CreationTime&orderAsc=false"))
-    return _range_of(sess)
+    """Rango real de dias con info disponible: sesion mas vieja y mas nueva
+    (2 llamadas baratas, sin depender de un limite que recorte el historial)."""
+    newest = _items(await vbr_get(
+        session, "v1/sessions?limit=1&orderColumn=CreationTime&orderAsc=false"))
+    oldest = _items(await vbr_get(
+        session, "v1/sessions?limit=1&orderColumn=CreationTime&orderAsc=true"))
+    lo = _parse_dt((oldest[0] if oldest else {}).get("creationTime"))
+    hi = _parse_dt((newest[0] if newest else {}).get("creationTime"))
+    if not lo or not hi:
+        return {"from": None, "to": None, "days_available": 0}
+    return {"from": lo.date().isoformat(), "to": hi.date().isoformat(),
+            "days_available": (hi.date() - lo.date()).days + 1}
 
 
 async def build_analysis(session: dict, days: Optional[int] = None,
-                         max_sessions: int = 40) -> dict:
+                         max_sessions: int = 80) -> dict:
     """Estadistica agregada por REPOSITORIO y por PROXY sobre una ventana de dias.
     Solo lectura (compatible con appliances). Cada grupo trae los jobs para
     poder expandir el detalle."""
+    # Traemos bastante historial para que la ventana de dias tenga con que
+    # trabajar (en ambientes ocupados 200 sesiones eran ~2 dias).
     sess = _items(await vbr_get(
-        session, "v1/sessions?limit=200&orderColumn=CreationTime&orderAsc=false"))
-    rng = _range_of(sess)
+        session, "v1/sessions?limit=2000&orderColumn=CreationTime&orderAsc=false"))
+    rng = await analysis_range(session)
     data_sess = [s for s in sess if _is_data_job(s)]
     if days:
         cutoff = datetime.now() - timedelta(days=int(days))
         data_sess = [s for s in data_sess
                      if (_parse_dt(s.get("creationTime")) or datetime.min) >= cutoff]
+    # Cap para acotar las llamadas (taskSessions+logs por sesion). Toma las mas
+    # recientes de la ventana.
     data_sess = data_sess[:max_sessions]
 
-    repos = {r.get("id"): r.get("name")
-             for r in _items(await vbr_get(session, "v1/backupInfrastructure/repositories"))}
+    repos = {r.get("id"): r.get("name") for r in await all_repositories(session)}
     proxies = {p.get("id"): p.get("name")
                for p in _items(await vbr_get(session, "v1/backupInfrastructure/proxies"))}
     job_proxies = await _job_proxy_map(session)
@@ -533,6 +555,7 @@ def _analysis_bottleneck(log_records: list) -> Optional[dict]:
 
 # --- Topologia de ejemplo para modo demo ------------------------------------
 def _demo_response(path: str) -> dict:
+    path = path.split("?")[0]  # ignorar query string (?limit=..., etc.)
     if path.endswith("/proxies"):
         return {"data": _DEMO_PROXIES}
     if path.endswith("/repositories"):

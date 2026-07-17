@@ -92,7 +92,7 @@ async def get_proxies(session_id: str):
 @app.get("/api/{session_id}/repositories")
 async def get_repositories(session_id: str):
     session = vbr.get_session(session_id)
-    return await vbr.vbr_get(session, "v1/backupInfrastructure/repositories")
+    return {"data": await vbr.all_repositories(session)}
 
 
 @app.get("/api/{session_id}/managed-servers")
@@ -155,9 +155,9 @@ async def get_benchmark_options(session_id: str):
     """Repositorios (destino, con SO del host y mount server) + proxies (para
     atar manualmente en backup). El SO define fio vs diskspd."""
     session = vbr.get_session(session_id)
-    repos = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/repositories"))
-    proxies = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/proxies"))
-    managed = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/managedServers"))
+    repos = await vbr.all_repositories(session)
+    proxies = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/proxies?limit=1000"))
+    managed = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/managedServers?limit=1000"))
     return {
         "repositories": [vbr.resolve_repo(r, managed) for r in repos],
         "proxies": [{"id": p.get("id"), "name": p.get("name", "proxy"),
@@ -166,8 +166,8 @@ async def get_benchmark_options(session_id: str):
 
 
 async def _resolve_repo(session: dict, repository_id: str) -> dict:
-    repos = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/repositories"))
-    managed = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/managedServers"))
+    repos = await vbr.all_repositories(session)
+    managed = vbr._items(await vbr.vbr_get(session, "v1/backupInfrastructure/managedServers?limit=1000"))
     repo = next((r for r in repos if r.get("id") == repository_id), None)
     if not repo:
         raise HTTPException(status_code=404, detail="Repositorio no encontrado en esta sesion.")
