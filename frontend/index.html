@@ -44,7 +44,7 @@
   .dot.off { background:#b4b2a9; }
   button.mini { padding:5px 12px; font-size:13px; }
   .muted { color:#5f5e5a; font-size:13px; }
-  #flowCanvas { width:100%; height:auto; border:1px solid #d3d1c7; border-radius:8px; background:#fff; }
+  #flowCanvas { width:auto; max-width:100%; height:auto; border:1px solid #d3d1c7; border-radius:8px; background:#fff; }
   .bar-track { background:#eee9df; border-radius:4px; height:14px; width:120px; display:inline-block; vertical-align:middle; overflow:hidden; }
   .bar-fill { background:#378ADD; height:100%; display:block; }
   .progress { background:#eee9df; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
@@ -297,6 +297,19 @@ async function loadFlow() {
     flowSeverity = { prox: {}, repo: {} };
     for (const g of (an.byProxy || [])) if (g.bottleneckAvg) flowSeverity.prox[g.id] = g.bottleneckAvg.proxy;
     for (const g of (an.byRepository || [])) if (g.bottleneckAvg) flowSeverity.repo[g.id] = g.bottleneckAvg.target;
+
+    // Conexiones REALES proxy->repo: solo los pares que efectivamente trabajaron
+    // juntos en algun job (proxy del job x repos que escribio). Nada de "todos
+    // con todos".
+    const seen = new Set();
+    for (const g of (an.byProxy || [])) {
+      for (const job of (g.jobs || [])) {
+        for (const repoId of (job.repoIds || [])) {
+          const key = g.id + '->' + repoId;
+          if (!seen.has(key)) { seen.add(key); graph.edges.push({ from: g.id, to: repoId, kind: 'writes-to' }); }
+        }
+      }
+    }
     renderFlow(graph);
   } catch (e) { console.error(e); }
 }
@@ -327,6 +340,7 @@ function renderFlow(graph) {
   const maxRows = Math.max(1, ...roles.map(r => graph.nodes.filter(n => n.role === r).length));
   const H = 60 + maxRows * 64;
   svg.setAttribute('viewBox', `0 0 900 ${H}`);
+  svg.setAttribute('width', 900);   // tamaño natural; CSS lo achica si no entra
   svg.setAttribute('height', H);
 
   roles.forEach((role, colIdx) => {
