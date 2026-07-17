@@ -1,14 +1,47 @@
-# Despliegue en un servidor Ubuntu (appliance de backup)
+# Despliegue en una VM Linux (appliance de backup)
 
-La idea: una VM Ubuntu **en la misma red que el VBR**, que pueda alcanzar la REST
-API del VBR (9419) **y** los proxies/repos por su canal de admin (WinRM 5985/5986
-en Windows, SSH 22 en Linux). El backend sirve la API y la consola web en **un
-solo puerto (8000)**.
+La idea: una VM **en la misma red que el VBR**, que pueda alcanzar la REST API del
+VBR (9419). El backend sirve la API y la consola web en **un solo puerto (8000)**.
+Para el modo Analisis (Carril B) alcanza con llegar al VBR; para el benchmark
+activo (Carril A) ademas hay que llegar a los proxies/repos (WinRM 5985 / SSH 22).
 
 > Validá primero la conectividad: desde la VM, `curl -k https://<vbr>:9419/api/`
-> debe responder, y tenés que poder llegar a los proxies/repos por WinRM/SSH.
+> debe responder.
 
 ---
+
+## Rocky Linux / RHEL 8-9 (dnf + firewalld)
+
+```bash
+# 1. Docker CE + compose
+sudo dnf -y install dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin git
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"   # cerra sesion y volve a entrar
+
+# 2. Traer el codigo y levantar
+git clone <URL-del-repo> yoga-benchmark && cd yoga-benchmark
+docker compose up -d --build
+
+# 3. Abrir el puerto en el firewall (idealmente solo a IPs de administracion)
+sudo firewall-cmd --add-port=8000/tcp --permanent && sudo firewall-cmd --reload
+
+# 4. Verificar
+curl -s http://localhost:8000/health          # -> {"ok":true,...}
+```
+
+Abrí en el navegador: `http://<ip-de-la-vm>:8000`
+Actualizar: `git pull && docker compose up -d --build` · Bajar: `docker compose down`
+
+> Alternativa sin Docker en Rocky (nativo con systemd):
+> `sudo dnf -y install python3 python3-pip git` y despues seguí la "Opcion B"
+> de mas abajo (el venv + unit de systemd son identicos; Rocky 9 trae Python 3.9,
+> compatible con el codigo).
+
+---
+
+## Ubuntu / Debian (apt)
 
 ## Opcion A — Docker (recomendada, "momentanea")
 
