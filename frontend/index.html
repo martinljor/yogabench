@@ -91,6 +91,10 @@
 
 <div class="card" id="flowPanel" style="display:none;">
   <p class="muted">Camino de datos del backup: <b>proxy → repositorio → mount server</b>. Se arma dinamicamente desde la API.</p>
+  <p class="muted" style="margin-top:-6px;">Color = carga del bottleneck (segun el analisis):
+    <span style="color:#1D9E75;">●</span> ok (&lt;50%)
+    <span style="color:#E0A020;">●</span> atencion (50-79%)
+    <span style="color:#C0392B;">●</span> posible cuello (≥80%). Gris = sin datos.</p>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
@@ -281,11 +285,29 @@ async function loadInfra() {
   } catch (e) { panel.innerHTML = `<p class="error">${e.message}</p>`; }
 }
 
+// Carga del stage de bottleneck por nodo (semaforo). Se cruza con el analisis.
+let flowSeverity = { prox: {}, repo: {} };
+
 async function loadFlow() {
   try {
-    const graph = await fetch(`${BACKEND}/api/${sessionId}/flow`).then(r => r.json());
+    const [graph, an] = await Promise.all([
+      fetch(`${BACKEND}/api/${sessionId}/flow`).then(r => r.json()),
+      fetch(`${BACKEND}/api/${sessionId}/analysis`).then(r => r.json()).catch(() => ({})),
+    ]);
+    flowSeverity = { prox: {}, repo: {} };
+    for (const g of (an.byProxy || [])) if (g.bottleneckAvg) flowSeverity.prox[g.id] = g.bottleneckAvg.proxy;
+    for (const g of (an.byRepository || [])) if (g.bottleneckAvg) flowSeverity.repo[g.id] = g.bottleneckAvg.target;
     renderFlow(graph);
   } catch (e) { console.error(e); }
+}
+
+// Semaforo segun la carga (%) del stage que le toca al nodo.
+function nodeSeverity(node) {
+  let pct = null;
+  if (node.role === 'proxy') pct = flowSeverity.prox[node.id];
+  else if (node.role === 'repository') pct = flowSeverity.repo[node.id];
+  if (pct == null) return null;
+  return pct >= 80 ? '#C0392B' : pct >= 50 ? '#E0A020' : '#1D9E75';
 }
 
 // Layout: agrupa nodos por 'role' en columnas ordenadas segun el camino de datos.
@@ -296,8 +318,9 @@ function renderFlow(graph) {
   const present = order.filter(r => graph.nodes.some(n => n.role === r));
   const roles = present.length ? present : [...new Set(graph.nodes.map(n => n.role))];
   const colWidth = 900 / Math.max(roles.length, 1);
-  const colors = { proxy:'#378ADD', repository:'#1D9E75', 'mount-server':'#E08A1E',
-                   gateway:'#9B59B6', 'backup-server':'#555', 'managed-server':'#8a887f' };
+  // El color ahora significa semaforo de bottleneck. Sin dato -> gris neutro
+  // (para no confundir el color de rol con una severidad).
+  const NEUTRAL = '#9a988f';
   const positions = {};
 
   roles.forEach((role, colIdx) => {
@@ -310,13 +333,23 @@ function renderFlow(graph) {
     items.forEach((node, rowIdx) => {
       const y = 64 + rowIdx * 64;
       positions[node.id] = { x, y };
-      const c = colors[role] || '#7f77dd';
-      const rect = mk('rect', { x:x-90, y:y-18, width:180, height:36, rx:8,
-        fill:c+'22', stroke:c, 'stroke-width':1 });
+      const sev = nodeSeverity(node);
+      const c = sev || NEUTRAL;
+      const h = node.info ? 44 : 36;
+      const rect = mk('rect', { x:x-90, y:y-h/2, width:180, height:h, rx:8,
+        fill: sev ? c+'40' : c+'22', stroke:c, 'stroke-width': sev ? 3 : 1 });
       svg.appendChild(rect);
-      const text = mk('text', { x, y:y+4, 'text-anchor':'middle', 'font-size':'12px' });
+      if (sev) {  // punto solido de semaforo, para que se vea claro
+        svg.appendChild(mk('circle', { cx:x-78, cy:y-h/2+11, r:5, fill:c, stroke:'#fff', 'stroke-width':1 }));
+      }
+      const text = mk('text', { x, y: node.info ? y-2 : y+4, 'text-anchor':'middle', 'font-size':'12px' });
       text.textContent = node.label;
       svg.appendChild(text);
+      if (node.info) {
+        const sub = mk('text', { x, y:y+13, 'text-anchor':'middle', 'font-size':'10px', fill:'#5f5e5a' });
+        sub.textContent = node.info;
+        svg.appendChild(sub);
+      }
     });
   });
 
@@ -591,9 +624,8 @@ function groupCard(g, kind) {
   const gid = `grp_${kind}_${_grpN++}`;
   const res = g.results || {};
   const badges = ['Success', 'Warning', 'Failed']
-    .filter(k => res[k]).map(k => `${resultBadge(k)}×${res[k]}`).join(' ');
-  const prim = Object.entries(g.primaryCounts || {})
-    .map(([k, v]) => `${k} ×${v}`).join(', ') || '—';
+    .filter(k => res[k]).map(k => resultBadge(k)).join(' ');
+  const prim = Object.keys(g.primaryCounts || {}).join(', ') || '—';
   return `<div class="jobcard">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <b>${g.name}</b>

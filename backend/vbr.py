@@ -151,12 +151,13 @@ async def build_flow(session: dict) -> dict:
     edges = []
     by_id = {}
 
-    def add_node(node_id, label, role, raw=None):
+    def add_node(node_id, label, role, raw=None, info=None):
         if not node_id:
             return
         if node_id in by_id:
             return
-        node = {"id": node_id, "label": label, "role": role, "raw": raw or {}}
+        node = {"id": node_id, "label": label, "role": role, "raw": raw or {},
+                "info": info}
         by_id[node_id] = node
         nodes.append(node)
 
@@ -175,14 +176,14 @@ async def build_flow(session: dict) -> dict:
 
     for p in proxies:
         pid = p.get("id")
-        add_node(pid, p.get("name", "proxy"), "proxy", p)
+        add_node(pid, p.get("name", "proxy"), "proxy", p, info=_proxy_tasks_info(p))
         host = _extract_id(p, _PROXY_HOST_KEYS)
         if host and host in by_id:
             edges.append({"from": host, "to": pid, "kind": "runs-on"})
 
     for r in repos:
         rid = r.get("id")
-        add_node(rid, r.get("name", "repository"), "repository", r)
+        add_node(rid, r.get("name", "repository"), "repository", r, info=_repo_tasks_info(r))
 
         # proxy -> repo: camino de escritura del backup. Sin un campo fiable
         # que lo declare, conectamos todos los proxies al repo (topologia
@@ -199,6 +200,40 @@ async def build_flow(session: dict) -> dict:
             edges.append({"from": rid, "to": mount_id, "kind": "mount"})
 
     return {"nodes": nodes, "edges": edges}
+
+
+def _find_key(obj, key):
+    """Busca (recursivo) el primer valor de `key` en un objeto anidado."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k.lower() == key.lower():
+                return v
+            r = _find_key(v, key)
+            if r is not None:
+                return r
+    elif isinstance(obj, list):
+        for x in obj:
+            r = _find_key(x, key)
+            if r is not None:
+                return r
+    return None
+
+
+def _proxy_tasks_info(proxy: dict) -> Optional[str]:
+    """Tareas simultaneas del proxy (server.maxTaskCount)."""
+    n = _find_key(proxy, "maxTaskCount")
+    return f"{n} tareas simult." if n else None
+
+
+def _repo_tasks_info(repo: dict) -> Optional[str]:
+    """Tareas simultaneas del repo: maxTaskCount si taskLimitEnabled, si no 'sin limite'."""
+    limited = _find_key(repo, "taskLimitEnabled")
+    n = _find_key(repo, "maxTaskCount")
+    if limited is False:
+        return "tareas sin limite"
+    if n:
+        return f"{n} tareas simult."
+    return None
 
 
 def host_os(host_id: str, managed_items: list, default: str = "linux") -> str:
@@ -508,18 +543,18 @@ _DEMO_MANAGED = [
 
 _DEMO_PROXIES = [
     {"id": "prx-win", "name": "VMware Proxy 01", "type": "vmware",
-     "os": "windows", "hostId": "srv-win",
+     "os": "windows", "hostId": "srv-win", "server": {"maxTaskCount": 4},
      "description": "Windows proxy - hot-add"},
     {"id": "prx-lin", "name": "Linux Proxy 01", "type": "vmware",
-     "os": "linux", "hostId": "srv-lin",
+     "os": "linux", "hostId": "srv-lin", "server": {"maxTaskCount": 8},
      "description": "Linux proxy - NBD/hot-add"},
 ]
 
 _DEMO_REPOS = [
     {"id": "repo-refs", "name": "Local ReFS Repo", "type": "WinLocal",
      "hostId": "srv-win", "mountServerId": "srv-mount",
-     "repository": {"path": "E:\\Backups"}},
+     "repository": {"path": "E:\\Backups", "taskLimitEnabled": True, "maxTaskCount": 4}},
     {"id": "repo-xfs", "name": "Linux Hardened Repo", "type": "LinuxHardened",
      "hostId": "srv-repo-lin", "mountServerId": "srv-mount",
-     "repository": {"path": "/mnt/backups"}},
+     "repository": {"path": "/mnt/backups", "taskLimitEnabled": False}},
 ]
