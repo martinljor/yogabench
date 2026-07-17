@@ -85,13 +85,23 @@ async def vbr_get(session: dict, path: str) -> dict:
         "Authorization": f"Bearer {session['access_token']}",
         "x-api-version": session["api_version"],
     }
-    async with httpx.AsyncClient(verify=session["verify_ssl"], timeout=20) as client:
-        resp = await client.get(url, headers=headers)
+    async with httpx.AsyncClient(verify=session["verify_ssl"], timeout=60) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504,
+                                detail=f"Timeout consultando {path} (el VBR tardo demasiado).")
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=502, detail=f"Error consultando {path}: {e}")
     if resp.status_code == 401:
         raise HTTPException(status_code=401, detail="Token expirado. Reconectate.")
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError:
+        raise HTTPException(status_code=502,
+                            detail=f"Respuesta no-JSON de {path}: {resp.text[:200]}")
 
 
 def _items(payload) -> list:
@@ -194,7 +204,7 @@ async def build_flow(session: dict) -> dict:
     # proxy -> repo: camino REAL segun la config de cada job (proxies asignados
     # + repositorio destino). Nada de "todos con todos".
     seen_edges = set()
-    for j in _items(await _safe_get(session, "v1/jobs")):
+    for j in _items(await _safe_get(session, "v1/jobs?limit=500")):
         repo_id = (_find_key(j, "backupRepositoryId") or _find_key(j, "repositoryId"))
         if not repo_id or repo_id == _EMPTY_GUID:
             continue
