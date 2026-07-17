@@ -191,6 +191,19 @@ async def build_flow(session: dict) -> dict:
             promote_role(mount_id, "mount-server")
             edges.append({"from": rid, "to": mount_id, "kind": "mount"})
 
+    # proxy -> repo: camino REAL segun la config de cada job (proxies asignados
+    # + repositorio destino). Nada de "todos con todos".
+    seen_edges = set()
+    for j in _items(await _safe_get(session, "v1/jobs")):
+        repo_id = (_find_key(j, "backupRepositoryId") or _find_key(j, "repositoryId"))
+        if not repo_id or repo_id == _EMPTY_GUID:
+            continue
+        for pid in _find_proxyids(j):
+            key = (pid, repo_id)
+            if pid and key not in seen_edges:
+                seen_edges.add(key)
+                edges.append({"from": pid, "to": repo_id, "kind": "writes-to"})
+
     # Ocultamos los managed-server "de contexto" (hosts sueltos): agregan ruido
     # sin sumar al camino de datos. Quedan proxy / repository / mount-server /
     # gateway / backup-server (los roles funcionales).

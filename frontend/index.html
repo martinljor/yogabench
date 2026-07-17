@@ -297,19 +297,8 @@ async function loadFlow() {
     flowSeverity = { prox: {}, repo: {} };
     for (const g of (an.byProxy || [])) if (g.bottleneckAvg) flowSeverity.prox[g.id] = g.bottleneckAvg.proxy;
     for (const g of (an.byRepository || [])) if (g.bottleneckAvg) flowSeverity.repo[g.id] = g.bottleneckAvg.target;
-
-    // Conexiones REALES proxy->repo: solo los pares que efectivamente trabajaron
-    // juntos en algun job (proxy del job x repos que escribio). Nada de "todos
-    // con todos".
-    const seen = new Set();
-    for (const g of (an.byProxy || [])) {
-      for (const job of (g.jobs || [])) {
-        for (const repoId of (job.repoIds || [])) {
-          const key = g.id + '->' + repoId;
-          if (!seen.has(key)) { seen.add(key); graph.edges.push({ from: g.id, to: repoId, kind: 'writes-to' }); }
-        }
-      }
-    }
+    // Las conexiones proxy->repo ya vienen en graph.edges (armadas en el backend
+    // desde la config de los jobs).
     renderFlow(graph);
   } catch (e) { console.error(e); }
 }
