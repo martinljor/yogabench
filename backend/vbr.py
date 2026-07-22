@@ -201,18 +201,35 @@ async def build_flow(session: dict) -> dict:
             promote_role(mount_id, "mount-server")
             edges.append({"from": rid, "to": mount_id, "kind": "mount"})
 
-    # proxy -> repo: camino REAL segun la config de cada job (proxies asignados
-    # + repositorio destino). Nada de "todos con todos".
-    seen_edges = set()
+    # proxy -> repo segun la config de cada job:
+    #   - proxy asignado explicito -> arista "solida" (auto=False)
+    #   - proxy automatico ([]/None) -> Veeam elige en runtime y la API no dice
+    #     cual, asi que conectamos el repo a TODOS los proxies como "automatica"
+    #     (auto=True). Asi la relacion existe y queda marcada como estimada.
+    all_proxy_ids = [p.get("id") for p in proxies if p.get("id")]
+    edge_auto = {}  # (from,to) -> auto? (el explicito pisa al automatico)
+
+    def _add_edge(frm, to, auto):
+        if not frm or not to or to == _EMPTY_GUID:
+            return
+        key = (frm, to)
+        if key not in edge_auto or not auto:  # explicito (auto=False) siempre gana
+            edge_auto[key] = auto
+
     for j in _items(await _safe_get(session, "v1/jobs?limit=500")):
         repo_id = (_find_key(j, "backupRepositoryId") or _find_key(j, "repositoryId"))
         if not repo_id or repo_id == _EMPTY_GUID:
             continue
-        for pid in _find_proxyids(j):
-            key = (pid, repo_id)
-            if pid and key not in seen_edges:
-                seen_edges.add(key)
-                edges.append({"from": pid, "to": repo_id, "kind": "writes-to"})
+        pids = _find_proxyids(j)
+        if pids:
+            for pid in pids:
+                _add_edge(pid, repo_id, False)
+        else:  # proxy automatico -> a todos los proxies elegibles
+            for pid in all_proxy_ids:
+                _add_edge(pid, repo_id, True)
+
+    for (frm, to), auto in edge_auto.items():
+        edges.append({"from": frm, "to": to, "kind": "writes-to", "auto": auto})
 
     # Ocultamos los managed-server "de contexto" (hosts sueltos): agregan ruido
     # sin sumar al camino de datos. Quedan proxy / repository / mount-server /

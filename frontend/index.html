@@ -95,6 +95,8 @@
     <span style="color:#1D9E75;">●</span> ok (&lt;50%)
     <span style="color:#E0A020;">●</span> atencion (50-79%)
     <span style="color:#C0392B;">●</span> posible cuello (≥80%). Gris = sin datos.</p>
+  <p class="muted" style="margin-top:-6px;">Lineas proxy→repo: <b>solida</b> = proxy asignado en el job ·
+    <b>punteada</b> = proxy automatico (Veeam elige en runtime; se muestran todos los elegibles).</p>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
@@ -367,8 +369,9 @@ function renderFlow(graph) {
     if (!a || !b) return;
     const x1 = a.x < b.x ? a.x + 90 : a.x - 90;
     const x2 = a.x < b.x ? b.x - 90 : b.x + 90;
-    const line = mk('line', { x1, y1:a.y, x2, y2:b.y, stroke:'#b4b2a9', 'stroke-width':1 });
-    svg.appendChild(line);
+    const attrs = { x1, y1:a.y, x2, y2:b.y, stroke:'#b4b2a9', 'stroke-width':1 };
+    if (e.auto) { attrs.stroke = '#c9c6bc'; attrs['stroke-dasharray'] = '5,4'; }  // proxy automatico
+    svg.appendChild(mk('line', attrs));
   });
 
   if (graph.nodes.length === 0) {
