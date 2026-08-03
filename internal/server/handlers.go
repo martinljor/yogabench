@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"yogabench/internal/topology"
 	"yogabench/internal/vbr"
 )
 
@@ -110,10 +111,33 @@ func (s *Server) proxies(w http.ResponseWriter, r *http.Request) {
 	s.proxy(w, r, "v1/backupInfrastructure/proxies")
 }
 
+// repositories devuelve repos normales + scale-out (SOBR) unificados.
 func (s *Server) repositories(w http.ResponseWriter, r *http.Request) {
-	s.proxy(w, r, "v1/backupInfrastructure/repositories")
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	repos, err := topology.AllRepositories(r.Context(), sess)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": repos})
 }
 
 func (s *Server) managedServers(w http.ResponseWriter, r *http.Request) {
 	s.proxy(w, r, "v1/backupInfrastructure/managedServers")
+}
+
+func (s *Server) flow(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	g, err := topology.Build(r.Context(), sess)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, g)
 }

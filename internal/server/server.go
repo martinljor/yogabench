@@ -37,6 +37,9 @@ func (s *Server) routes(web fs.FS) {
 	m.HandleFunc("GET /api/{session}/repositories", s.repositories)
 	m.HandleFunc("GET /api/{session}/managed-servers", s.managedServers)
 
+	// Arquitectura
+	m.HandleFunc("GET /api/{session}/flow", s.flow)
+
 	// Frontend embebido (catch-all; las rutas /api y /health tienen prioridad).
 	m.Handle("GET /", http.FileServer(http.FS(web)))
 }
