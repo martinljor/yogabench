@@ -13,3 +13,8 @@ venv/
 
 # Dev-only (rutas locales)
 .claude/
+
+# Go (artefactos de build; el codigo fuente si va al repo)
+/dist/
+/yogabench
+*.exe
