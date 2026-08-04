@@ -4,86 +4,116 @@
 <meta charset="utf-8">
 <title>Veeam Proxy Benchmark - Prototipo</title>
 <style>
-  body { font-family: -apple-system, Segoe UI, sans-serif; background:#f1efe8; margin:0; padding:24px; color:#2c2c2a; }
-  h1 { font-size: 20px; font-weight: 500; }
-  h3 { margin-bottom:6px; }
-  .card { background:#fff; border:1px solid #d3d1c7; border-radius:12px; padding:20px; margin-bottom:16px; }
+  :root{
+    --bg:#15171c; --panel:#1c1f27; --panel2:#232733; --border:#2b2f3b;
+    --text:#e6e8ec; --muted:#8b909c; --green:#54b948; --green-d:#3f9636;
+    --blue:#3a8ee6; --amber:#e0a020; --red:#e05656;
+    --topbar:#12141a; --sidebar:#181b22;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); margin:0; font-size:14px; }
+  h3 { margin:0 0 8px; font-weight:600; font-size:16px; }
+  h4 { margin:14px 0 4px; font-weight:600; }
+
+  .topbar { height:52px; background:var(--topbar); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; padding:0 18px; position:sticky; top:0; z-index:10; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:600; font-size:15px; }
+  .brand .logo { width:22px; height:22px; border-radius:5px; background:var(--green); display:inline-block; }
+  .topright { display:flex; align-items:center; gap:12px; font-size:13px; color:var(--muted); }
+
+  .layout { display:flex; min-height:calc(100vh - 52px); }
+  .sidebar { width:210px; flex:0 0 210px; background:var(--sidebar); border-right:1px solid var(--border); padding:12px 0; }
+  .sidebar.disabled { opacity:.45; pointer-events:none; }
+  .navgroup { padding:12px 18px 5px; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+  .navitem { display:flex; align-items:center; gap:10px; padding:9px 18px; cursor:pointer; color:#c6cad3; border-left:3px solid transparent; }
+  .navitem:hover { background:rgba(255,255,255,.04); }
+  .navitem.active { color:#fff; background:rgba(84,185,72,.12); border-left-color:var(--green); }
+  .navitem .ic { width:16px; text-align:center; opacity:.9; }
+  .main { flex:1; padding:20px; overflow:auto; }
+
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:16px; }
   .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
-  label { display:block; font-size:12px; color:#5f5e5a; margin-bottom:4px; }
-  input, select { padding:8px; border:1px solid #b4b2a9; border-radius:6px; font-size:14px; width:180px; }
-  button { padding:9px 16px; border:none; border-radius:6px; background:#185fa5; color:#fff; cursor:pointer; font-size:14px; }
-  button:hover { background:#0c447c; }
-  button:disabled { opacity:.5; cursor:default; }
-  button.ghost { background:#e6f1fb; color:#185fa5; }
-  button.ghost:hover { background:#d2e6f9; }
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tab { padding:8px 16px; border-radius:6px; cursor:pointer; background:#e6f1fb; font-size:14px; }
-  .tab.active { background:#185fa5; color:#fff; }
-  .tabs.disabled { opacity:.45; pointer-events:none; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  input, select { padding:8px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:180px; background:var(--panel2); color:var(--text); }
+  input::placeholder { color:#5c6270; }
+  button { padding:9px 16px; border:none; border-radius:6px; background:var(--green); color:#0e1a0b; font-weight:600; cursor:pointer; font-size:14px; }
+  button:hover { background:var(--green-d); color:#fff; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.ghost { background:var(--panel2); color:var(--text); border:1px solid var(--border); font-weight:500; }
+  button.ghost:hover { background:#2c313d; }
+  button.mini { padding:5px 12px; font-size:13px; }
+
   table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:8px; border-bottom:1px solid #e5e3da; }
-  .error { color:#a32d2d; font-size:13px; margin-top:8px; }
-  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; background:#eeedfe; color:#3c3489; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:600; }
+  .error { color:var(--red); font-size:13px; margin-top:8px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; background:#2b2f3b; color:#b9c0cc; }
   .verdict { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:600; }
-  .verdict.ok   { background:#dcf3e8; color:#1a7a4f; }
-  .verdict.warn { background:#fbeecd; color:#8a6100; }
-  .verdict.low  { background:#f8d9d9; color:#a32d2d; }
-  .subcard { background:#faf9f5; border:1px solid #e5e3da; border-radius:8px; padding:14px; margin-top:12px; }
-  .step-ok { color:#1a7a4f; } .step-bad { color:#a32d2d; } .step-info { color:#5f5e5a; }
-  .jobcard { border:1px solid #e5e3da; border-radius:8px; padding:14px; margin-bottom:12px; }
+  .verdict.ok   { background:rgba(84,185,72,.18); color:#7ede6f; }
+  .verdict.warn { background:rgba(224,160,32,.18); color:#f0c368; }
+  .verdict.low  { background:rgba(224,86,86,.18); color:#f08b8b; }
+  .subcard { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:12px; }
+  .step-ok { color:#7ede6f; } .step-bad { color:#f08b8b; } .step-info { color:var(--muted); }
+  .jobcard { border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:12px; background:var(--panel2); }
   .bnk { margin:10px 0; max-width:520px; }
   .bnk-row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:12px; }
-  .bnk-row .lbl { width:64px; color:#5f5e5a; }
+  .bnk-row .lbl { width:64px; color:var(--muted); }
   .bnk-row .val { width:38px; text-align:right; }
-  .bnk-track { flex:1; background:#eee9df; border-radius:4px; height:14px; overflow:hidden; }
-  .bnk-fill { height:100%; background:#378ADD; display:block; }
-  .bnk-fill.dom { background:#a32d2d; }
-  .connbar { display:flex; align-items:center; gap:10px; margin-top:10px; }
-  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex:0 0 auto; }
-  .dot.on  { background:#1D9E75; box-shadow:0 0 0 3px rgba(29,158,117,.25); }
-  .dot.off { background:#b4b2a9; }
-  button.mini { padding:5px 12px; font-size:13px; }
-  .muted { color:#5f5e5a; font-size:13px; }
-  #flowCanvas { width:auto; max-width:100%; height:auto; border:1px solid #d3d1c7; border-radius:8px; background:#fff; }
-  .bar-track { background:#eee9df; border-radius:4px; height:14px; width:120px; display:inline-block; vertical-align:middle; overflow:hidden; }
-  .bar-fill { background:#378ADD; height:100%; display:block; }
-  .progress { background:#eee9df; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
-  .progress > div { background:#1D9E75; height:100%; width:0; transition:width .3s; }
+  .bnk-track { flex:1; background:#2b2f3b; border-radius:4px; height:14px; overflow:hidden; }
+  .bnk-fill { height:100%; background:var(--blue); display:block; }
+  .bnk-fill.dom { background:var(--red); }
+  .connbar { display:flex; align-items:center; gap:10px; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex:0 0 auto; }
+  .dot.on  { background:var(--green); box-shadow:0 0 0 3px rgba(84,185,72,.25); }
+  .dot.off { background:#5c6270; }
+  #flowCanvas { width:auto; max-width:100%; height:auto; border:1px solid var(--border); border-radius:8px; background:var(--panel2); }
+  .bar-track { background:#2b2f3b; border-radius:4px; height:14px; width:120px; display:inline-block; vertical-align:middle; overflow:hidden; }
+  .bar-fill { background:var(--blue); height:100%; display:block; }
+  .progress { background:#2b2f3b; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
+  .progress > div { background:var(--green); height:100%; width:0; transition:width .3s; }
 </style>
 </head>
 <body>
-<h1>Veeam Proxy Benchmark - Prototipo</h1>
-
-<div class="card" id="connectCard">
-  <div class="row">
-    <div><label>Host / IP del VBR</label><input id="host" value="172.16.0." placeholder="172.16.0.10"></div>
-    <div><label>Puerto</label><input id="port" value="9419"></div>
-    <div><label>Usuario</label><input id="username" value="veeamadmin" placeholder="veeamadmin"></div>
-    <div><label>Password</label><input id="password" type="password"></div>
-    <div><label>API version</label>
-      <select id="apiVersion">
-        <option value="1.2-rev1">1.2-rev1</option>
-        <option value="1.1-rev0">1.1-rev0</option>
-        <option value="1.0-rev2">1.0-rev2</option>
-      </select>
-    </div>
-    <div><button onclick="connect()">Conectar</button></div>
-  </div>
-  <div class="error" id="connectError"></div>
-  <div class="connbar">
+<div class="topbar">
+  <div class="brand"><span class="logo"></span> Yoga Benchmark
+    <span class="muted" style="font-weight:400;font-size:13px;">· diagnóstico Veeam</span></div>
+  <div class="topright connbar">
     <span id="connDot" class="dot off"></span>
-    <span id="connectedAs" class="muted">Sin conectar</span>
+    <span id="connectedAs">Sin conectar</span>
     <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;">Refrescar</button>
     <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;">Desconectar</button>
   </div>
 </div>
 
-<div class="tabs disabled" id="tabsBar">
-  <div class="tab active" id="tabInfra" onclick="showTab('infra')">Infraestructura</div>
-  <div class="tab" id="tabFlow" onclick="showTab('flow')">Arquitectura</div>
-  <div class="tab" id="tabBench" onclick="showTab('bench')">Benchmark</div>
-  <div class="tab" id="tabAnalysis" onclick="showTab('analysis')">Analisis</div>
-</div>
+<div class="layout">
+  <nav class="sidebar disabled" id="tabsBar">
+    <div class="navgroup">Infraestructura</div>
+    <div class="navitem active" id="tabInfra" onclick="showTab('infra')"><span class="ic">🖥</span> Infraestructura</div>
+    <div class="navitem" id="tabFlow" onclick="showTab('flow')"><span class="ic">🗺</span> Arquitectura</div>
+    <div class="navgroup">Análisis</div>
+    <div class="navitem" id="tabAnalysis" onclick="showTab('analysis')"><span class="ic">📊</span> Análisis</div>
+    <div class="navitem" id="tabBench" onclick="showTab('bench')"><span class="ic">⚡</span> Benchmark</div>
+  </nav>
+  <main class="main">
+
+  <div class="card" id="connectCard">
+    <div class="row">
+      <div><label>Host / IP del VBR</label><input id="host" value="172.16.0." placeholder="172.16.0.10"></div>
+      <div><label>Puerto</label><input id="port" value="9419"></div>
+      <div><label>Usuario</label><input id="username" value="veeamadmin" placeholder="veeamadmin"></div>
+      <div><label>Password</label><input id="password" type="password"></div>
+      <div><label>API version</label>
+        <select id="apiVersion">
+          <option value="1.2-rev1">1.2-rev1</option>
+          <option value="1.1-rev0">1.1-rev0</option>
+          <option value="1.0-rev2">1.0-rev2</option>
+        </select>
+      </div>
+      <div><button onclick="connect()">Conectar</button></div>
+    </div>
+    <div class="error" id="connectError"></div>
+  </div>
 
 <div class="card" id="infraPanel">
   <p class="muted">Conectate a un VBR para ver proxies y repositorios.</p>
@@ -170,6 +200,9 @@
     <div><button onclick="runAnalysis()" id="anBtn">Analizar</button></div>
   </div>
   <div id="analysisContent" style="margin-top:12px;"><p class="muted">Elegi los dias y toca Analizar.</p></div>
+</div>
+
+  </main>
 </div>
 
 <script>
@@ -337,7 +370,7 @@ function renderFlow(graph) {
   roles.forEach((role, colIdx) => {
     const items = graph.nodes.filter(n => n.role === role);
     const x = colIdx * colWidth + colWidth / 2;
-    const title = mk('text', { x, y:24, 'text-anchor':'middle', 'font-size':'13px', fill:'#5f5e5a', 'font-weight':'600' });
+    const title = mk('text', { x, y:24, 'text-anchor':'middle', 'font-size':'13px', fill:'#aab0bc', 'font-weight':'600' });
     title.textContent = role;
     svg.appendChild(title);
 
@@ -345,19 +378,18 @@ function renderFlow(graph) {
       const y = 64 + rowIdx * 64;
       positions[node.id] = { x, y };
       const sev = nodeSeverity(node);
-      const c = sev || NEUTRAL;
       const h = node.info ? 44 : 36;
       const rect = mk('rect', { x:x-90, y:y-h/2, width:180, height:h, rx:8,
-        fill: sev ? c+'40' : c+'22', stroke:c, 'stroke-width': sev ? 3 : 1 });
+        fill: sev ? sev+'40' : '#252a35', stroke: sev || '#39404f', 'stroke-width': sev ? 3 : 1 });
       svg.appendChild(rect);
       if (sev) {  // punto solido de semaforo, para que se vea claro
-        svg.appendChild(mk('circle', { cx:x-78, cy:y-h/2+11, r:5, fill:c, stroke:'#fff', 'stroke-width':1 }));
+        svg.appendChild(mk('circle', { cx:x-78, cy:y-h/2+11, r:5, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
       }
-      const text = mk('text', { x, y: node.info ? y-2 : y+4, 'text-anchor':'middle', 'font-size':'12px' });
+      const text = mk('text', { x, y: node.info ? y-2 : y+4, 'text-anchor':'middle', 'font-size':'12px', fill:'#e6e8ec' });
       text.textContent = node.label;
       svg.appendChild(text);
       if (node.info) {
-        const sub = mk('text', { x, y:y+13, 'text-anchor':'middle', 'font-size':'10px', fill:'#5f5e5a' });
+        const sub = mk('text', { x, y:y+13, 'text-anchor':'middle', 'font-size':'10px', fill:'#8b909c' });
         sub.textContent = node.info;
         svg.appendChild(sub);
       }
@@ -369,13 +401,13 @@ function renderFlow(graph) {
     if (!a || !b) return;
     const x1 = a.x < b.x ? a.x + 90 : a.x - 90;
     const x2 = a.x < b.x ? b.x - 90 : b.x + 90;
-    const attrs = { x1, y1:a.y, x2, y2:b.y, stroke:'#b4b2a9', 'stroke-width':1 };
-    if (e.auto) { attrs.stroke = '#c9c6bc'; attrs['stroke-dasharray'] = '5,4'; }  // proxy automatico
+    const attrs = { x1, y1:a.y, x2, y2:b.y, stroke:'#7a8090', 'stroke-width':1 };
+    if (e.auto) { attrs.stroke = '#5c6270'; attrs['stroke-dasharray'] = '5,4'; }  // proxy automatico
     svg.appendChild(mk('line', attrs));
   });
 
   if (graph.nodes.length === 0) {
-    const msg = mk('text', { x:450, y:210, 'text-anchor':'middle', fill:'#5f5e5a' });
+    const msg = mk('text', { x:450, y:210, 'text-anchor':'middle', fill:'#8b909c' });
     msg.textContent = 'Sin datos todavia';
     svg.appendChild(msg);
   }
