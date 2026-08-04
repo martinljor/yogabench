@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <title>Veeam Proxy Benchmark - Prototipo</title>
 <style>
+  /* Open Sans (fuente de marca web de Veeam), embebida y servida localmente. */
+  @font-face{
+    font-family:'Open Sans'; font-style:normal; font-weight:400 700;
+    font-display:swap; src:url('opensans.woff2') format('woff2');
+  }
   :root{
     --bg:#15171c; --panel:#1c1f27; --panel2:#232733; --border:#2b2f3b;
     --text:#e6e8ec; --muted:#8b909c; --green:#54b948; --green-d:#3f9636;
@@ -11,7 +16,7 @@
     --topbar:#12141a; --sidebar:#181b22;
   }
   * { box-sizing:border-box; }
-  body { font-family:-apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); margin:0; font-size:14px; }
+  body { font-family:'Open Sans', -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); margin:0; font-size:14px; }
   h3 { margin:0 0 8px; font-weight:600; font-size:16px; }
   h4 { margin:14px 0 4px; font-weight:600; }
 
@@ -28,7 +33,14 @@
   .navitem { display:flex; align-items:center; gap:10px; padding:9px 18px; cursor:pointer; color:#c6cad3; border-left:3px solid transparent; }
   .navitem:hover { background:rgba(255,255,255,.04); }
   .navitem.active { color:#fff; background:rgba(84,185,72,.12); border-left-color:var(--green); }
-  .navitem .ic { width:16px; text-align:center; opacity:.9; }
+  .navitem .ic { display:inline-flex; align-items:center; opacity:.8; }
+  .navitem .ic svg { width:17px; height:17px; }
+  .navitem.active .ic { opacity:1; }
+  .langs { display:inline-flex; gap:6px; align-items:center; }
+  .flag { padding:0; background:none; border:2px solid transparent; border-radius:4px; cursor:pointer; line-height:0; }
+  .flag:hover { border-color:#3a3f4d; }
+  .flag.active { border-color:var(--green); }
+  .flag svg { display:block; width:24px; height:16px; border-radius:2px; }
   .main { flex:1; padding:20px; overflow:auto; }
 
   .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:16px; }
@@ -42,6 +54,7 @@
   button.ghost { background:var(--panel2); color:var(--text); border:1px solid var(--border); font-weight:500; }
   button.ghost:hover { background:#2c313d; }
   button.mini { padding:5px 12px; font-size:13px; }
+  .langsel { width:auto; padding:4px 8px; font-size:12px; }
 
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th, td { text-align:left; padding:8px; border-bottom:1px solid var(--border); }
@@ -76,41 +89,45 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo"></span> Yoga Benchmark
-    <span class="muted" style="font-weight:400;font-size:13px;">· diagnóstico Veeam</span></div>
+  <div class="brand">Yoga Benchmark</div>
   <div class="topright connbar">
     <span id="connDot" class="dot off"></span>
     <span id="connectedAs">Sin conectar</span>
-    <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;">Refrescar</button>
-    <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;">Desconectar</button>
+    <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;" data-i18n="btn.refresh">Refrescar</button>
+    <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;" data-i18n="btn.disconnect">Desconectar</button>
+    <span class="langs">
+      <button class="flag" data-lang="es" onclick="setLang('es')" title="Español"><svg viewBox="0 0 3 2"><rect width="3" height="2" fill="#c60b1e"/><rect y=".5" width="3" height="1" fill="#ffc400"/></svg></button>
+      <button class="flag" data-lang="en" onclick="setLang('en')" title="English"><svg viewBox="0 0 60 40"><rect width="60" height="40" fill="#012169"/><path d="M0 0l60 40M60 0L0 40" stroke="#fff" stroke-width="8"/><path d="M0 0l60 40M60 0L0 40" stroke="#c8102e" stroke-width="4"/><path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="12"/><path d="M30 0v40M0 20h60" stroke="#c8102e" stroke-width="6"/></svg></button>
+      <button class="flag" data-lang="pt" onclick="setLang('pt')" title="Português"><svg viewBox="0 0 60 42"><rect width="60" height="42" fill="#009c3b"/><path d="M30 5L55 21 30 37 5 21z" fill="#ffdf00"/><circle cx="30" cy="21" r="8" fill="#002776"/></svg></button>
+    </span>
   </div>
 </div>
 
 <div class="layout">
   <nav class="sidebar disabled" id="tabsBar">
-    <div class="navgroup">Infraestructura</div>
-    <div class="navitem active" id="tabInfra" onclick="showTab('infra')"><span class="ic">🖥</span> Infraestructura</div>
-    <div class="navitem" id="tabFlow" onclick="showTab('flow')"><span class="ic">🗺</span> Arquitectura</div>
-    <div class="navgroup">Análisis</div>
-    <div class="navitem" id="tabAnalysis" onclick="showTab('analysis')"><span class="ic">📊</span> Análisis</div>
-    <div class="navitem" id="tabBench" onclick="showTab('bench')"><span class="ic">⚡</span> Benchmark</div>
+    <div class="navgroup" data-i18n="nav.group.infra">Infraestructura</div>
+    <div class="navitem active" id="tabInfra" onclick="showTab('infra')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="4.5" width="17" height="6" rx="1.5"/><rect x="3.5" y="13" width="17" height="6" rx="1.5"/><path d="M7 7.5h.01M7 16h.01"/></svg></span> <span data-i18n="nav.infra">Infraestructura</span></div>
+    <div class="navitem" id="tabFlow" onclick="showTab('flow')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v3M6 16v-2h12v2"/></svg></span> <span data-i18n="nav.flow">Arquitectura</span></div>
+    <div class="navgroup" data-i18n="nav.group.analysis">Análisis</div>
+    <div class="navitem" id="tabAnalysis" onclick="showTab('analysis')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16"/><path d="M6 20v-6M11 20V7M16 20v-9"/></svg></span> <span data-i18n="nav.analysis">Análisis</span></div>
+    <div class="navitem" id="tabBench" onclick="showTab('bench')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18a8 8 0 0 1 16 0"/><path d="M12 18l4-5"/></svg></span> <span data-i18n="nav.bench">Benchmark</span></div>
   </nav>
   <main class="main">
 
   <div class="card" id="connectCard">
     <div class="row">
-      <div><label>Host / IP del VBR</label><input id="host" value="172.16.0." placeholder="172.16.0.10"></div>
-      <div><label>Puerto</label><input id="port" value="9419"></div>
-      <div><label>Usuario</label><input id="username" value="veeamadmin" placeholder="veeamadmin"></div>
-      <div><label>Password</label><input id="password" type="password"></div>
-      <div><label>API version</label>
+      <div><label data-i18n="form.host">Host / IP del VBR</label><input id="host" value="172.16.0." placeholder="172.16.0.10"></div>
+      <div><label data-i18n="form.port">Puerto</label><input id="port" value="9419"></div>
+      <div><label data-i18n="form.user">Usuario</label><input id="username" value="veeamadmin" placeholder="veeamadmin"></div>
+      <div><label data-i18n="form.pass">Password</label><input id="password" type="password"></div>
+      <div><label data-i18n="form.apiver">API version</label>
         <select id="apiVersion">
           <option value="1.2-rev1">1.2-rev1</option>
           <option value="1.1-rev0">1.1-rev0</option>
           <option value="1.0-rev2">1.0-rev2</option>
         </select>
       </div>
-      <div><button onclick="connect()">Conectar</button></div>
+      <div><button onclick="connect()" data-i18n="btn.connect">Conectar</button></div>
     </div>
     <div class="error" id="connectError"></div>
   </div>
@@ -213,6 +230,48 @@ const BACKEND = location.protocol.startsWith("http") ? "" : "http://localhost:80
 let sessionId = null;
 let activeTab = 'infra';
 
+// --- i18n (ES / EN / PT) ----------------------------------------------------
+const I18N = {
+  es: { 'brand.sub':'· diagnóstico Veeam', 'conn.none':'Sin conectar',
+    'conn.to':'Conectado a {where} (sesión expira en {exp}s)',
+    'btn.refresh':'Refrescar','btn.disconnect':'Desconectar','btn.connect':'Conectar',
+    'nav.group.infra':'Infraestructura','nav.group.analysis':'Análisis',
+    'nav.infra':'Infraestructura','nav.flow':'Arquitectura','nav.analysis':'Análisis','nav.bench':'Benchmark',
+    'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version' },
+  en: { 'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
+    'conn.to':'Connected to {where} (session expires in {exp}s)',
+    'btn.refresh':'Refresh','btn.disconnect':'Disconnect','btn.connect':'Connect',
+    'nav.group.infra':'Infrastructure','nav.group.analysis':'Analytics',
+    'nav.infra':'Infrastructure','nav.flow':'Architecture','nav.analysis':'Analysis','nav.bench':'Benchmark',
+    'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version' },
+  pt: { 'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
+    'conn.to':'Conectado a {where} (sessão expira em {exp}s)',
+    'btn.refresh':'Atualizar','btn.disconnect':'Desconectar','btn.connect':'Conectar',
+    'nav.group.infra':'Infraestrutura','nav.group.analysis':'Análise',
+    'nav.infra':'Infraestrutura','nav.flow':'Arquitetura','nav.analysis':'Análise','nav.bench':'Benchmark',
+    'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API' },
+};
+let LANG = localStorage.getItem('lang') || 'es';
+let connState = null;  // {where, exp} cuando esta conectado
+
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.es[key] || key; }
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  const c = document.getElementById('connectedAs');
+  if (c) {
+    c.textContent = connState
+      ? t('conn.to').replace('{where}', connState.where).replace('{exp}', connState.exp)
+      : t('conn.none');
+  }
+}
+
+function setLang(l) {
+  LANG = l; localStorage.setItem('lang', l);
+  document.querySelectorAll('.flag').forEach(f => f.classList.toggle('active', f.dataset.lang === l));
+  applyI18n();
+}
+
 function showTab(tab) {
   // Sin sesion, solo Infraestructura (con su placeholder); el resto bloqueado.
   if (!sessionId && tab !== 'infra') return;
@@ -246,8 +305,9 @@ async function disconnect() {
   }
   sessionId = null;
   document.getElementById('connDot').className = 'dot off';
+  connState = null;
   const c = document.getElementById('connectedAs');
-  c.textContent = 'Sin conectar'; c.className = 'muted';
+  c.textContent = t('conn.none'); c.className = 'muted';
   document.getElementById('btnRefresh').style.display = 'none';
   document.getElementById('btnDisconnect').style.display = 'none';
   // Deshabilitar las solapas y volver a Infraestructura.
@@ -285,8 +345,9 @@ async function connect() {
 function onConnected(data, where) {
   sessionId = data.session_id;
   document.getElementById('connDot').className = 'dot on';
+  connState = { where, exp: data.expires_in };
   const c = document.getElementById('connectedAs');
-  c.textContent = `Conectado a ${where} (sesion expira en ${data.expires_in}s)`;
+  c.textContent = t('conn.to').replace('{where}', where).replace('{exp}', data.expires_in);
   c.className = 'step-ok';
   document.getElementById('btnRefresh').style.display = '';
   document.getElementById('btnDisconnect').style.display = '';
@@ -737,6 +798,9 @@ function renderJobCard(j) {
   h += tasksTable(j.tasks);
   return h + '</div>';
 }
+
+// Aplicar idioma guardado al cargar.
+setLang(LANG);
 </script>
 </body>
 </html>
