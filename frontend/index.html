@@ -137,13 +137,11 @@
 </div>
 
 <div class="card" id="flowPanel" style="display:none;">
-  <p class="muted">Camino de datos del backup: <b>proxy → repositorio → mount server</b>. Se arma dinamicamente desde la API.</p>
-  <p class="muted" style="margin-top:-6px;">Color = carga del bottleneck (segun el analisis):
-    <span style="color:#1D9E75;">●</span> ok (&lt;50%)
-    <span style="color:#E0A020;">●</span> atencion (50-79%)
-    <span style="color:#C0392B;">●</span> posible cuello (≥80%). Gris = sin datos.</p>
-  <p class="muted" style="margin-top:-6px;">Lineas proxy→repo: <b>solida</b> = proxy asignado en el job ·
-    <b>punteada</b> = proxy automatico (Veeam elige en runtime; se muestran todos los elegibles).</p>
+  <p class="muted" style="font-size:12px;"><b>proxy → repositorio → mount server</b> &nbsp;·&nbsp;
+    <span style="color:#1D9E75;">●</span> ok
+    <span style="color:#E0A020;">●</span> atención
+    <span style="color:#C0392B;">●</span> cuello · gris s/datos &nbsp;·&nbsp;
+    línea sólida = proxy asignado, punteada = automático</p>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
@@ -685,28 +683,52 @@ function renderSimple(title, m) {
 }
 
 // --- Analisis (Carril B): por repositorio y proxy ---------------------------
+// getJSON: fetch que falla claro si la respuesta no es JSON valido (ej: el
+// endpoint no existe y devuelve HTML, o un error del server).
+async function getJSON(url, opts) {
+  const resp = await fetch(url, opts);
+  const ct = resp.headers.get('content-type') || '';
+  if (!resp.ok) {
+    let detail = 'HTTP ' + resp.status;
+    try { detail = (await resp.json()).detail || detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  if (!ct.includes('json')) throw new Error('respuesta no válida del servidor');
+  return resp.json();
+}
+
 async function loadAnalysis() {
   // Al abrir la solapa solo traemos el rango disponible (barato).
   const rangeEl = document.getElementById('anRange');
+  const daysEl = document.getElementById('anDays');
   try {
-    const r = await fetch(`${BACKEND}/api/${sessionId}/analysis-range`).then(x => x.json());
+    const r = await getJSON(`${BACKEND}/api/${sessionId}/analysis-range`);
     if (r.from) {
-      document.getElementById('anDays').value = r.days_available || 7;
-      rangeEl.textContent = `Info disponible: ${r.days_available} dia(s) (${r.from} → ${r.to})`;
+      daysEl.value = r.days_available || 7;
+      rangeEl.textContent = `Info disponible: ${r.days_available} día(s) (${r.from} → ${r.to})`;
     } else {
       rangeEl.textContent = 'Sin datos de jobs en el historial.';
     }
-  } catch (e) { rangeEl.textContent = e.message; }
+  } catch (e) {
+    if (!daysEl.value) daysEl.value = 7;   // default para que no quede vacio
+    rangeEl.textContent = '';
+  }
 }
 
 async function runAnalysis() {
-  const days = parseInt(document.getElementById('anDays').value || '7');
   const el = document.getElementById('analysisContent');
+  const days = parseInt((document.getElementById('anDays').value || '').trim(), 10);
+  if (!days || days < 1) {   // catch: no se ingreso un valor valido
+    el.innerHTML = '<p class="error">Ingresá una cantidad de días válida (ej: 7).</p>';
+    return;
+  }
   el.innerHTML = '<p class="muted">Analizando…</p>';
   try {
-    const d = await fetch(`${BACKEND}/api/${sessionId}/analysis?days=${days}`).then(x => x.json());
+    const d = await getJSON(`${BACKEND}/api/${sessionId}/analysis?days=${days}`);
     renderAnalysis(d);
-  } catch (e) { el.innerHTML = `<p class="error">${e.message}</p>`; }
+  } catch (e) {
+    el.innerHTML = `<p class="error">No se pudo analizar: ${e.message}</p>`;
+  }
 }
 
 function renderAnalysis(d) {
