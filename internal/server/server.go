@@ -6,17 +6,19 @@ import (
 	"io/fs"
 	"net/http"
 
+	"yogabench/internal/benchmark"
 	"yogabench/internal/vbr"
 )
 
 type Server struct {
 	store *vbr.Store
+	bench *benchmark.Manager
 	mux   *http.ServeMux
 }
 
 // New devuelve el handler HTTP listo (con CORS). `web` es el frontend embebido.
 func New(store *vbr.Store, web fs.FS) http.Handler {
-	s := &Server{store: store, mux: http.NewServeMux()}
+	s := &Server{store: store, bench: benchmark.NewManager(), mux: http.NewServeMux()}
 	s.routes(web)
 	return cors(s.mux)
 }
@@ -39,6 +41,21 @@ func (s *Server) routes(web fs.FS) {
 
 	// Arquitectura
 	m.HandleFunc("GET /api/{session}/flow", s.flow)
+
+	// Analisis (Carril B: bottleneck agregado por repo/proxy)
+	m.HandleFunc("GET /api/{session}/sessions", s.sessions)
+	m.HandleFunc("GET /api/{session}/analysis", s.analysis)
+	m.HandleFunc("GET /api/{session}/analysis-range", s.analysisRange)
+
+	// Benchmark (Objetivo 2): baselines, opciones, ciclo de conexion y jobs.
+	m.HandleFunc("GET /api/baselines", s.baselines)
+	m.HandleFunc("GET /api/{session}/benchmark-options", s.benchmarkOptions)
+	m.HandleFunc("POST /api/{session}/bench-connection", s.benchConnection)
+	m.HandleFunc("GET /api/{session}/bench-connection/{repo}/tools", s.benchTools)
+	m.HandleFunc("POST /api/{session}/bench-connection/{repo}/deploy", s.benchDeploy)
+	m.HandleFunc("POST /api/{session}/benchmark", s.benchmarkStart)
+	m.HandleFunc("GET /api/{session}/benchmark/{job}", s.benchmarkGet)
+	m.HandleFunc("GET /api/{session}/benchmarks", s.benchmarkList)
 
 	// Frontend embebido (catch-all; las rutas /api y /health tienen prioridad).
 	m.Handle("GET /", http.FileServer(http.FS(web)))

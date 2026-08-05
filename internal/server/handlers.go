@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
+	"yogabench/internal/analysis"
+	"yogabench/internal/benchmark"
 	"yogabench/internal/topology"
 	"yogabench/internal/vbr"
 )
@@ -103,7 +106,9 @@ func (s *Server) connectDemo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) disconnect(w http.ResponseWriter, r *http.Request) {
-	s.store.Delete(r.PathValue("session"))
+	id := r.PathValue("session")
+	s.store.Delete(id)
+	s.bench.ClearSession(id) // descarta jobs y las passwords de proxies
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -140,4 +145,143 @@ func (s *Server) flow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, g)
+}
+
+// analysis: estadistica de bottleneck agregada por repo y proxy. `days` opcional
+// acota la ventana (sin days = todo el historico disponible, con cota interna).
+func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	var days *int
+	if q := r.URL.Query().Get("days"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n > 0 {
+			days = &n
+		}
+	}
+	res, err := analysis.Build(r.Context(), sess, days)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// analysisRange: rango real de dias con datos (sesion mas vieja y mas nueva).
+func (s *Server) analysisRange(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, analysis.Range(r.Context(), sess))
+}
+
+// sessions: passthrough de las ultimas sesiones de jobs (util para explorar).
+func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
+	s.proxy(w, r, "v1/sessions?limit=50&orderColumn=CreationTime&orderAsc=false")
+}
+
+// --- benchmark --------------------------------------------------------------
+
+// baselines: catalogos de "lo esperado" (disco por tier, red por enlace).
+func (s *Server) baselines(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"disk": map[string]any{"data": benchmark.DiskCatalog(), "default": benchmark.DefaultDisk},
+		"net":  map[string]any{"data": benchmark.NetCatalog(), "default": benchmark.DefaultNet},
+	})
+}
+
+func (s *Server) benchmarkOptions(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	repos, proxies := s.bench.Options(r.Context(), sess)
+	writeJSON(w, http.StatusOK, map[string]any{"repositories": repos, "proxies": proxies})
+}
+
+// benchConnection (fase 1): valida el canal al host del repositorio.
+func (s *Server) benchConnection(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	var in benchmark.BenchConnInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		return
+	}
+	mode, res, found := s.bench.TestConnection(r.Context(), sess, r.PathValue("session"), in)
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Repositorio no encontrado en esta sesion."})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"mode": mode, "ok": res.OK, "message": res.Message, "hostname": res.Hostname,
+	})
+}
+
+// benchTools (fase 2): chequea si la herramienta esta instalada.
+func (s *Server) benchTools(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.session(w, r); !ok {
+		return
+	}
+	res, hasConn := s.bench.CheckTools(r.PathValue("session"), r.PathValue("repo"))
+	if !hasConn {
+		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host del repositorio. Valida la conexion primero."})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// benchDeploy (fase 3): despliega la herramienta si falta.
+func (s *Server) benchDeploy(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.session(w, r); !ok {
+		return
+	}
+	res, hasConn := s.bench.DeployTools(r.PathValue("session"), r.PathValue("repo"))
+	if !hasConn {
+		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host del repositorio. Valida la conexion primero."})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// benchmarkStart (fase 4): crea y lanza el job en segundo plano.
+func (s *Server) benchmarkStart(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	var in benchmark.BenchmarkInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		return
+	}
+	jobID, status, found := s.bench.Start(r.Context(), sess, r.PathValue("session"), in)
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Repositorio no encontrado en esta sesion."})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"job_id": jobID, "status": status})
+}
+
+func (s *Server) benchmarkGet(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.session(w, r); !ok {
+		return
+	}
+	raw, sessID, found := s.bench.JobJSON(r.PathValue("job"))
+	if !found || sessID != r.PathValue("session") {
+		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Job no encontrado."})
+		return
+	}
+	writeRaw(w, raw)
+}
+
+func (s *Server) benchmarkList(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.session(w, r); !ok {
+		return
+	}
+	writeRaw(w, s.bench.ListJobsJSON(r.PathValue("session")))
 }

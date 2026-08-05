@@ -1,0 +1,159 @@
+package benchmark
+
+import (
+	"context"
+	"crypto/md5"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"math"
+	"math/rand"
+	"strings"
+
+	"yogabench/internal/vbr"
+)
+
+var errWinRMNotReady = errors.New(winRMNotReady)
+
+// Claves candidatas (schema variable de VBR) para el host de un proxy/repo y
+// para el mount server referenciado dentro de un repo.
+var (
+	proxyHostKeys = []string{"hostId", "serverId", "hostName", "server"}
+	mountKeys     = []string{"mountServerId", "mountHostId", "mountServer"}
+	nestedIDKeys  = []string{"mountServerId", "hostId", "serverId", "id", "name"}
+)
+
+func round1(f float64) float64 { return math.Round(f*10) / 10 }
+
+func roundN(f float64, n int) float64 {
+	p := math.Pow(10, float64(n))
+	return math.Round(f*p) / p
+}
+
+// seededRand: RNG estable a partir de un string (perfil repetible por host).
+func seededRand(s string) *rand.Rand {
+	sum := md5.Sum([]byte(s))
+	return rand.New(rand.NewSource(int64(binary.BigEndian.Uint64(sum[:8])))) //nolint:gosec // mock, no cripto
+}
+
+func uni(r *rand.Rand, lo, hi float64) float64 { return lo + r.Float64()*(hi-lo) }
+
+// mockNet: MB/s de red simulados (base ~10GbE * factor del target).
+func mockNet(seed string) float64 {
+	r := seededRand("net" + seed)
+	return 1150 * uni(r, 0.55, 1.15) * uni(r, 0.95, 1.05)
+}
+
+// mockCompute: MB/s de compresion simulados.
+func mockCompute(seed string) float64 {
+	r := seededRand("cpu" + seed)
+	return 560 * uni(r, 0.6, 1.3) * uni(r, 0.95, 1.05)
+}
+
+// --- acceso a la API + resolucion de host/SO (schema variable) --------------
+
+func str(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func getItems(ctx context.Context, s *vbr.Session, path string) []map[string]any {
+	raw, err := vbr.Get(ctx, s, path)
+	if err != nil {
+		return nil
+	}
+	var wrap struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &wrap); err == nil && wrap.Data != nil {
+		return wrap.Data
+	}
+	var arr []map[string]any
+	_ = json.Unmarshal(raw, &arr)
+	return arr
+}
+
+func allRepositories(ctx context.Context, s *vbr.Session) []map[string]any {
+	repos := getItems(ctx, s, "v1/backupInfrastructure/repositories?limit=1000")
+	sobrs := getItems(ctx, s, "v1/backupInfrastructure/scaleOutRepositories?limit=1000")
+	for _, so := range sobrs {
+		if str(so["type"]) == "" {
+			so["type"] = "ScaleOut"
+		}
+	}
+	return append(repos, sobrs...)
+}
+
+// extractID prueba las claves dadas; si el valor es objeto anidado, busca dentro.
+func extractID(obj map[string]any, keys []string) string {
+	for _, k := range keys {
+		switch v := obj[k].(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case map[string]any:
+			for _, sk := range nestedIDKeys {
+				if s := str(v[sk]); s != "" {
+					return s
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// hostOS: SO (windows/linux) de un managed server por su id, segun su 'type'.
+func hostOS(hostID string, managed []map[string]any, def string) string {
+	for _, m := range managed {
+		if str(m["id"]) == hostID {
+			t := strings.ToLower(str(m["type"]))
+			if strings.Contains(t, "windows") || strings.Contains(t, "win") {
+				return "windows"
+			}
+			if strings.Contains(t, "linux") {
+				return "linux"
+			}
+		}
+	}
+	return def
+}
+
+func hostName(hostID string, managed []map[string]any, fallback string) string {
+	for _, m := range managed {
+		if str(m["id"]) == hostID {
+			if n := str(m["name"]); n != "" {
+				return n
+			}
+		}
+	}
+	return fallback
+}
+
+// resolveRepo: datos del repo relevantes para el benchmark (host del disco +
+// mount server, con SO resueltos).
+func resolveRepo(repo map[string]any, managed []map[string]any) RepoOption {
+	hostID := extractID(repo, proxyHostKeys)
+	mountID := extractID(repo, mountKeys)
+	var mount *MountInfo
+	if mountID != "" {
+		mount = &MountInfo{ID: mountID, Name: hostName(mountID, managed, "mount server"), OS: hostOS(mountID, managed, "linux")}
+	}
+	name := str(repo["name"])
+	if name == "" {
+		name = "repository"
+	}
+	return RepoOption{ID: str(repo["id"]), Name: name, HostOS: hostOS(hostID, managed, "linux"), Mount: mount}
+}
+
+// resolveProxyOS: SO del proxy deducido de su host (server.hostId).
+func resolveProxyOS(proxy map[string]any, managed []map[string]any) string {
+	hostID := extractID(proxy, proxyHostKeys)
+	def := strings.ToLower(str(proxy["os"]))
+	if def == "" {
+		def = "linux"
+	}
+	return hostOS(hostID, managed, def)
+}
