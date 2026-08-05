@@ -42,6 +42,9 @@ func (s *Server) routes(web fs.FS) {
 	// Arquitectura
 	m.HandleFunc("GET /api/{session}/flow", s.flow)
 
+	// Passthrough read-only a la REST API de VBR (para inspeccionar el schema real).
+	m.HandleFunc("GET /api/{session}/raw/{path...}", s.rawGet)
+
 	// Analisis (Carril B: bottleneck agregado por repo/proxy)
 	m.HandleFunc("GET /api/{session}/sessions", s.sessions)
 	m.HandleFunc("GET /api/{session}/analysis", s.analysis)

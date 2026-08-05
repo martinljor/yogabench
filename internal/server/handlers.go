@@ -182,6 +182,16 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	s.proxy(w, r, "v1/sessions?limit=50&orderColumn=CreationTime&orderAsc=false")
 }
 
+// rawGet: passthrough read-only a cualquier ruta de la REST API de VBR, para
+// inspeccionar el schema real (ej: /raw/v1/backupInfrastructure/repositories).
+func (s *Server) rawGet(w http.ResponseWriter, r *http.Request) {
+	path := r.PathValue("path")
+	if q := r.URL.RawQuery; q != "" {
+		path += "?" + q
+	}
+	s.proxy(w, r, path)
+}
+
 // --- benchmark --------------------------------------------------------------
 
 // baselines: catalogos de "lo esperado" (disco por tier, red por enlace).

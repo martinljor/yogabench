@@ -141,6 +141,21 @@ func findProxyIDs(obj any) []string {
 	return out
 }
 
+// mountServerID resuelve el mount server de un repo, tolerante al schema (v12/v13):
+//  1. clave explicita (mountServerId / mountServer anidado)
+//  2. mountServerId en cualquier nivel (recursivo)
+//  3. fallback: el propio host del repo (Veeam usa el host del repo como mount
+//     server cuando no se especifica otro)
+func mountServerID(repo map[string]any) string {
+	if mid := extractID(repo, mountKeys); mid != "" {
+		return mid
+	}
+	if mid := str(findKey(repo, "mountServerId")); mid != "" {
+		return mid
+	}
+	return str(findKey(repo, "hostId"))
+}
+
 func normalizeRole(role string) string {
 	r := strings.ToLower(role)
 	switch {

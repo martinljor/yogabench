@@ -82,7 +82,7 @@ func Build(ctx context.Context, s *vbr.Session) (Graph, error) {
 	for _, r := range repos {
 		rid := str(r["id"])
 		b.add(rid, strOr(r["name"], "repository"), "repository", repoTasksInfo(r))
-		if mid := extractID(r, mountKeys); mid != "" {
+		if mid := mountServerID(r); mid != "" {
 			b.add(mid, labelFor(managed, mid, "mount server"), "mount-server", "")
 			b.promote(mid, "mount-server")
 			b.edges = append(b.edges, Edge{From: rid, To: mid, Kind: "mount"})
