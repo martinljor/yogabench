@@ -184,6 +184,7 @@
         </select>
       </div>
     </div>
+    <div class="muted" id="benchRepoPath" style="margin-top:8px;font-size:12px;"></div>
     <div style="margin-top:14px;">
       <label>Recurso</label>
       <div class="seg">
@@ -541,6 +542,10 @@ function onRepoChange() {
   wzState.connOk = false; wzState.toolOk = false;
   document.getElementById('prepConn').innerHTML = '';
   document.getElementById('prepTools').innerHTML = '';
+  const repo = selectedRepo();
+  const path = repo && repo.path ? repo.path : '(ruta por defecto del host)';
+  document.getElementById('benchRepoPath').innerHTML =
+    repo ? `Se medirá el disco en <b>${path}</b>` : '';
 }
 
 // --- navegacion del wizard ---

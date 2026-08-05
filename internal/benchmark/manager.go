@@ -151,7 +151,13 @@ func (m *Manager) TestConnection(ctx context.Context, s *vbr.Session, sessionID 
 	if strings.TrimSpace(in.Host) == "" || strings.TrimSpace(in.Username) == "" || strings.TrimSpace(in.Password) == "" {
 		return "", ConnResult{OK: false, Message: "Completá host, usuario y password del host del repositorio."}, true
 	}
-	c := makeConn(repo.ID, repo.Name, repo.HostOS, in.Host, in.Username, in.Password, in.Port, in.Transport, in.Path)
+	// El disco a medir es el del repo elegido: usamos SU carpeta (un host puede
+	// alojar varios repos en volumenes distintos). Override manual > repo > default.
+	path := in.Path
+	if path == "" {
+		path = repo.Path
+	}
+	c := makeConn(repo.ID, repo.Name, repo.HostOS, in.Host, in.Username, in.Password, in.Port, in.Transport, path)
 	res := buildExecutor(c).TestConnection()
 	if res.OK {
 		m.mu.Lock()

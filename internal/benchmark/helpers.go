@@ -110,7 +110,7 @@ func hostName(hostID string, managed []map[string]any, fallback string) string {
 }
 
 // resolveRepo: datos del repo relevantes para el benchmark (host del disco +
-// mount server, con SO resueltos).
+// carpeta real + mount server, con SO resueltos).
 func resolveRepo(repo map[string]any, managed []map[string]any) RepoOption {
 	hostID := extractID(repo, proxyHostKeys)
 	mountID := extractID(repo, mountKeys)
@@ -122,7 +122,27 @@ func resolveRepo(repo map[string]any, managed []map[string]any) RepoOption {
 	if name == "" {
 		name = "repository"
 	}
-	return RepoOption{ID: str(repo["id"]), Name: name, HostOS: hostOS(hostID, managed, "linux"), Mount: mount}
+	return RepoOption{ID: str(repo["id"]), Name: name, HostOS: hostOS(hostID, managed, "linux"),
+		Path: repoPath(repo), Mount: mount}
+}
+
+// repoPath: carpeta local donde el repo escribe los backups. Cada repo puede
+// estar en un volumen/disco distinto del mismo host, asi que el benchmark debe
+// medir ESTA ruta (no una fija). El schema varia entre builds de VBR.
+func repoPath(repo map[string]any) string {
+	if r, ok := repo["repository"].(map[string]any); ok {
+		for _, k := range []string{"path", "folder", "sharePath", "share"} {
+			if p := str(r[k]); p != "" {
+				return p
+			}
+		}
+	}
+	for _, k := range []string{"path", "folder"} {
+		if p := str(repo[k]); p != "" {
+			return p
+		}
+	}
+	return ""
 }
 
 // resolveProxyOS: SO del proxy deducido de su host (server.hostId).
