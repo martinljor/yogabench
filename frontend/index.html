@@ -160,11 +160,10 @@
 
 <div class="card" id="flowPanel" style="display:none;">
   <p class="muted" style="font-size:12px;"><b>proxy → repositorio → mount server</b> &nbsp;·&nbsp;
-    <span style="color:#1D9E75;">●</span> ok
-    <span style="color:#E0A020;">●</span> atención
-    <span style="color:#C0392B;">●</span> cuello · gris s/datos &nbsp;·&nbsp;
+    <span style="color:#C0392B;">■</span> cuello (según telemetría) · gris = ok / sin datos / cuello fuera de la vista &nbsp;·&nbsp;
     línea sólida = proxy asignado, punteada = automático &nbsp;·&nbsp;
-    nº en la esquina = conexiones (<span style="color:#E0A020;">ámbar</span> = muchas → posible concentración)</p>
+    badge <span style="color:#E0A020;">ámbar</span> = muchas conexiones (concentración)</p>
+  <div id="flowDominantNote" class="muted" style="font-size:12px;margin:2px 0 8px;"></div>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
@@ -447,8 +446,15 @@ async function loadInfra() {
   } catch (e) { panel.innerHTML = `<p class="error">${e.message}</p>`; }
 }
 
-// Carga del stage de bottleneck por nodo (semaforo). Se cruza con el analisis.
+// Cruce con el analisis: color del nodo por el cuello. Con % de carga -> semaforo;
+// si no hay % (v13), se pinta rojo el nodo que ES el stage dominante del cuello.
 let flowSeverity = { prox: {}, repo: {} };
+
+function topPrimary(counts) {
+  let best = '', n = -1;
+  for (const k in (counts || {})) if (counts[k] > n) { best = k; n = counts[k]; }
+  return best;
+}
 
 async function loadFlow() {
   try {
@@ -457,21 +463,40 @@ async function loadFlow() {
       fetch(`${BACKEND}/api/${sessionId}/analysis`).then(r => r.json()).catch(() => ({})),
     ]);
     flowSeverity = { prox: {}, repo: {} };
-    for (const g of (an.byProxy || [])) if (g.bottleneckAvg) flowSeverity.prox[g.id] = g.bottleneckAvg.proxy;
-    for (const g of (an.byRepository || [])) if (g.bottleneckAvg) flowSeverity.repo[g.id] = g.bottleneckAvg.target;
-    // Las conexiones proxy->repo ya vienen en graph.edges (armadas en el backend
-    // desde la config de los jobs).
+    const primaryOf = g => (g.bottleneckAvg && g.bottleneckAvg.primary) || topPrimary(g.primaryCounts);
+    for (const g of (an.byProxy || []))
+      flowSeverity.prox[g.id] = { pct: g.bottleneckAvg ? g.bottleneckAvg.proxy : null, dom: primaryOf(g) === 'Proxy' };
+    for (const g of (an.byRepository || []))
+      flowSeverity.repo[g.id] = { pct: g.bottleneckAvg ? g.bottleneckAvg.target : null, dom: primaryOf(g) === 'Target' };
     renderFlow(graph);
+    showFlowDominant(an);
   } catch (e) { console.error(e); }
 }
 
-// Semaforo segun la carga (%) del stage que le toca al nodo.
+// Color del nodo: con % -> semaforo (ok/atención/cuello); sin % -> rojo si el
+// nodo es el stage dominante. null = gris (ok / sin datos / cuello fuera de la vista).
 function nodeSeverity(node) {
-  let pct = null;
-  if (node.role === 'proxy') pct = flowSeverity.prox[node.id];
-  else if (node.role === 'repository') pct = flowSeverity.repo[node.id];
-  if (pct == null) return null;
-  return pct >= 80 ? '#C0392B' : pct >= 50 ? '#E0A020' : '#1D9E75';
+  const m = node.role === 'proxy' ? flowSeverity.prox[node.id]
+    : node.role === 'repository' ? flowSeverity.repo[node.id] : null;
+  if (!m) return null;
+  if (m.pct != null) return m.pct >= 80 ? '#C0392B' : m.pct >= 50 ? '#E0A020' : '#1D9E75';
+  return m.dom ? '#C0392B' : null;
+}
+
+// Aviso del stage dominante del período. Clave cuando el cuello es Source/Network,
+// que no son nodos de la vista proxy->repo->mount (por eso a veces "no hay colores").
+function showFlowDominant(an) {
+  const el = document.getElementById('flowDominantNote');
+  if (!el) return;
+  const counts = {};
+  for (const g of [...(an.byProxy || []), ...(an.byRepository || [])])
+    for (const k in (g.primaryCounts || {})) counts[k] = (counts[k] || 0) + g.primaryCounts[k];
+  const dom = topPrimary(counts);
+  if (!dom) { el.innerHTML = ''; return; }
+  const MAP = { Source: 'origen — lectura del almacenamiento de producción', Proxy: 'proxy', Network: 'red', Target: 'destino — disco del repositorio' };
+  const inView = dom === 'Proxy' || dom === 'Target';
+  el.innerHTML = `🔎 Cuello dominante del período: <b>${MAP[dom] || dom}</b>` +
+    (inView ? ' — resaltado en <span style="color:#e07070;">rojo</span> abajo.' : ' — no es un nodo de esta vista (por eso no se pinta ninguno).');
 }
 
 // Ordena los nodos DENTRO de cada columna para minimizar cruces de líneas
@@ -560,10 +585,10 @@ function renderFlow(graph) {
       if (sev) {  // punto solido de semaforo
         svg.appendChild(mk('circle', { cx:x-86, cy:y-h/2+11, r:5, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
       }
-      if (deg > 1) {  // badge con el nº de conexiones (ambar si son muchas)
+      if (busy) {  // solo marcamos los puntos de concentración (muchas conexiones)
         const bx = x + 88, by = y - h/2 + 2;
-        svg.appendChild(mk('circle', { cx:bx, cy:by, r:9, fill: busy ? '#E0A020' : '#39404f', stroke:'#181b22', 'stroke-width':1 }));
-        const dt = mk('text', { x:bx, y:by+4, 'text-anchor':'middle', 'font-size':'10px', fill: busy ? '#181b22' : '#c9cdd6', 'font-weight':'700' });
+        svg.appendChild(mk('circle', { cx:bx, cy:by, r:9, fill:'#E0A020', stroke:'#181b22', 'stroke-width':1 }));
+        const dt = mk('text', { x:bx, y:by+4, 'text-anchor':'middle', 'font-size':'10px', fill:'#181b22', 'font-weight':'700' });
         dt.textContent = deg;
         svg.appendChild(dt);
       }
@@ -920,7 +945,7 @@ function groupCard(g, kind) {
       <span class="muted" style="font-size:12px;">· ${fmtGB(g.transferredSize)} transferidos</span>
     </div>
     <div style="font-size:13px;margin-top:6px;">Cuello principal por run: <b>${prim}</b></div>
-    ${bottleneckBars(g.bottleneckAvg)}
+    ${g.bottleneckAvg ? bottleneckBars(g.bottleneckAvg) : ''}
     ${diagnose(g, kind)}
     <button class="ghost mini" onclick="toggleGroup('${gid}')">Expandir jobs</button>
     <div id="${gid}" style="display:none;margin-top:10px;">${(g.jobs || []).map(renderJobCard).join('')}</div>
