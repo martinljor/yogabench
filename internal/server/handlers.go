@@ -227,6 +227,7 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			"repositories":         rawOrErr("v1/backupInfrastructure/repositories?limit=1000"),
 			"scaleOutRepositories": rawOrErr("v1/backupInfrastructure/scaleOutRepositories?limit=1000"),
 			"managedServers":       rawOrErr("v1/backupInfrastructure/managedServers?limit=1000"),
+			"jobs":                 rawOrErr("v1/jobs?limit=500"), // p/ validar las relaciones proxy->repo
 		},
 	}
 	if g, err := topology.Build(ctx, sess); err != nil {
