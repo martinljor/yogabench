@@ -95,7 +95,8 @@
   .wz-step.active { color:#fff; border-color:var(--green); }
   .wz-step.active .wz-num, .wz-step.done .wz-num { background:var(--green); color:#0e1a0b; }
   .wz-step.done { color:var(--text); }
-  .wz-nav { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; }
+  .wz-nav { display:flex; justify-content:center; align-items:center; gap:12px; margin-top:22px;
+    padding-top:16px; border-top:1px solid var(--border); }
   .wz-msg { margin-top:12px; font-size:13px; min-height:18px; }
   .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .seg-btn { background:var(--panel2); color:var(--text); border:none; border-radius:0; font-weight:500; padding:9px 16px; }
@@ -190,7 +191,7 @@
         <button type="button" class="seg-btn ghosted" disabled title="Próximamente">Red · fase 2</button>
       </div>
     </div>
-    <div class="wz-nav"><span></span><button onclick="wzGo(2)">Siguiente →</button></div>
+    <div class="wz-nav"><button onclick="wzGo(2)">Siguiente →</button></div>
   </div>
 
   <!-- Paso 2: Conexión -->
