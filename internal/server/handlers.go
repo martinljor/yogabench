@@ -85,7 +85,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		req.Port = 9419
 	}
 	if req.APIVersion == "" {
-		req.APIVersion = "1.2-rev1"
+		req.APIVersion = "1.3-rev0" // v13 (trae todos los tipos de proxy)
 	}
 	access, refresh, expiresIn, err := vbr.Authenticate(
 		r.Context(), req.Host, req.Port, req.Username, req.Password, req.APIVersion, req.VerifySSL)

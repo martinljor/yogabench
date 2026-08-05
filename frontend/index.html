@@ -142,8 +142,9 @@
       <div><label data-i18n="form.pass">Password</label><input id="password" type="password"></div>
       <div><label data-i18n="form.apiver">API version</label>
         <select id="apiVersion">
-          <option value="1.2-rev1">1.2-rev1</option>
-          <option value="1.1-rev0">1.1-rev0</option>
+          <option value="1.3-rev0" selected>1.3-rev0 (v13)</option>
+          <option value="1.2-rev1">1.2-rev1 (v12.1)</option>
+          <option value="1.1-rev0">1.1-rev0 (v12)</option>
           <option value="1.0-rev2">1.0-rev2</option>
         </select>
       </div>
@@ -410,7 +411,7 @@ async function loadInfra() {
     for (const p of proxies)
       html += `<tr><td>${p.name || ''}</td><td><span class="pill">${p.type || 'proxy'}</span></td><td>${p.os || '-'}</td><td>${p.description || ''}</td></tr>`;
     html += '</table>';
-    html += '<p class="muted" style="font-size:12px;margin-top:6px;">Nota: la REST API de VBR solo expone proxies <b>VMware</b> (ViProxy). Los de otros hipervisores/agentes no aparecen — es una limitación de Veeam, no del tool.</p>';
+    html += '<p class="muted" style="font-size:12px;margin-top:6px;">Nota: para ver <b>todos</b> los proxies (VMware, Hyper-V y general-purpose/Agent) conectá con <b>API version 1.3-rev0</b> (v13). Con versiones más viejas solo aparece el VMware.</p>';
 
     html += '<h3 style="margin-top:18px;">Repositorios</h3><table><tr><th>Nombre</th><th>Tipo</th><th>Path</th></tr>';
     for (const r of repos) {
