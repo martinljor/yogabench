@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"log"
+	"strings"
 	"sync"
-	"time"
 
 	"yogabench/internal/vbr"
 )
@@ -26,17 +28,10 @@ func testsForOperation(op string) []string {
 	return operationTests["both"]
 }
 
-func resourcesFor(resource string) []string {
-	if resource == "all" {
-		return []string{"disk", "net", "compute"}
-	}
-	return []string{resource}
-}
-
 // Conn: como llegar al host del repo para correr el benchmark. La password vive
 // SOLO aca (server-side), como el token de VBR; el frontend nunca la ve de vuelta.
 type Conn struct {
-	Mode        string // mock | ssh | winrm
+	Mode        string // ssh | winrm
 	OSType      string
 	TargetID    string
 	TargetLabel string
@@ -75,12 +70,9 @@ type BenchConnInput struct {
 
 type BenchmarkInput struct {
 	RepositoryID string `json:"repository_id"`
-	Operation    string `json:"operation"`
-	Resource     string `json:"resource"`
-	ProxyID      string `json:"proxy_id"`
+	Operation    string `json:"operation"` // backup (escritura) | restore (lectura)
 	Duration     int    `json:"duration"`
 	DiskBaseline string `json:"disk_baseline"`
-	NetBaseline  string `json:"net_baseline"`
 }
 
 // --- opciones del formulario ------------------------------------------------
@@ -116,17 +108,12 @@ func (m *Manager) repoByID(ctx context.Context, s *vbr.Session, id string) (Repo
 
 // --- ciclo del executor: conexion -> preflight -> deploy --------------------
 
-// makeConn decide el modo: demo/sin-password -> mock; Windows+password -> winrm
-// (stub); Linux+password -> ssh (real, fio). El puerto por defecto depende del
-// canal (WinRM 5985 / SSH 22).
-func makeConn(id, name, osType string, demo bool, host, user, pass string, port int, transport, path string) *Conn {
-	mode := "mock"
-	if !demo && pass != "" {
-		if osType == "windows" {
-			mode = "winrm"
-		} else {
-			mode = "ssh"
-		}
+// makeConn decide el canal segun el SO del host: Windows -> winrm (stub);
+// Linux -> ssh (real, fio). El puerto por defecto depende del canal.
+func makeConn(id, name, osType, host, user, pass string, port int, transport, path string) *Conn {
+	mode := "ssh"
+	if osType == "windows" {
+		mode = "winrm"
 	}
 	if port == 0 {
 		if mode == "winrm" {
@@ -143,14 +130,10 @@ func makeConn(id, name, osType string, demo bool, host, user, pass string, port 
 }
 
 func buildExecutor(c *Conn) Executor {
-	switch c.Mode {
-	case "winrm":
+	if c.Mode == "winrm" {
 		return &winRMExecutor{host: c.Host}
-	case "ssh":
-		return newSSHExecutor(c.Host, c.Port, c.Username, c.Password, c.Path)
-	default:
-		return NewMockExecutor(c.OSType, c.TargetID, c.Deployed)
 	}
+	return newSSHExecutor(c.Host, c.Port, c.Username, c.Password, c.Path)
 }
 
 func connKey(sessionID, target string) string { return sessionID + ":" + target }
@@ -162,7 +145,13 @@ func (m *Manager) TestConnection(ctx context.Context, s *vbr.Session, sessionID 
 	if !ok {
 		return "", ConnResult{}, false
 	}
-	c := makeConn(repo.ID, repo.Name, repo.HostOS, s.Demo, in.Host, in.Username, in.Password, in.Port, in.Transport, in.Path)
+	if s.Demo {
+		return "demo", ConnResult{OK: false, Message: "El benchmark real no corre en modo demo (necesita SSH al host del repositorio)."}, true
+	}
+	if strings.TrimSpace(in.Host) == "" || strings.TrimSpace(in.Username) == "" || strings.TrimSpace(in.Password) == "" {
+		return "", ConnResult{OK: false, Message: "Completá host, usuario y password del host del repositorio."}, true
+	}
+	c := makeConn(repo.ID, repo.Name, repo.HostOS, in.Host, in.Username, in.Password, in.Port, in.Transport, in.Path)
 	res := buildExecutor(c).TestConnection()
 	if res.OK {
 		m.mu.Lock()
@@ -204,26 +193,18 @@ func (m *Manager) DeployTools(sessionID, repoID string) (DeployResult, bool) {
 
 // --- fase 4: correr el benchmark -------------------------------------------
 
-// Start crea el job y lo lanza en segundo plano. Devuelve (jobID, status,
-// repoEncontrado).
-func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, in BenchmarkInput) (string, string, bool) {
+// Start crea el job de disco y lo lanza en segundo plano. Exige una conexion
+// validada al host (no hay modo simulado). Devuelve (jobID, status, code, detail):
+// code 0 = ok; 404 = repo inexistente; 409 = falta validar la conexion.
+func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, in BenchmarkInput) (string, string, int, string) {
 	repo, ok := m.repoByID(ctx, s, in.RepositoryID)
 	if !ok {
-		return "", "", false
+		return "", "", 404, "Repositorio no encontrado en esta sesion."
 	}
-	proxyLabel := ""
-	if in.ProxyID != "" {
-		for _, p := range getItems(ctx, s, "v1/backupInfrastructure/proxies?limit=1000") {
-			if str(p["id"]) == in.ProxyID {
-				proxyLabel = str(p["name"])
-				break
-			}
-		}
-	}
-	// Conexion validada al host si existe; si no, mock (demo sin ciclo previo).
+	// Requiere la conexion validada en el paso previo del wizard.
 	c := m.getConn(sessionID, in.RepositoryID)
 	if c == nil {
-		c = makeConn(repo.ID, repo.Name, repo.HostOS, true, "", "", "", 0, "", "")
+		return "", "", 409, "Validá la conexión al host del repositorio antes de correr (paso Conexión)."
 	}
 	ex := buildExecutor(c)
 
@@ -233,14 +214,8 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 	if in.Operation == "" {
 		in.Operation = "backup"
 	}
-	if in.Resource == "" {
-		in.Resource = "disk"
-	}
 	if in.DiskBaseline == "" {
 		in.DiskBaseline = defaultDisk
-	}
-	if in.NetBaseline == "" {
-		in.NetBaseline = defaultNet
 	}
 	mountLabel := ""
 	if repo.Mount != nil {
@@ -249,66 +224,56 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 	job := &Job{
 		ID: newID(), SessionID: sessionID,
 		RepositoryID: repo.ID, RepositoryLabel: repo.Name,
-		Operation: in.Operation, Resource: in.Resource,
-		ProxyLabel: proxyLabel, MountLabel: mountLabel,
-		OSType: repo.HostOS, Tool: ex.Tool(),
-		DiskBaseline: in.DiskBaseline, NetBaseline: in.NetBaseline,
-		Status: "queued", Progress: 0,
+		Operation: in.Operation, Resource: "disk",
+		MountLabel: mountLabel,
+		OSType:     repo.HostOS, Tool: ex.Tool(),
+		DiskBaseline: in.DiskBaseline,
+		Status:       "queued", Progress: 0,
 	}
 	m.mu.Lock()
 	m.jobs[job.ID] = job
 	m.mu.Unlock()
 
+	log.Printf("benchmark %s iniciado: repo=%q operacion=%s modo=%s tool=%s",
+		job.ID, repo.Name, in.Operation, c.Mode, ex.Tool())
 	go m.run(job, ex, in.Duration)
-	return job.ID, job.Status, true
+	return job.ID, job.Status, 0, ""
 }
 
+// run corre el benchmark de disco (fio) y anota contra el baseline.
 func (m *Manager) run(job *Job, ex Executor, duration int) {
 	m.set(func() { job.Status = "running" })
-	resources := resourcesFor(job.Resource)
 	seed := job.RepositoryID
 	if seed == "" {
 		seed = "seed"
 	}
-	n := len(resources)
 
-	for i, res := range resources {
-		var err error
-		switch res {
-		case "disk":
-			base := i
-			rows, e := ex.RunDisk(Spec{TargetID: seed, Tests: testsForOperation(job.Operation), Duration: duration},
-				func(pct int) { m.set(func() { job.Progress = (base*100 + pct) / n }) })
-			if e != nil {
-				err = e
-				break
-			}
-			annotated := annotateDisk(rows, job.DiskBaseline)
-			m.set(func() { job.Results.Disk = annotated })
-		case "net":
-			time.Sleep(sleepFor(duration))
-			metric := annotateNet(mockNet(seed), job.NetBaseline)
-			m.set(func() { job.Results.Net = metric })
-		case "compute":
-			time.Sleep(sleepFor(duration))
-			metric := annotateCompute(mockCompute(seed))
-			m.set(func() { job.Results.Compute = metric })
-		}
-		if err != nil {
-			m.set(func() { job.Status, job.Error = "failed", err.Error() })
-			return
-		}
-		done := i + 1
-		m.set(func() { job.Progress = done * 100 / n })
+	rows, err := ex.RunDisk(
+		Spec{TargetID: seed, Tests: testsForOperation(job.Operation), Duration: duration},
+		func(pct int) { m.set(func() { job.Progress = pct }) })
+	if err != nil {
+		m.set(func() { job.Status, job.Error = "failed", err.Error() })
+		log.Printf("benchmark %s FALLO: %v", job.ID, err)
+		return
 	}
-	m.set(func() { job.Progress, job.Status = 100, "completed" })
+	annotated := annotateDisk(rows, job.DiskBaseline)
+
+	var summary string
+	m.set(func() {
+		job.Results.Disk = annotated
+		job.Progress, job.Status = 100, "completed"
+		summary = summarize(job.Results)
+	})
+	log.Printf("benchmark %s completado: %s", job.ID, summary)
 }
 
-func sleepFor(duration int) time.Duration {
-	if duration > 3 {
-		duration = 3
+// summarize arma una linea compacta de resultados para el log (sin datos sensibles).
+func summarize(r Results) string {
+	var parts []string
+	for _, d := range r.Disk {
+		parts = append(parts, fmt.Sprintf("%s=%.0fMB/s/%.0fIOPS/%.2fms(%s)", d.Name, d.BwMbps, d.Iops, d.LatMs, d.Status))
 	}
-	return time.Duration(duration) * time.Second
+	return strings.Join(parts, " ")
 }
 
 // --- lecturas (marshaladas bajo lock para no correr con las goroutines) -----

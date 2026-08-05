@@ -27,11 +27,11 @@ type SimpleMetric struct {
 	Status        string  `json:"status"`
 }
 
-// Results agrupa los tres recursos posibles. nil = no corrido (JSON null).
+// Results del benchmark. Hoy solo disco (real). Net queda para fase 2 (siempre
+// null por ahora). nil = no corrido (JSON null).
 type Results struct {
-	Disk    []DiskRow     `json:"disk"`
-	Net     *SimpleMetric `json:"net"`
-	Compute *SimpleMetric `json:"compute"`
+	Disk []DiskRow     `json:"disk"`
+	Net  *SimpleMetric `json:"net"` // fase 2: medicion real de red (iperf u similar)
 }
 
 // Job: ciclo de vida de un benchmark (queued -> running -> completed/failed).
@@ -42,12 +42,10 @@ type Job struct {
 	RepositoryLabel string  `json:"repository_label"`
 	Operation       string  `json:"operation"`
 	Resource        string  `json:"resource"`
-	ProxyLabel      string  `json:"proxy_label"`
 	MountLabel      string  `json:"mount_label"`
 	OSType          string  `json:"os_type"`
 	Tool            string  `json:"tool"`
 	DiskBaseline    string  `json:"disk_baseline"`
-	NetBaseline     string  `json:"net_baseline"`
 	Status          string  `json:"status"`
 	Progress        int     `json:"progress"`
 	Results         Results `json:"results"`

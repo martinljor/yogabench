@@ -85,6 +85,23 @@
   .bar-fill { background:var(--blue); height:100%; display:block; }
   .progress { background:#2b2f3b; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
   .progress > div { background:var(--green); height:100%; width:0; transition:width .3s; }
+
+  /* Wizard del benchmark */
+  .wz-steps { display:flex; gap:8px; margin:4px 0 20px; flex-wrap:wrap; }
+  .wz-step { display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:8px;
+    background:var(--panel2); border:1px solid var(--border); color:var(--muted); font-size:13px; }
+  .wz-step .wz-num { width:22px; height:22px; border-radius:50%; background:var(--border); color:var(--text);
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; }
+  .wz-step.active { color:#fff; border-color:var(--green); }
+  .wz-step.active .wz-num, .wz-step.done .wz-num { background:var(--green); color:#0e1a0b; }
+  .wz-step.done { color:var(--text); }
+  .wz-nav { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; }
+  .wz-msg { margin-top:12px; font-size:13px; min-height:18px; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .seg-btn { background:var(--panel2); color:var(--text); border:none; border-radius:0; font-weight:500; padding:9px 16px; }
+  .seg-btn.active { background:var(--green); color:#0e1a0b; }
+  .seg-btn.ghosted { color:var(--muted); opacity:.55; cursor:not-allowed; }
+  .seg-btn:not(.active):not(.ghosted):hover { background:#2c313d; }
 </style>
 </head>
 <body>
@@ -146,61 +163,79 @@
 </div>
 
 <div class="card" id="benchPanel" style="display:none;">
-  <h3>Prueba de rendimiento</h3>
-  <p class="muted">El <b>destino es el repositorio</b>. Segun la accion se le ata
-    otro nodo: en <b>Backup</b> el <b>proxy</b> que escribe (proxy → repositorio);
-    en <b>Restore</b> el <b>mount server</b> que lee (repositorio → mount server).
-    Elegi que recurso medir: <b>Disco</b>, <b>Red</b>, <b>Computo</b> o <b>Todo</b>
-    (ideal para repos iSCSI / appliance, donde el disco va por la red).</p>
+  <h3>Benchmark de disco</h3>
 
-  <div class="row" style="margin-top:12px;">
-    <div><label>Repositorio (destino)</label><select id="benchRepo" style="width:240px;" onchange="onRepoChange()"></select></div>
-    <div><label>Accion</label>
-      <select id="benchOperation" style="width:150px;" onchange="onOperationChange()">
-        <option value="backup" selected>Backup (escritura)</option>
-        <option value="restore">Restore (lectura)</option>
-      </select>
-    </div>
-    <div id="assocProxy"><label>Proxy (backup)</label><select id="benchProxy" style="width:200px;"></select></div>
-    <div id="assocMount" style="display:none;"><label>Mount server (restore)</label><input id="benchMount" disabled style="width:200px;"></div>
+  <div class="wz-steps">
+    <div class="wz-step active" id="wzStep1"><span class="wz-num">1</span> Destino</div>
+    <div class="wz-step" id="wzStep2"><span class="wz-num">2</span> Conexión</div>
+    <div class="wz-step" id="wzStep3"><span class="wz-num">3</span> Herramienta</div>
+    <div class="wz-step" id="wzStep4"><span class="wz-num">4</span> Correr</div>
   </div>
 
-  <div class="row" style="margin-top:12px;">
-    <div><label>Recurso</label>
-      <select id="benchResource" style="width:150px;" onchange="onResourceChange()">
-        <option value="disk" selected>Disco</option>
-        <option value="net">Red</option>
-        <option value="compute">Computo</option>
-        <option value="all">Todo</option>
-      </select>
-    </div>
-    <div id="wrapDiskBaseline"><label>Disco esperado</label><select id="benchDiskBaseline" style="width:170px;"></select></div>
-    <div id="wrapNetBaseline" style="display:none;"><label>Enlace esperado</label><select id="benchNetBaseline" style="width:150px;"></select></div>
-    <div><label>Duracion (s)</label><input id="benchDuration" value="8" style="width:80px;"></div>
-    <div><button onclick="runBenchmark()" id="benchBtn">Correr benchmark</button></div>
-  </div>
-
-  <div class="subcard" id="prepCard">
-    <div class="muted" style="margin-bottom:8px;">Ejecucion real de <b>disco</b> en el
-      host del repositorio (fio/diskspd). Con usuario/password <b>vacios</b> = modo
-      <b>simulado (mock)</b>; con credenciales de un host Windows, va por WinRM real.
-      (Red y Computo son simulados en esta version.)</div>
+  <!-- Paso 1: Destino -->
+  <div class="wz-pane" id="wzPane1">
     <div class="row">
-      <div><label>Host / IP del repositorio</label><input id="proxyHost" placeholder="(vacio = mock)"></div>
-      <div><label>Usuario</label><input id="proxyUser" placeholder="(vacio = mock)"></div>
-      <div><label>Password</label><input id="proxyPass" type="password" placeholder="(vacio = mock)"></div>
+      <div><label>Repositorio (destino)</label><select id="benchRepo" style="width:280px;" onchange="onRepoChange()"></select></div>
+      <div><label>Acción</label>
+        <select id="benchOperation" style="width:180px;">
+          <option value="backup" selected>Backup (escritura)</option>
+          <option value="restore">Restore (lectura)</option>
+        </select>
+      </div>
     </div>
-    <div class="row" style="margin-top:10px;">
-      <button class="ghost" onclick="testConnection()" id="btnConn">1. Probar conexion</button>
-      <button class="ghost" onclick="checkTools()" id="btnCheck" disabled>2. Verificar herramienta</button>
-      <button class="ghost" onclick="deployTools()" id="btnDeploy" disabled>3. Desplegar</button>
+    <div style="margin-top:14px;">
+      <label>Recurso</label>
+      <div class="seg">
+        <button type="button" class="seg-btn active">Disco</button>
+        <button type="button" class="seg-btn ghosted" disabled title="Próximamente">Red · fase 2</button>
+      </div>
     </div>
-    <div id="prepStatus" style="margin-top:8px;font-size:13px;"></div>
+    <div class="wz-nav"><span></span><button onclick="wzGo(2)">Siguiente →</button></div>
   </div>
 
-  <div class="error" id="benchError"></div>
-  <div id="benchStatus" style="margin-top:14px;"></div>
-  <div id="benchResults"></div>
+  <!-- Paso 2: Conexión -->
+  <div class="wz-pane" id="wzPane2" style="display:none;">
+    <p class="muted">Conexión <b>SSH</b> al host del repositorio (donde vive el disco).</p>
+    <div class="row">
+      <div><label>Host / IP</label><input id="proxyHost" placeholder="172.16.0.x"></div>
+      <div><label>Usuario</label><input id="proxyUser" placeholder="veeamadmin"></div>
+      <div><label>Password</label><input id="proxyPass" type="password" onkeydown="if(event.key==='Enter')testConnection()"></div>
+    </div>
+    <div id="prepConn" class="wz-msg"></div>
+    <div class="wz-nav">
+      <button class="ghost" onclick="wzGo(1)">← Atrás</button>
+      <button onclick="testConnection()" id="btnConn">Probar conexión</button>
+    </div>
+  </div>
+
+  <!-- Paso 3: Herramienta -->
+  <div class="wz-pane" id="wzPane3" style="display:none;">
+    <p class="muted">Verificamos que <b>fio</b> esté disponible en el host.</p>
+    <div id="prepTools" class="wz-msg"></div>
+    <div class="wz-nav">
+      <button class="ghost" onclick="wzGo(2)">← Atrás</button>
+      <span>
+        <button class="ghost" onclick="deployTools()" id="btnDeploy" style="display:none;">Desplegar fio</button>
+        <button onclick="checkTools()" id="btnCheck">Verificar herramienta</button>
+      </span>
+    </div>
+  </div>
+
+  <!-- Paso 4: Correr -->
+  <div class="wz-pane" id="wzPane4" style="display:none;">
+    <p class="muted">Listo para medir. fio escribe ~2 GB temporales en el repo y los borra al terminar.</p>
+    <div class="row">
+      <div><label>Disco esperado (baseline)</label><select id="benchDiskBaseline" style="width:220px;"></select></div>
+      <div><label>Duración por test (s)</label><input id="benchDuration" value="8" style="width:110px;"></div>
+    </div>
+    <div class="wz-nav">
+      <button class="ghost" onclick="wzGo(3)">← Atrás</button>
+      <button onclick="runBenchmark()" id="benchBtn">Correr benchmark</button>
+    </div>
+    <div class="error" id="benchError" style="margin-top:12px;"></div>
+    <div id="benchStatus" style="margin-top:14px;"></div>
+    <div id="benchResults"></div>
+  </div>
 </div>
 
 <div class="card" id="analysisPanel" style="display:none;">
@@ -478,135 +513,125 @@ function mk(tag, attrs) {
   return el;
 }
 
-// --- Benchmark ---------------------------------------------------------------
+// --- Benchmark (wizard) ------------------------------------------------------
 let benchRepos = [];
+let wzState = { step: 1, connOk: false, toolOk: false };
 
 async function loadBenchOptions() {
   const res = await fetch(`${BACKEND}/api/${sessionId}/benchmark-options`).then(r => r.json());
   benchRepos = res.repositories || [];
   document.getElementById('benchRepo').innerHTML = benchRepos.map(r =>
     `<option value="${r.id}">${r.name} (${r.host_os})</option>`).join('');
-  document.getElementById('benchProxy').innerHTML = (res.proxies || []).map(p =>
-    `<option value="${p.id}">${p.name} (${p.os})</option>`).join('');
 
   const dsel = document.getElementById('benchDiskBaseline');
-  const nsel = document.getElementById('benchNetBaseline');
   if (!dsel.options.length) {
     const bl = await fetch(`${BACKEND}/api/baselines`).then(r => r.json());
     dsel.innerHTML = bl.disk.data.map(b =>
       `<option value="${b.key}" ${b.key === bl.disk.default ? 'selected' : ''}>${b.label}</option>`).join('');
-    nsel.innerHTML = bl.net.data.map(b =>
-      `<option value="${b.key}" ${b.key === bl.net.default ? 'selected' : ''}>${b.label}</option>`).join('');
   }
-  onOperationChange(); onResourceChange(); onRepoChange();
+  wzReset();
 }
 
-function selectedRepo() {
-  const id = document.getElementById('benchRepo').value;
-  return benchRepos.find(r => r.id === id);
-}
-
-function onRepoChange() {
-  const repo = selectedRepo();
-  const mount = repo && repo.mount ? `${repo.mount.name} (${repo.mount.os})` : '—';
-  document.getElementById('benchMount').value = mount;
-  resetPrep();
-}
-
-function onOperationChange() {
-  const op = document.getElementById('benchOperation').value;
-  document.getElementById('assocProxy').style.display = op === 'backup' ? 'block' : 'none';
-  document.getElementById('assocMount').style.display = op === 'restore' ? 'block' : 'none';
-}
-
-function onResourceChange() {
-  const res = document.getElementById('benchResource').value;
-  const showDisk = res === 'disk' || res === 'all';
-  const showNet = res === 'net' || res === 'all';
-  document.getElementById('wrapDiskBaseline').style.display = showDisk ? 'block' : 'none';
-  document.getElementById('wrapNetBaseline').style.display = showNet ? 'block' : 'none';
-}
-
-// --- Ciclo: conexion -> preflight -> deploy (host del repo) -----------------
 function currentRepoId() { return document.getElementById('benchRepo').value; }
+function selectedRepo() { return benchRepos.find(r => r.id === currentRepoId()); }
 
-function resetPrep() {
-  document.getElementById('prepStatus').innerHTML = '';
-  document.getElementById('btnCheck').disabled = true;
-  document.getElementById('btnDeploy').disabled = true;
+// Cambiar de repo invalida la conexion ya validada -> volver a arrancar el ciclo.
+function onRepoChange() {
+  wzState.connOk = false; wzState.toolOk = false;
+  document.getElementById('prepConn').innerHTML = '';
+  document.getElementById('prepTools').innerHTML = '';
 }
 
-function setPrep(html) { document.getElementById('prepStatus').innerHTML = html; }
+// --- navegacion del wizard ---
+function wzReset() { wzState = { step: 1, connOk: false, toolOk: false }; onRepoChange(); wzShow(1); }
 
+function wzShow(step) {
+  wzState.step = step;
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('wzPane' + i).style.display = i === step ? 'block' : 'none';
+    const s = document.getElementById('wzStep' + i);
+    s.classList.toggle('active', i === step);
+    s.classList.toggle('done', i < step);
+  }
+}
+
+// Guardas de avance: no saltear conexion ni verificacion de la herramienta.
+function wzGo(step) {
+  if (step >= 3 && !wzState.connOk) { wzShow(2); return; }
+  if (step >= 4 && !wzState.toolOk) { wzShow(3); return; }
+  wzShow(step);
+}
+
+function setMsg(id, html) { document.getElementById(id).innerHTML = html; }
+
+// --- Paso 2: conexion SSH al host del repo ---
 async function testConnection() {
-  const body = {
-    repository_id: currentRepoId(),
-    host: document.getElementById('proxyHost').value || null,
-    username: document.getElementById('proxyUser').value || null,
-    password: document.getElementById('proxyPass').value || null,
-  };
-  setPrep('<span class="step-info">Probando conexion…</span>');
+  const host = document.getElementById('proxyHost').value.trim();
+  const user = document.getElementById('proxyUser').value.trim();
+  const pass = document.getElementById('proxyPass').value;
+  if (!host || !user || !pass) { setMsg('prepConn', '<span class="step-bad">Completá host, usuario y password.</span>'); return; }
+  setMsg('prepConn', '<span class="step-info">Probando conexión SSH…</span>');
   try {
     const r = await fetch(`${BACKEND}/api/${sessionId}/bench-connection`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ repository_id: currentRepoId(), host, username: user, password: pass })
     });
     const d = await r.json();
-    if (!r.ok || !d.ok) { setPrep(`<span class="step-bad">✗ ${d.message || d.detail || 'Fallo la conexion'}</span>`); return; }
-    setPrep(`<span class="step-ok">✓ ${d.message}</span> — modo <b>${d.mode}</b>${d.hostname ? ' · host: ' + d.hostname : ''}`);
-    document.getElementById('btnCheck').disabled = false;
-  } catch (e) { setPrep(`<span class="step-bad">✗ ${e.message}</span>`); }
+    if (!r.ok || !d.ok) { setMsg('prepConn', `<span class="step-bad">✗ ${d.message || d.detail || 'Falló la conexión'}</span>`); return; }
+    wzState.connOk = true;
+    setMsg('prepConn', `<span class="step-ok">✓ ${d.message}</span>${d.hostname ? ' · host: <b>' + d.hostname + '</b>' : ''}`);
+    wzShow(3);
+    checkTools();   // encadena la verificación de fio
+  } catch (e) { setMsg('prepConn', `<span class="step-bad">✗ ${e.message}</span>`); }
 }
 
+// --- Paso 3: herramienta (fio) ---
 async function checkTools() {
-  setPrep('<span class="step-info">Verificando herramienta…</span>');
+  setMsg('prepTools', '<span class="step-info">Verificando fio…</span>');
+  document.getElementById('btnDeploy').style.display = 'none';
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/bench-connection/${currentRepoId()}/tools`).then(r => r.json());
     if (d.installed) {
-      setPrep(`<span class="step-ok">✓ ${d.detail}</span> — listo para correr.`);
-      document.getElementById('btnDeploy').disabled = true;
+      wzState.toolOk = true;
+      setMsg('prepTools', `<span class="step-ok">✓ ${d.detail}</span> — listo para correr.`);
+      setTimeout(() => wzGo(4), 500);
     } else {
-      setPrep(`<span class="step-bad">✗ ${d.detail}</span> — hace falta desplegar.`);
-      document.getElementById('btnDeploy').disabled = false;
+      wzState.toolOk = false;
+      setMsg('prepTools', `<span class="step-bad">✗ ${d.detail}</span>`);
+      document.getElementById('btnDeploy').style.display = '';
     }
-  } catch (e) { setPrep(`<span class="step-bad">✗ ${e.message}</span>`); }
+  } catch (e) { setMsg('prepTools', `<span class="step-bad">✗ ${e.message}</span>`); }
 }
 
 async function deployTools() {
-  setPrep('<span class="step-info">Desplegando…</span>');
+  setMsg('prepTools', '<span class="step-info">Desplegando fio…</span>');
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/bench-connection/${currentRepoId()}/deploy`, { method: 'POST' }).then(r => r.json());
-    if (d.ok) {
-      setPrep(`<span class="step-ok">✓ ${d.message}</span>`);
-      document.getElementById('btnDeploy').disabled = true;
-    } else {
-      setPrep(`<span class="step-bad">✗ ${d.message}</span>`);
-    }
-  } catch (e) { setPrep(`<span class="step-bad">✗ ${e.message}</span>`); }
+    if (d.ok) { checkTools(); } else { setMsg('prepTools', `<span class="step-bad">✗ ${d.message}</span>`); }
+  } catch (e) { setMsg('prepTools', `<span class="step-bad">✗ ${e.message}</span>`); }
 }
 
+// --- Paso 4: correr el benchmark de disco ---
 async function runBenchmark() {
   const errEl = document.getElementById('benchError');
   const btn = document.getElementById('benchBtn');
   errEl.textContent = '';
   document.getElementById('benchResults').innerHTML = '';
-  const op = document.getElementById('benchOperation').value;
+  const dur = parseInt(document.getElementById('benchDuration').value || '8', 10);
   const body = {
     repository_id: currentRepoId(),
-    operation: op,
-    resource: document.getElementById('benchResource').value,
-    proxy_id: op === 'backup' ? document.getElementById('benchProxy').value : null,
+    operation: document.getElementById('benchOperation').value,
     disk_baseline: document.getElementById('benchDiskBaseline').value,
-    net_baseline: document.getElementById('benchNetBaseline').value,
-    duration: parseInt(document.getElementById('benchDuration').value || '8')
+    duration: dur > 0 ? dur : 8
   };
-  if (!body.repository_id) { errEl.textContent = 'Elegi un repositorio destino.'; return; }
   btn.disabled = true;
   try {
-    const start = await fetch(`${BACKEND}/api/${sessionId}/benchmark`, {
+    const r = await fetch(`${BACKEND}/api/${sessionId}/benchmark`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
-    }).then(r => r.json());
+    });
+    const start = await r.json();
+    if (!r.ok) { errEl.textContent = start.detail || 'No se pudo iniciar el benchmark.'; return; }
     await pollJob(start.job_id);
   } catch (e) { errEl.textContent = e.message; }
   finally { btn.disabled = false; }
@@ -626,13 +651,8 @@ async function pollJob(jobId) {
       return;
     }
     const op = { backup: 'Backup', restore: 'Restore' }[job.operation] || job.operation;
-    const resName = { disk: 'Disco', net: 'Red', compute: 'Computo', all: 'Todo' }[job.resource] || job.resource;
-    const assoc = job.operation === 'backup'
-      ? (job.proxy_label ? ` · proxy: ${job.proxy_label}` : '')
-      : (job.mount_label ? ` · mount: ${job.mount_label}` : '');
     statusEl.innerHTML =
-      `<b>${op}</b> · recurso <b>${resName}</b> · repo <b>${job.repository_label}</b>${assoc} · ${job.tool}
-       — estado: ${job.status}
+      `<b>${op}</b> · disco · repo <b>${job.repository_label}</b> · ${job.tool} — estado: ${job.status}
        <div class="progress"><div style="width:${job.progress}%"></div></div>`;
     if (job.status === 'completed') { renderResults(job); return; }
     if (job.status === 'failed') { document.getElementById('benchError').textContent = job.error; return; }
@@ -644,18 +664,15 @@ const VERDICT_LABEL = { ok: 'OK', warn: 'Atencion', low: 'Bajo lo esperado' };
 function verdictPill(status) { return `<span class="verdict ${status}">${VERDICT_LABEL[status] || status}</span>`; }
 
 function renderResults(job) {
-  const r = job.results || {};
-  let html = '<h3 style="margin-top:16px;">Resultados</h3>';
-  if (r.disk) html += renderDisk(r.disk);
-  if (r.net) html += renderSimple('Red', r.net);
-  if (r.compute) html += renderSimple('Computo', r.compute);
-  document.getElementById('benchResults').innerHTML = html;
+  const rows = (job.results && job.results.disk) || [];
+  if (!rows.length) { document.getElementById('benchResults').innerHTML = '<p class="muted">Sin resultados.</p>'; return; }
+  document.getElementById('benchResults').innerHTML =
+    '<h4 style="margin:16px 0 4px;">Resultados de disco</h4>' + renderDisk(rows);
 }
 
 function renderDisk(rows) {
   const maxBw = Math.max(...rows.map(r => r.bw_mbps), 1);
-  let html = `<h4 style="margin:14px 0 4px;">Disco</h4>
-    <table><tr><th>Test</th><th>Modo</th><th>MB/s</th><th></th><th>IOPS</th>
+  let html = `<table><tr><th>Test</th><th>Modo</th><th>MB/s</th><th></th><th>IOPS</th>
       <th>Latencia (ms)</th><th>Esperado</th><th>% del esperado</th><th>Veredicto</th></tr>`;
   for (const r of rows) {
     const pct = (r.bw_mbps / maxBw) * 100;
@@ -672,14 +689,6 @@ function renderDisk(rows) {
     </tr>`;
   }
   return html + '</table>';
-}
-
-function renderSimple(title, m) {
-  const exp = `${m.expected.toLocaleString()} ${m.unit}${m.expected_label ? ' (' + m.expected_label + ')' : ''}`;
-  return `<h4 style="margin:14px 0 4px;">${title}</h4>
-    <table><tr><th>Metrica</th><th>Medido</th><th>Esperado</th><th>% del esperado</th><th>Veredicto</th></tr>
-    <tr><td>${m.label}</td><td>${m.value} ${m.unit}</td><td>${exp}</td>
-      <td>${m.pct_of_expected}%</td><td>${verdictPill(m.status)}</td></tr></table>`;
 }
 
 // --- Analisis (Carril B): por repositorio y proxy ---------------------------

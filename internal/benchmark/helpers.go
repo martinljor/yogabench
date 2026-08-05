@@ -2,12 +2,9 @@ package benchmark
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"math"
-	"math/rand"
 	"strings"
 
 	"yogabench/internal/vbr"
@@ -28,26 +25,6 @@ func round1(f float64) float64 { return math.Round(f*10) / 10 }
 func roundN(f float64, n int) float64 {
 	p := math.Pow(10, float64(n))
 	return math.Round(f*p) / p
-}
-
-// seededRand: RNG estable a partir de un string (perfil repetible por host).
-func seededRand(s string) *rand.Rand {
-	sum := md5.Sum([]byte(s))
-	return rand.New(rand.NewSource(int64(binary.BigEndian.Uint64(sum[:8])))) //nolint:gosec // mock, no cripto
-}
-
-func uni(r *rand.Rand, lo, hi float64) float64 { return lo + r.Float64()*(hi-lo) }
-
-// mockNet: MB/s de red simulados (base ~10GbE * factor del target).
-func mockNet(seed string) float64 {
-	r := seededRand("net" + seed)
-	return 1150 * uni(r, 0.55, 1.15) * uni(r, 0.95, 1.05)
-}
-
-// mockCompute: MB/s de compresion simulados.
-func mockCompute(seed string) float64 {
-	r := seededRand("cpu" + seed)
-	return 560 * uni(r, 0.6, 1.3) * uni(r, 0.95, 1.05)
 }
 
 // --- acceso a la API + resolucion de host/SO (schema variable) --------------

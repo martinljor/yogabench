@@ -38,10 +38,9 @@ var netBaselines = map[string]netBaseline{
 var netOrder = []string{"1gbe", "10gbe", "25gbe", "40gbe"}
 
 const (
-	defaultNet          = "10gbe"
-	computeExpectedMbps = 550.0
-	okRatio             = 0.85
-	warnRatio           = 0.60
+	defaultNet = "10gbe"
+	okRatio    = 0.85
+	warnRatio  = 0.60
 )
 
 // Exportados para los catalogos del handler (valores por defecto del selector).
@@ -125,31 +124,4 @@ func annotateDisk(rows []DiskRow, baselineKey string) []DiskRow {
 		r.Status = verdict(ratio)
 	}
 	return rows
-}
-
-func annotateNet(measuredMbps float64, netKey string) *SimpleMetric {
-	b, ok := netBaselines[netKey]
-	if !ok {
-		b = netBaselines[defaultNet]
-	}
-	ratio := 0.0
-	if b.Mbps > 0 {
-		ratio = measuredMbps / b.Mbps
-	}
-	return &SimpleMetric{
-		Resource: "net", Label: "Throughput de red",
-		Value: round1(measuredMbps), Unit: "MB/s",
-		Expected: b.Mbps, ExpectedLabel: b.Label,
-		PctOfExpected: int(math.Round(ratio * 100)), Status: verdict(ratio),
-	}
-}
-
-func annotateCompute(measuredMbps float64) *SimpleMetric {
-	ratio := measuredMbps / computeExpectedMbps
-	return &SimpleMetric{
-		Resource: "compute", Label: "Compresion (CPU)",
-		Value: round1(measuredMbps), Unit: "MB/s",
-		Expected:      computeExpectedMbps,
-		PctOfExpected: int(math.Round(ratio * 100)), Status: verdict(ratio),
-	}
 }

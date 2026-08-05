@@ -259,9 +259,9 @@ func (s *Server) benchmarkStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
 		return
 	}
-	jobID, status, found := s.bench.Start(r.Context(), sess, r.PathValue("session"), in)
-	if !found {
-		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Repositorio no encontrado en esta sesion."})
+	jobID, status, code, detail := s.bench.Start(r.Context(), sess, r.PathValue("session"), in)
+	if code != 0 {
+		writeJSON(w, code, map[string]string{"detail": detail})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"job_id": jobID, "status": status})
