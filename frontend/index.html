@@ -163,7 +163,8 @@
     <span style="color:#1D9E75;">●</span> ok
     <span style="color:#E0A020;">●</span> atención
     <span style="color:#C0392B;">●</span> cuello · gris s/datos &nbsp;·&nbsp;
-    línea sólida = proxy asignado, punteada = automático</p>
+    línea sólida = proxy asignado, punteada = automático &nbsp;·&nbsp;
+    nº en la esquina = conexiones (<span style="color:#E0A020;">ámbar</span> = muchas → posible concentración)</p>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
@@ -179,14 +180,17 @@
 
   <!-- Paso 1: Conexión al host -->
   <div class="wz-pane" id="wzPane1">
-    <p class="muted">Conectá por <b>SSH</b> al servidor donde vive el disco (el appliance / host del repositorio).</p>
-    <div class="row">
-      <div><label>Host / IP</label><input id="proxyHost" placeholder="172.16.0.x"></div>
-      <div><label>Usuario</label><input id="proxyUser" placeholder="veeamadmin"></div>
-      <div><label>Password</label><input id="proxyPass" type="password" onkeydown="if(event.key==='Enter')testConnection()"></div>
+    <p class="muted">Elegí el <b>servidor</b> (host del repositorio) y conectá por <b>SSH</b>. Solo aparecen los hosts con repos locales — los de object storage/cloud no se miden por disco.</p>
+    <div class="row" style="align-items:flex-end;">
+      <div><label>Servidor</label>
+        <select id="benchHostSel" style="width:280px;" onchange="onHostSelChange()"></select>
+      </div>
+      <div id="wrapManualHost" style="display:none;"><label>Host / IP manual</label><input id="proxyHostManual" placeholder="172.16.0.x o FQDN" style="width:180px;"></div>
+      <div><label>Usuario</label><input id="proxyUser" style="width:150px;" placeholder="veeamadmin"></div>
+      <div><label>Password</label><input id="proxyPass" type="password" style="width:160px;" onkeydown="if(event.key==='Enter')testConnection()"></div>
+      <div><button onclick="testConnection()" id="btnConn">Probar conexión</button></div>
     </div>
     <div id="prepConn" class="wz-msg"></div>
-    <div class="wz-nav"><button onclick="testConnection()" id="btnConn">Probar conexión →</button></div>
   </div>
 
   <!-- Paso 2: Destino (repos de ese host) -->
@@ -519,6 +523,12 @@ function renderFlow(graph) {
   const NEUTRAL = '#9a988f';
   const positions = {};
 
+  // Grado (nº de conexiones) por nodo: muchas conexiones = punto de concentración
+  // a destacar (ej. un mount server que sirve muchos repos).
+  const degree = {};
+  (graph.edges || []).forEach(e => { degree[e.from] = (degree[e.from] || 0) + 1; degree[e.to] = (degree[e.to] || 0) + 1; });
+  const BUSY = 4;
+
   // Alto dinamico: el lienzo crece con la columna mas larga, asi no se corta.
   const maxRows = Math.max(1, ...roles.map(r => graph.nodes.filter(n => n.role === r).length));
   const H = 60 + maxRows * 64;
@@ -540,18 +550,30 @@ function renderFlow(graph) {
       const y = startY + rowIdx * 64;
       positions[node.id] = { x, y };
       const sev = nodeSeverity(node);
-      const h = node.info ? 44 : 36;
-      const rect = mk('rect', { x:x-90, y:y-h/2, width:180, height:h, rx:8,
-        fill: sev ? sev+'40' : '#252a35', stroke: sev || '#39404f', 'stroke-width': sev ? 3 : 1 });
+      const deg = degree[node.id] || 0;
+      const busy = deg >= BUSY;
+      const h = node.info ? 46 : 38;
+      const rect = mk('rect', { x:x-100, y:y-h/2, width:200, height:h, rx:8,
+        fill: sev ? sev+'40' : '#252a35',
+        stroke: sev || (busy ? '#E0A020' : '#39404f'), 'stroke-width': (sev || busy) ? 2.5 : 1 });
       svg.appendChild(rect);
-      if (sev) {  // punto solido de semaforo, para que se vea claro
-        svg.appendChild(mk('circle', { cx:x-78, cy:y-h/2+11, r:5, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
+      if (sev) {  // punto solido de semaforo
+        svg.appendChild(mk('circle', { cx:x-86, cy:y-h/2+11, r:5, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
       }
+      if (deg > 1) {  // badge con el nº de conexiones (ambar si son muchas)
+        const bx = x + 88, by = y - h/2 + 2;
+        svg.appendChild(mk('circle', { cx:bx, cy:by, r:9, fill: busy ? '#E0A020' : '#39404f', stroke:'#181b22', 'stroke-width':1 }));
+        const dt = mk('text', { x:bx, y:by+4, 'text-anchor':'middle', 'font-size':'10px', fill: busy ? '#181b22' : '#c9cdd6', 'font-weight':'700' });
+        dt.textContent = deg;
+        svg.appendChild(dt);
+      }
+      const label = node.label.length > 28 ? node.label.slice(0, 27) + '…' : node.label;
       const text = mk('text', { x, y: node.info ? y-2 : y+4, 'text-anchor':'middle', 'font-size':'12px', fill:'#e6e8ec' });
-      text.textContent = node.label;
+      text.textContent = label;
+      const tt = document.createElementNS('http://www.w3.org/2000/svg', 'title'); tt.textContent = node.label; text.appendChild(tt);
       svg.appendChild(text);
       if (node.info) {
-        const sub = mk('text', { x, y:y+13, 'text-anchor':'middle', 'font-size':'10px', fill:'#8b909c' });
+        const sub = mk('text', { x, y:y+14, 'text-anchor':'middle', 'font-size':'10px', fill:'#8b909c' });
         sub.textContent = node.info;
         svg.appendChild(sub);
       }
@@ -561,8 +583,8 @@ function renderFlow(graph) {
   (graph.edges || []).forEach(e => {
     const a = positions[e.from], b = positions[e.to];
     if (!a || !b) return;
-    const x1 = a.x < b.x ? a.x + 90 : a.x - 90;
-    const x2 = a.x < b.x ? b.x - 90 : b.x + 90;
+    const x1 = a.x < b.x ? a.x + 100 : a.x - 100;
+    const x2 = a.x < b.x ? b.x - 100 : b.x + 100;
     const attrs = { x1, y1:a.y, x2, y2:b.y, stroke:'#7a8090', 'stroke-width':1 };
     if (e.auto) { attrs.stroke = '#5c6270'; attrs['stroke-dasharray'] = '5,4'; }  // proxy automatico
     svg.appendChild(mk('line', attrs));
@@ -595,11 +617,30 @@ async function loadBenchOptions() {
     dsel.innerHTML = bl.disk.data.map(b =>
       `<option value="${b.key}" ${b.key === bl.disk.default ? 'selected' : ''}>${b.label}</option>`).join('');
   }
+  populateHostSelect();
   wzReset();
 }
 
 function currentRepoId() { return document.getElementById('benchRepo').value; }
 function selectedRepo() { return benchRepos.find(r => r.id === currentRepoId()); }
+
+// Paso 1: dropdown de servidores (hosts con repos locales, del propio VBR) en vez
+// de tipear una IP. Los repos de object storage/cloud no tienen host -> se excluyen.
+function populateHostSelect() {
+  const hosts = [...new Set(benchRepos.map(r => r.host_name).filter(Boolean))].sort();
+  const sel = document.getElementById('benchHostSel');
+  sel.innerHTML = hosts.map(h => `<option value="${h}">${h}</option>`).join('') +
+    '<option value="__manual__">Otro (host / IP manual)…</option>';
+  onHostSelChange();
+}
+function onHostSelChange() {
+  const manual = document.getElementById('benchHostSel').value === '__manual__';
+  document.getElementById('wrapManualHost').style.display = manual ? 'block' : 'none';
+}
+function selectedHost() {
+  const v = document.getElementById('benchHostSel').value;
+  return v === '__manual__' ? document.getElementById('proxyHostManual').value.trim() : v;
+}
 
 function onRepoChange() {
   const repo = selectedRepo();
@@ -670,10 +711,10 @@ function setMsg(id, html) { document.getElementById(id).innerHTML = html; }
 
 // --- Paso 1: conexión SSH al host ---
 async function testConnection() {
-  const host = document.getElementById('proxyHost').value.trim();
+  const host = selectedHost();
   const user = document.getElementById('proxyUser').value.trim();
   const pass = document.getElementById('proxyPass').value;
-  if (!host || !user || !pass) { setMsg('prepConn', '<span class="step-bad">Completá host, usuario y password.</span>'); return; }
+  if (!host || !user || !pass) { setMsg('prepConn', '<span class="step-bad">Elegí un servidor y completá usuario y password.</span>'); return; }
   setMsg('prepConn', '<span class="step-info">Probando conexión SSH…</span>');
   try {
     const r = await fetch(`${BACKEND}/api/${sessionId}/bench-connection`, {

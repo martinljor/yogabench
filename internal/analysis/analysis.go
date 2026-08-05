@@ -191,17 +191,44 @@ func buildRecord(ctx context.Context, s *vbr.Session, sess map[string]any, jobPr
 		}
 	}
 
+	// Bottleneck: primero la linea "Load: ..." de los logs (con %); si no esta
+	// (ej. v13), caemos al stage dominante que reporta cada tarea (progress.bottleneck).
+	bneck := bottleneckFromLogs(logs)
+	if bneck == nil {
+		if p := dominantTaskBottleneck(tasks); p != "" {
+			bneck = map[string]any{"primary": p}
+		}
+	}
+
 	return &Record{
 		ID: sid, Name: str(sess["name"]), Type: stype, Operation: op,
 		Result: str(res["result"]), Message: str(res["message"]),
 		CreationTime: str(sess["creationTime"]), EndTime: str(sess["endTime"]),
-		Bottleneck:      bottleneckFromLogs(logs),
+		Bottleneck:      bneck,
 		Tasks:           tasks,
 		ProcessedSize:   processed,
 		TransferredSize: transferred,
 		RepoIDs:         keys(repoSet),
 		ProxyIDs:        cleanIDs(jobProxies[str(sess["jobId"])]),
 	}
+}
+
+// dominantTaskBottleneck: el stage (Source/Proxy/Network/Target) que mas tareas
+// reportan como cuello (progress.bottleneck). Fallback cuando no hay linea "Load:".
+func dominantTaskBottleneck(tasks []Task) string {
+	counts := map[string]int{}
+	for _, t := range tasks {
+		if t.Bottleneck != "" {
+			counts[t.Bottleneck]++
+		}
+	}
+	best, bestN := "", 0
+	for k, n := range counts {
+		if n > bestN {
+			best, bestN = k, n
+		}
+	}
+	return best
 }
 
 func buildTasks(items []map[string]any) []Task {
