@@ -450,6 +450,42 @@ function nodeSeverity(node) {
   return pct >= 80 ? '#C0392B' : pct >= 50 ? '#E0A020' : '#1D9E75';
 }
 
+// Ordena los nodos DENTRO de cada columna para minimizar cruces de líneas
+// (heurística del baricentro / Sugiyama): cada nodo se ubica cerca del promedio
+// de sus vecinos en la columna de al lado, iterando ida y vuelta.
+function orderColumns(roles, nodes, edges) {
+  const cols = roles.map(r => nodes.filter(n => n.role === r));
+  const byId = {}; nodes.forEach(n => byId[n.id] = n);
+  const nb = {}; nodes.forEach(n => nb[n.id] = []);
+  (edges || []).forEach(e => {
+    if (byId[e.from] && byId[e.to]) { nb[e.from].push(e.to); nb[e.to].push(e.from); }
+  });
+  const rowOf = {};
+  const setRows = () => cols.forEach(col => col.forEach((n, i) => rowOf[n.id] = i));
+  setRows();
+  const bary = (node, adjIdx) => {
+    const rows = nb[node.id].map(id => byId[id])
+      .filter(m => m && m.role === roles[adjIdx]).map(m => rowOf[m.id]);
+    return rows.length ? rows.reduce((a, b) => a + b, 0) / rows.length : null;
+  };
+  const sweep = (dir) => {
+    const seq = dir > 0 ? cols.map((_, i) => i) : cols.map((_, i) => i).reverse();
+    for (const ci of seq) {
+      const adj = ci + (dir > 0 ? -1 : 1);           // columna de referencia (de donde venimos)
+      if (adj < 0 || adj >= cols.length) continue;
+      const ranked = cols[ci].map(n => {
+        const b = bary(n, adj);
+        return { n, b: b == null ? rowOf[n.id] : b }; // sin vecinos -> queda donde está
+      });
+      ranked.sort((a, b) => a.b - b.b);
+      cols[ci] = ranked.map(o => o.n);
+      setRows();
+    }
+  };
+  for (let it = 0; it < 4; it++) { sweep(+1); sweep(-1); }
+  return cols;
+}
+
 // Layout: agrupa nodos por 'role' en columnas ordenadas segun el camino de datos.
 function renderFlow(graph) {
   const svg = document.getElementById('flowCanvas');
@@ -470,15 +506,18 @@ function renderFlow(graph) {
   svg.setAttribute('width', 900);   // tamaño natural; CSS lo achica si no entra
   svg.setAttribute('height', H);
 
+  const cols = orderColumns(roles, graph.nodes, graph.edges);
   roles.forEach((role, colIdx) => {
-    const items = graph.nodes.filter(n => n.role === role);
+    const items = cols[colIdx];
     const x = colIdx * colWidth + colWidth / 2;
     const title = mk('text', { x, y:24, 'text-anchor':'middle', 'font-size':'13px', fill:'#aab0bc', 'font-weight':'600' });
     title.textContent = role;
     svg.appendChild(title);
 
+    // Centrar verticalmente cada columna: alinea la de 1 nodo (mount) con el medio.
+    const startY = Math.max(64, (H - (items.length - 1) * 64) / 2 + 8);
     items.forEach((node, rowIdx) => {
-      const y = 64 + rowIdx * 64;
+      const y = startY + rowIdx * 64;
       positions[node.id] = { x, y };
       const sev = nodeSeverity(node);
       const h = node.info ? 44 : 36;
