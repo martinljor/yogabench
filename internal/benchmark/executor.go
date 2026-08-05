@@ -105,11 +105,11 @@ func (e *MockExecutor) RunDisk(spec Spec, onProgress func(int)) ([]DiskRow, erro
 		}
 	}
 
-	jobs := make([]fioJob, 0, len(tests))
+	jobs := make([]fioJobJSON, 0, len(tests))
 	for _, name := range tests {
 		jobs = append(jobs, mockFioJob(name, factor, uni(rng, 0.9, 1.1)))
 	}
-	return parseFioJSON(jobs), nil
+	return normalizeFio(fioReport{Jobs: jobs}), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -139,60 +139,29 @@ func (e *winRMExecutor) RunDisk(spec Spec, onProgress func(int)) ([]DiskRow, err
 	return nil, errWinRMNotReady
 }
 
-// ---------------------------------------------------------------------------
-// fio-JSON -> metricas normalizadas. Compartido entre el mock y (a futuro) un
-// executor real por SSH. Una corrida tiene read y write; solo uno con datos.
-type fioSection struct {
-	bwKiBps float64 // fio reporta bw en KiB/s
-	iops    float64
-	latNs   float64 // latencia media en ns
-}
-
-type fioJob struct {
-	name  string
-	read  fioSection
-	write fioSection
-}
-
-func parseFioJSON(jobs []fioJob) []DiskRow {
-	out := make([]DiskRow, 0, len(jobs))
-	for _, j := range jobs {
-		isWrite := j.write.iops > 0 && j.read.iops == 0
-		sec := j.read
-		mode := "read"
-		if isWrite {
-			sec, mode = j.write, "write"
-		}
-		out = append(out, DiskRow{
-			Name:   j.name,
-			Mode:   mode,
-			BwMbps: round1(sec.bwKiBps / 1024), // KiB/s -> MB/s
-			Iops:   math.Round(sec.iops),
-			LatMs:  roundN(sec.latNs/1_000_000, 3),
-		})
-	}
-	return out
-}
-
-func mockFioJob(name string, factor, jitter float64) fioJob {
-	empty := fioSection{}
+// mockFioJob arma una entrada fio-JSON simulada (misma forma que la real) para
+// un sub-test, con numeros plausibles derivados del perfil del host.
+func mockFioJob(name string, factor, jitter float64) fioJobJSON {
+	empty := fioDir{}
 	switch name {
 	case "seqread":
 		bw := 900 * factor * jitter
-		return fioJob{name: name, read: sec(bw, bw, 4.0/factor), write: empty}
+		return fioJobJSON{Jobname: name, Read: mockDir(bw, bw, 4.0/factor), Write: empty}
 	case "seqwrite":
 		bw := 720 * factor * jitter
-		return fioJob{name: name, read: empty, write: sec(bw, bw, 5.5/factor)}
+		return fioJobJSON{Jobname: name, Read: empty, Write: mockDir(bw, bw, 5.5/factor)}
 	case "randread":
 		iops := 90000 * factor * jitter
-		return fioJob{name: name, read: sec(iops*4/1024, iops, 0.25/factor), write: empty}
+		return fioJobJSON{Jobname: name, Read: mockDir(iops*4/1024, iops, 0.25/factor), Write: empty}
 	default: // randwrite
 		iops := 62000 * factor * jitter
-		return fioJob{name: name, read: empty, write: sec(iops*4/1024, iops, 0.45/factor)}
+		return fioJobJSON{Jobname: name, Read: empty, Write: mockDir(iops*4/1024, iops, 0.45/factor)}
 	}
 }
 
-// sec arma una seccion fio a partir de (MB/s, IOPS, latencia_ms).
-func sec(bwMbps, iopsVal, latMs float64) fioSection {
-	return fioSection{bwKiBps: math.Round(bwMbps * 1024), iops: roundN(iopsVal, 1), latNs: math.Round(latMs * 1_000_000)}
+// mockDir arma una seccion fio (KiB/s, IOPS, latencia_ns) desde (MB/s, IOPS, ms).
+func mockDir(bwMbps, iopsVal, latMs float64) fioDir {
+	d := fioDir{Bw: math.Round(bwMbps * 1024), Iops: roundN(iopsVal, 1)}
+	d.LatNs.Mean = math.Round(latMs * 1_000_000)
+	return d
 }

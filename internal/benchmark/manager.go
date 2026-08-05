@@ -36,7 +36,7 @@ func resourcesFor(resource string) []string {
 // Conn: como llegar al host del repo para correr el benchmark. La password vive
 // SOLO aca (server-side), como el token de VBR; el frontend nunca la ve de vuelta.
 type Conn struct {
-	Mode        string // mock | winrm
+	Mode        string // mock | ssh | winrm
 	OSType      string
 	TargetID    string
 	TargetLabel string
@@ -45,6 +45,7 @@ type Conn struct {
 	Username    string
 	Password    string
 	Transport   string
+	Path        string // dir de prueba en el volumen del repo (ssh)
 	Deployed    bool
 }
 
@@ -69,6 +70,7 @@ type BenchConnInput struct {
 	Password     string `json:"password"`
 	Port         int    `json:"port"`
 	Transport    string `json:"transport"`
+	Path         string `json:"path"` // opcional: dir de prueba (ssh); default /var/lib/veeam/backup
 }
 
 type BenchmarkInput struct {
@@ -114,26 +116,41 @@ func (m *Manager) repoByID(ctx context.Context, s *vbr.Session, id string) (Repo
 
 // --- ciclo del executor: conexion -> preflight -> deploy --------------------
 
-func makeConn(id, name, osType string, demo bool, host, user, pass string, port int, transport string) *Conn {
+// makeConn decide el modo: demo/sin-password -> mock; Windows+password -> winrm
+// (stub); Linux+password -> ssh (real, fio). El puerto por defecto depende del
+// canal (WinRM 5985 / SSH 22).
+func makeConn(id, name, osType string, demo bool, host, user, pass string, port int, transport, path string) *Conn {
 	mode := "mock"
-	if !demo && pass != "" && osType == "windows" {
-		mode = "winrm" // Linux real (SSH/fio) todavia no implementado -> queda mock
+	if !demo && pass != "" {
+		if osType == "windows" {
+			mode = "winrm"
+		} else {
+			mode = "ssh"
+		}
 	}
 	if port == 0 {
-		port = 5985
+		if mode == "winrm" {
+			port = 5985
+		} else {
+			port = 22
+		}
 	}
 	if transport == "" {
 		transport = "ntlm"
 	}
 	return &Conn{Mode: mode, OSType: osType, TargetID: id, TargetLabel: name,
-		Host: host, Port: port, Username: user, Password: pass, Transport: transport}
+		Host: host, Port: port, Username: user, Password: pass, Transport: transport, Path: path}
 }
 
 func buildExecutor(c *Conn) Executor {
-	if c.Mode == "winrm" {
+	switch c.Mode {
+	case "winrm":
 		return &winRMExecutor{host: c.Host}
+	case "ssh":
+		return newSSHExecutor(c.Host, c.Port, c.Username, c.Password, c.Path)
+	default:
+		return NewMockExecutor(c.OSType, c.TargetID, c.Deployed)
 	}
-	return NewMockExecutor(c.OSType, c.TargetID, c.Deployed)
 }
 
 func connKey(sessionID, target string) string { return sessionID + ":" + target }
@@ -145,7 +162,7 @@ func (m *Manager) TestConnection(ctx context.Context, s *vbr.Session, sessionID 
 	if !ok {
 		return "", ConnResult{}, false
 	}
-	c := makeConn(repo.ID, repo.Name, repo.HostOS, s.Demo, in.Host, in.Username, in.Password, in.Port, in.Transport)
+	c := makeConn(repo.ID, repo.Name, repo.HostOS, s.Demo, in.Host, in.Username, in.Password, in.Port, in.Transport, in.Path)
 	res := buildExecutor(c).TestConnection()
 	if res.OK {
 		m.mu.Lock()
@@ -206,7 +223,7 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 	// Conexion validada al host si existe; si no, mock (demo sin ciclo previo).
 	c := m.getConn(sessionID, in.RepositoryID)
 	if c == nil {
-		c = makeConn(repo.ID, repo.Name, repo.HostOS, true, "", "", "", 0, "")
+		c = makeConn(repo.ID, repo.Name, repo.HostOS, true, "", "", "", 0, "", "")
 	}
 	ex := buildExecutor(c)
 
