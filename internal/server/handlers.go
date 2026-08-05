@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -97,6 +98,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		Host: req.Host, Port: req.Port, APIVersion: req.APIVersion, VerifySSL: req.VerifySSL,
 		AccessToken: access, RefreshToken: refresh, CreatedAt: time.Now(),
 	})
+	log.Printf("VBR conectado: host=%s puerto=%d apiVersion=%s", req.Host, req.Port, req.APIVersion) // sin password/token
 	writeJSON(w, http.StatusOK, map[string]any{"session_id": id, "expires_in": expiresIn})
 }
 
@@ -190,6 +192,50 @@ func (s *Server) rawGet(w http.ResponseWriter, r *http.Request) {
 		path += "?" + q
 	}
 	s.proxy(w, r, path)
+}
+
+// diagnostics arma un bundle para validar el ambiente real: lo que el tool
+// RESOLVIO (proxies con tipo, repos con host/path/mount) + el grafo + el JSON
+// CRUDO de cada endpoint. Sin passwords ni tokens (no viven en estos objetos).
+func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	rawOrErr := func(path string) any {
+		raw, err := vbr.Get(ctx, sess, path)
+		if err != nil {
+			return map[string]string{"error": err.Error()}
+		}
+		return json.RawMessage(raw)
+	}
+
+	repos, proxies := s.bench.Options(ctx, sess)
+	report := map[string]any{
+		"meta": map[string]any{
+			"host":        sess.Host,
+			"apiVersion":  sess.APIVersion,
+			"generatedAt": time.Now().Format(time.RFC3339),
+		},
+		"resolved": map[string]any{
+			"proxies":      proxies,
+			"repositories": repos,
+		},
+		"raw": map[string]any{
+			"proxies":              rawOrErr("v1/backupInfrastructure/proxies?limit=1000"),
+			"repositories":         rawOrErr("v1/backupInfrastructure/repositories?limit=1000"),
+			"scaleOutRepositories": rawOrErr("v1/backupInfrastructure/scaleOutRepositories?limit=1000"),
+			"managedServers":       rawOrErr("v1/backupInfrastructure/managedServers?limit=1000"),
+		},
+	}
+	if g, err := topology.Build(ctx, sess); err != nil {
+		report["flowError"] = err.Error()
+	} else {
+		report["flow"] = g
+	}
+	log.Printf("diagnostico generado: %d proxies, %d repos", len(proxies), len(repos))
+	writeJSON(w, http.StatusOK, report)
 }
 
 // --- benchmark --------------------------------------------------------------

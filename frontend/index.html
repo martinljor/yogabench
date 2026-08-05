@@ -114,6 +114,7 @@
     <span id="connDot" class="dot off"></span>
     <span id="connectedAs">Sin conectar</span>
     <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;" data-i18n="btn.refresh">Refrescar</button>
+    <button class="ghost mini" id="btnDiag" onclick="downloadDiag()" style="display:none;" title="Descargar un JSON de diagnóstico para compartir">Diagnóstico</button>
     <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;" data-i18n="btn.disconnect">Desconectar</button>
     <span class="langs">
       <button class="flag" data-lang="es" onclick="setLang('es')" title="Español"><svg viewBox="0 0 3 2"><rect width="3" height="2" fill="#c60b1e"/><rect y=".5" width="3" height="1" fill="#ffc400"/></svg></button>
@@ -338,6 +339,23 @@ function refreshComponents() {
   loadAnalysis();
 }
 
+// downloadDiag: baja un JSON de diagnóstico (proxies/repos resueltos + crudo +
+// grafo) para compartir. Sin passwords ni tokens.
+async function downloadDiag() {
+  const btn = document.getElementById('btnDiag');
+  const prev = btn.textContent;
+  btn.textContent = 'Generando…'; btn.disabled = true;
+  try {
+    const txt = await fetch(`${BACKEND}/api/${sessionId}/diagnostics`).then(r => r.text());
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+    a.download = `yogabench-diag-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '')}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { alert('No se pudo generar el diagnóstico: ' + e.message); }
+  finally { btn.textContent = prev; btn.disabled = false; }
+}
+
 async function disconnect() {
   if (sessionId) {
     try { await fetch(`${BACKEND}/api/${sessionId}/disconnect`, { method: 'POST' }); } catch (e) {}
@@ -348,6 +366,7 @@ async function disconnect() {
   const c = document.getElementById('connectedAs');
   c.textContent = t('conn.none'); c.className = 'muted';
   document.getElementById('btnRefresh').style.display = 'none';
+  document.getElementById('btnDiag').style.display = 'none';
   document.getElementById('btnDisconnect').style.display = 'none';
   // Deshabilitar las solapas y volver a Infraestructura.
   document.getElementById('tabsBar').classList.add('disabled');
@@ -390,6 +409,7 @@ function onConnected(data, where) {
   c.textContent = t('conn.to').replace('{where}', where).replace('{exp}', data.expires_in);
   c.className = 'step-ok';
   document.getElementById('btnRefresh').style.display = '';
+  document.getElementById('btnDiag').style.display = '';
   document.getElementById('btnDisconnect').style.display = '';
   document.getElementById('tabsBar').classList.remove('disabled');
   document.getElementById('connectCard').style.display = 'none';  // conectado: ocultar el form

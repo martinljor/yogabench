@@ -7,9 +7,11 @@ package main
 
 import (
 	"flag"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"runtime"
 	"time"
@@ -21,7 +23,17 @@ import (
 func main() {
 	port := flag.String("port", "8000", "puerto HTTP")
 	noBrowser := flag.Bool("no-browser", false, "no abrir el navegador automaticamente (para server headless)")
+	logPath := flag.String("log", "yogabench.log", "archivo de log (para diagnostico); vacio = solo consola")
 	flag.Parse()
+
+	// Log a consola + archivo (para poder compartir el diagnostico). Best-effort:
+	// si no se puede abrir el archivo, sigue solo por consola. NUNCA loguea
+	// passwords ni tokens.
+	if *logPath != "" {
+		if f, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+			log.SetOutput(io.MultiWriter(os.Stderr, f))
+		}
+	}
 
 	// La FS embebida tiene todo bajo "frontend/"; la reraizamos ahi.
 	web, err := fs.Sub(frontendFS, "frontend")
