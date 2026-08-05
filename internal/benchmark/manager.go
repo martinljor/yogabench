@@ -28,20 +28,17 @@ func testsForOperation(op string) []string {
 	return operationTests["both"]
 }
 
-// Conn: como llegar al host del repo para correr el benchmark. La password vive
-// SOLO aca (server-side), como el token de VBR; el frontend nunca la ve de vuelta.
+// Conn: como llegar al host (SSH) para correr el benchmark. Una conexion activa
+// por sesion: el wizard conecta primero al servidor y despues elige el repo. La
+// password vive SOLO aca (server-side); el frontend nunca la ve de vuelta.
 type Conn struct {
-	Mode        string // ssh | winrm
-	OSType      string
-	TargetID    string
-	TargetLabel string
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	Transport   string
-	Path        string // dir de prueba en el volumen del repo (ssh)
-	Deployed    bool
+	Mode     string // ssh (winrm es stub)
+	Host     string
+	Port     int
+	Username string
+	Password string
+	Hostname string // hostname que devolvio el host al conectar
+	Deployed bool
 }
 
 // Manager: estado en memoria de jobs y conexiones (por sesion). Todo el acceso
@@ -49,7 +46,7 @@ type Conn struct {
 type Manager struct {
 	mu    sync.Mutex
 	jobs  map[string]*Job
-	conns map[string]*Conn // clave "session:target"
+	conns map[string]*Conn // clave: sessionID (una conexion activa por sesion)
 }
 
 func NewManager() *Manager {
@@ -59,13 +56,10 @@ func NewManager() *Manager {
 // --- entradas (decodificadas del JSON del frontend) -------------------------
 
 type BenchConnInput struct {
-	RepositoryID string `json:"repository_id"`
-	Host         string `json:"host"`
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	Port         int    `json:"port"`
-	Transport    string `json:"transport"`
-	Path         string `json:"path"` // opcional: dir de prueba (ssh); default /var/lib/veeam/backup
+	Host     string `json:"host"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Port     int    `json:"port"`
 }
 
 type BenchmarkInput struct {
@@ -108,87 +102,59 @@ func (m *Manager) repoByID(ctx context.Context, s *vbr.Session, id string) (Repo
 
 // --- ciclo del executor: conexion -> preflight -> deploy --------------------
 
-// makeConn decide el canal segun el SO del host: Windows -> winrm (stub);
-// Linux -> ssh (real, fio). El puerto por defecto depende del canal.
-func makeConn(id, name, osType, host, user, pass string, port int, transport, path string) *Conn {
-	mode := "ssh"
-	if osType == "windows" {
-		mode = "winrm"
-	}
-	if port == 0 {
-		if mode == "winrm" {
-			port = 5985
-		} else {
-			port = 22
-		}
-	}
-	if transport == "" {
-		transport = "ntlm"
-	}
-	return &Conn{Mode: mode, OSType: osType, TargetID: id, TargetLabel: name,
-		Host: host, Port: port, Username: user, Password: pass, Transport: transport, Path: path}
-}
-
-func buildExecutor(c *Conn) Executor {
+func buildExecutor(c *Conn, path string) Executor {
 	if c.Mode == "winrm" {
 		return &winRMExecutor{host: c.Host}
 	}
-	return newSSHExecutor(c.Host, c.Port, c.Username, c.Password, c.Path)
+	return newSSHExecutor(c.Host, c.Port, c.Username, c.Password, path)
 }
 
-func connKey(sessionID, target string) string { return sessionID + ":" + target }
-
-// TestConnection valida el canal al host del repo. Devuelve (mode, resultado,
-// repoEncontrado). Si OK, guarda la conexion para las fases siguientes.
-func (m *Manager) TestConnection(ctx context.Context, s *vbr.Session, sessionID string, in BenchConnInput) (string, ConnResult, bool) {
-	repo, ok := m.repoByID(ctx, s, in.RepositoryID)
-	if !ok {
-		return "", ConnResult{}, false
-	}
+// TestConnection valida el canal SSH al host indicado (sin repo: el wizard
+// conecta primero al servidor y despues elige el repo). Si OK, guarda la
+// conexion activa de la sesion. Devuelve (mode, resultado).
+func (m *Manager) TestConnection(ctx context.Context, s *vbr.Session, sessionID string, in BenchConnInput) (string, ConnResult) {
 	if s.Demo {
-		return "demo", ConnResult{OK: false, Message: "El benchmark real no corre en modo demo (necesita SSH al host del repositorio)."}, true
+		return "demo", ConnResult{OK: false, Message: "El benchmark real no corre en modo demo (necesita SSH al host)."}
 	}
 	if strings.TrimSpace(in.Host) == "" || strings.TrimSpace(in.Username) == "" || strings.TrimSpace(in.Password) == "" {
-		return "", ConnResult{OK: false, Message: "Completá host, usuario y password del host del repositorio."}, true
+		return "", ConnResult{OK: false, Message: "Completá host, usuario y password."}
 	}
-	// El disco a medir es el del repo elegido: usamos SU carpeta (un host puede
-	// alojar varios repos en volumenes distintos). Override manual > repo > default.
-	path := in.Path
-	if path == "" {
-		path = repo.Path
+	port := in.Port
+	if port == 0 {
+		port = 22
 	}
-	c := makeConn(repo.ID, repo.Name, repo.HostOS, in.Host, in.Username, in.Password, in.Port, in.Transport, path)
-	res := buildExecutor(c).TestConnection()
+	c := &Conn{Mode: "ssh", Host: in.Host, Port: port, Username: in.Username, Password: in.Password}
+	res := buildExecutor(c, "").TestConnection()
 	if res.OK {
+		c.Hostname = res.Hostname
 		m.mu.Lock()
-		m.conns[connKey(sessionID, in.RepositoryID)] = c
+		m.conns[sessionID] = c
 		m.mu.Unlock()
 	}
-	return c.Mode, res, true
+	return c.Mode, res
 }
 
-func (m *Manager) getConn(sessionID, repoID string) *Conn {
+func (m *Manager) getConn(sessionID string) *Conn {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.conns[connKey(sessionID, repoID)]
+	return m.conns[sessionID]
 }
 
-// CheckTools (fase 2). Segundo retorno = existe conexion validada.
-func (m *Manager) CheckTools(sessionID, repoID string) (ToolsResult, bool) {
-	c := m.getConn(sessionID, repoID)
+// CheckTools (paso Herramienta). Segundo retorno = existe conexion validada.
+func (m *Manager) CheckTools(sessionID string) (ToolsResult, bool) {
+	c := m.getConn(sessionID)
 	if c == nil {
 		return ToolsResult{}, false
 	}
-	return buildExecutor(c).CheckTools(), true
+	return buildExecutor(c, "").CheckTools(), true
 }
 
-// DeployTools (fase 3). Segundo retorno = existe conexion validada.
-func (m *Manager) DeployTools(sessionID, repoID string) (DeployResult, bool) {
-	c := m.getConn(sessionID, repoID)
+func (m *Manager) DeployTools(sessionID string) (DeployResult, bool) {
+	c := m.getConn(sessionID)
 	if c == nil {
 		return DeployResult{}, false
 	}
-	res := buildExecutor(c).DeployTools()
+	res := buildExecutor(c, "").DeployTools()
 	if res.OK {
 		m.mu.Lock()
 		c.Deployed = true
@@ -207,12 +173,12 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 	if !ok {
 		return "", "", 404, "Repositorio no encontrado en esta sesion."
 	}
-	// Requiere la conexion validada en el paso previo del wizard.
-	c := m.getConn(sessionID, in.RepositoryID)
+	// Requiere la conexion validada en el primer paso del wizard.
+	c := m.getConn(sessionID)
 	if c == nil {
-		return "", "", 409, "Validá la conexión al host del repositorio antes de correr (paso Conexión)."
+		return "", "", 409, "Validá la conexión al host antes de correr (paso Conexión)."
 	}
-	ex := buildExecutor(c)
+	ex := buildExecutor(c, repo.Path)
 
 	if in.Duration <= 0 {
 		in.Duration = 8
@@ -317,12 +283,7 @@ func (m *Manager) ClearSession(sessionID string) {
 			delete(m.jobs, id)
 		}
 	}
-	prefix := sessionID + ":"
-	for k := range m.conns {
-		if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
-			delete(m.conns, k)
-		}
-	}
+	delete(m.conns, sessionID)
 }
 
 // set aplica una mutacion sobre un job bajo el lock del manager.

@@ -123,7 +123,7 @@ func resolveRepo(repo map[string]any, managed []map[string]any) RepoOption {
 		name = "repository"
 	}
 	return RepoOption{ID: str(repo["id"]), Name: name, HostOS: hostOS(hostID, managed, "linux"),
-		Path: repoPath(repo), Mount: mount}
+		HostName: hostName(hostID, managed, ""), Path: repoPath(repo), Mount: mount}
 }
 
 // repoPath: carpeta local donde el repo escribe los backups. Cada repo puede

@@ -169,16 +169,29 @@
   <h3>Benchmark de disco</h3>
 
   <div class="wz-steps">
-    <div class="wz-step active" id="wzStep1"><span class="wz-num">1</span> Destino</div>
-    <div class="wz-step" id="wzStep2"><span class="wz-num">2</span> Conexión</div>
+    <div class="wz-step active" id="wzStep1"><span class="wz-num">1</span> Conexión</div>
+    <div class="wz-step" id="wzStep2"><span class="wz-num">2</span> Destino</div>
     <div class="wz-step" id="wzStep3"><span class="wz-num">3</span> Herramienta</div>
-    <div class="wz-step" id="wzStep4"><span class="wz-num">4</span> Correr</div>
+    <div class="wz-step" id="wzStep4"><span class="wz-num">4</span> Tiempo</div>
   </div>
 
-  <!-- Paso 1: Destino -->
+  <!-- Paso 1: Conexión al host -->
   <div class="wz-pane" id="wzPane1">
+    <p class="muted">Conectá por <b>SSH</b> al servidor donde vive el disco (el appliance / host del repositorio).</p>
     <div class="row">
-      <div><label>Repositorio (destino)</label><select id="benchRepo" style="width:280px;" onchange="onRepoChange()"></select></div>
+      <div><label>Host / IP</label><input id="proxyHost" placeholder="172.16.0.x"></div>
+      <div><label>Usuario</label><input id="proxyUser" placeholder="veeamadmin"></div>
+      <div><label>Password</label><input id="proxyPass" type="password" onkeydown="if(event.key==='Enter')testConnection()"></div>
+    </div>
+    <div id="prepConn" class="wz-msg"></div>
+    <div class="wz-nav"><button onclick="testConnection()" id="btnConn">Probar conexión →</button></div>
+  </div>
+
+  <!-- Paso 2: Destino (repos de ese host) -->
+  <div class="wz-pane" id="wzPane2" style="display:none;">
+    <p class="muted" id="benchDestHint">Elegí el repositorio a medir (de este servidor).</p>
+    <div class="row">
+      <div><label>Repositorio (destino)</label><select id="benchRepo" style="width:300px;" onchange="onRepoChange()"></select></div>
       <div><label>Acción</label>
         <select id="benchOperation" style="width:180px;">
           <option value="backup" selected>Backup (escritura)</option>
@@ -194,21 +207,9 @@
         <button type="button" class="seg-btn ghosted" disabled title="Próximamente">Red · fase 2</button>
       </div>
     </div>
-    <div class="wz-nav"><button onclick="wzGo(2)">Siguiente →</button></div>
-  </div>
-
-  <!-- Paso 2: Conexión -->
-  <div class="wz-pane" id="wzPane2" style="display:none;">
-    <p class="muted">Conexión <b>SSH</b> al host del repositorio (donde vive el disco).</p>
-    <div class="row">
-      <div><label>Host / IP</label><input id="proxyHost" placeholder="172.16.0.x"></div>
-      <div><label>Usuario</label><input id="proxyUser" placeholder="veeamadmin"></div>
-      <div><label>Password</label><input id="proxyPass" type="password" onkeydown="if(event.key==='Enter')testConnection()"></div>
-    </div>
-    <div id="prepConn" class="wz-msg"></div>
     <div class="wz-nav">
       <button class="ghost" onclick="wzGo(1)">← Atrás</button>
-      <button onclick="testConnection()" id="btnConn">Probar conexión</button>
+      <button onclick="checkTools()">Siguiente →</button>
     </div>
   </div>
 
@@ -225,12 +226,12 @@
     </div>
   </div>
 
-  <!-- Paso 4: Correr -->
+  <!-- Paso 4: Tiempo recomendado + correr -->
   <div class="wz-pane" id="wzPane4" style="display:none;">
-    <p class="muted">Listo para medir. fio escribe ~2 GB temporales en el repo y los borra al terminar.</p>
+    <p class="muted">Duración de cada test. <b>Recomendado: 15s</b> (más estable). fio escribe ~2 GB temporales en el repo y los borra al terminar.</p>
     <div class="row">
       <div><label>Disco esperado (baseline)</label><select id="benchDiskBaseline" style="width:220px;"></select></div>
-      <div><label>Duración por test (s)</label><input id="benchDuration" value="8" style="width:110px;"></div>
+      <div><label>Duración por test (s)</label><input id="benchDuration" value="15" style="width:110px;"></div>
     </div>
     <div class="wz-nav">
       <button class="ghost" onclick="wzGo(3)">← Atrás</button>
@@ -349,6 +350,7 @@ async function disconnect() {
   document.getElementById('btnDisconnect').style.display = 'none';
   // Deshabilitar las solapas y volver a Infraestructura.
   document.getElementById('tabsBar').classList.add('disabled');
+  document.getElementById('connectCard').style.display = 'block';  // desconectado: mostrar el form
   showTab('infra');
   document.getElementById('infraPanel').innerHTML =
     '<p class="muted">Conectate a un VBR para ver proxies y repositorios.</p>';
@@ -389,6 +391,7 @@ function onConnected(data, where) {
   document.getElementById('btnRefresh').style.display = '';
   document.getElementById('btnDisconnect').style.display = '';
   document.getElementById('tabsBar').classList.remove('disabled');
+  document.getElementById('connectCard').style.display = 'none';  // conectado: ocultar el form
   showTab('infra');
 }
 
@@ -407,6 +410,7 @@ async function loadInfra() {
     for (const p of proxies)
       html += `<tr><td>${p.name || ''}</td><td><span class="pill">${p.type || 'proxy'}</span></td><td>${p.os || '-'}</td><td>${p.description || ''}</td></tr>`;
     html += '</table>';
+    html += '<p class="muted" style="font-size:12px;margin-top:6px;">Nota: la REST API de VBR solo expone proxies <b>VMware</b> (ViProxy). Los de otros hipervisores/agentes no aparecen — es una limitación de Veeam, no del tool.</p>';
 
     html += '<h3 style="margin-top:18px;">Repositorios</h3><table><tr><th>Nombre</th><th>Tipo</th><th>Path</th></tr>';
     for (const r of repos) {
@@ -517,16 +521,14 @@ function mk(tag, attrs) {
   return el;
 }
 
-// --- Benchmark (wizard) ------------------------------------------------------
+// --- Benchmark (wizard: Conexión → Destino → Herramienta → Tiempo) ----------
 let benchRepos = [];
-let wzState = { step: 1, connOk: false, toolOk: false };
+let connectedHost = '', connectedHostname = '';
+let wzState = { step: 1, connOk: false, repoOk: false, toolOk: false };
 
 async function loadBenchOptions() {
   const res = await fetch(`${BACKEND}/api/${sessionId}/benchmark-options`).then(r => r.json());
   benchRepos = res.repositories || [];
-  document.getElementById('benchRepo').innerHTML = benchRepos.map(r =>
-    `<option value="${r.id}">${r.name} (${r.host_os})</option>`).join('');
-
   const dsel = document.getElementById('benchDiskBaseline');
   if (!dsel.options.length) {
     const bl = await fetch(`${BACKEND}/api/baselines`).then(r => r.json());
@@ -539,19 +541,52 @@ async function loadBenchOptions() {
 function currentRepoId() { return document.getElementById('benchRepo').value; }
 function selectedRepo() { return benchRepos.find(r => r.id === currentRepoId()); }
 
-// Cambiar de repo invalida la conexion ya validada -> volver a arrancar el ciclo.
 function onRepoChange() {
-  wzState.connOk = false; wzState.toolOk = false;
-  document.getElementById('prepConn').innerHTML = '';
-  document.getElementById('prepTools').innerHTML = '';
   const repo = selectedRepo();
+  wzState.repoOk = !!(repo && repo.id);
+  wzState.toolOk = false;   // cambiar de repo -> re-verificar herramienta
   const path = repo && repo.path ? repo.path : '(ruta por defecto del host)';
   document.getElementById('benchRepoPath').innerHTML =
     repo ? `Se medirá el disco en <b>${path}</b>` : '';
 }
 
+// Repos del host conectado (match por nombre de servidor); si no matchea, todos.
+function reposForConnectedHost() {
+  const h = (connectedHostname || '').toLowerCase();
+  const host = (connectedHost || '').toLowerCase();
+  const hit = benchRepos.filter(r => {
+    const hn = (r.host_name || '').toLowerCase();
+    if (!hn) return false;
+    return hn === h || (h && (hn.includes(h) || h.includes(hn))) || (host && hn.includes(host));
+  });
+  return hit.length ? { repos: hit, filtered: true } : { repos: benchRepos, filtered: false };
+}
+
+function populateRepos() {
+  const { repos, filtered } = reposForConnectedHost();
+  document.getElementById('benchRepo').innerHTML = repos.map(r =>
+    `<option value="${r.id}">${r.name}${r.host_name ? ' — ' + r.host_name : ''}</option>`).join('');
+  document.getElementById('benchDestHint').innerHTML = filtered
+    ? `Repositorios en <b>${connectedHostname || connectedHost}</b>:`
+    : 'No pude filtrar por host — mostrando todos los repositorios (elegí el de este servidor).';
+  // Si vinimos del cruce con el Análisis, seleccionar ese repo si está disponible.
+  if (pendingRepoId) {
+    const sel = document.getElementById('benchRepo');
+    if ([...sel.options].some(o => o.value === pendingRepoId)) sel.value = pendingRepoId;
+    pendingRepoId = '';
+  }
+  onRepoChange();
+}
+
 // --- navegacion del wizard ---
-function wzReset() { wzState = { step: 1, connOk: false, toolOk: false }; onRepoChange(); wzShow(1); }
+function wzReset() {
+  wzState = { step: 1, connOk: false, repoOk: false, toolOk: false };
+  connectedHost = ''; connectedHostname = '';
+  ['prepConn', 'prepTools'].forEach(id => document.getElementById(id).innerHTML = '');
+  document.getElementById('benchRepo').innerHTML = '';
+  document.getElementById('benchRepoPath').innerHTML = '';
+  wzShow(1);
+}
 
 function wzShow(step) {
   wzState.step = step;
@@ -563,16 +598,17 @@ function wzShow(step) {
   }
 }
 
-// Guardas de avance: no saltear conexion ni verificacion de la herramienta.
+// Guardas: no avanzar sin conexión / repo elegido / herramienta OK.
 function wzGo(step) {
-  if (step >= 3 && !wzState.connOk) { wzShow(2); return; }
-  if (step >= 4 && !wzState.toolOk) { wzShow(3); return; }
+  if (step >= 2 && !wzState.connOk) { wzShow(1); return; }
+  if (step >= 3 && !wzState.repoOk) { wzShow(2); return; }
+  if (step >= 4 && !wzState.toolOk) { checkTools(); return; }  // valida fio y avanza si OK
   wzShow(step);
 }
 
 function setMsg(id, html) { document.getElementById(id).innerHTML = html; }
 
-// --- Paso 2: conexion SSH al host del repo ---
+// --- Paso 1: conexión SSH al host ---
 async function testConnection() {
   const host = document.getElementById('proxyHost').value.trim();
   const user = document.getElementById('proxyUser').value.trim();
@@ -582,30 +618,32 @@ async function testConnection() {
   try {
     const r = await fetch(`${BACKEND}/api/${sessionId}/bench-connection`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ repository_id: currentRepoId(), host, username: user, password: pass })
+      body: JSON.stringify({ host, username: user, password: pass })
     });
     const d = await r.json();
     if (!r.ok || !d.ok) { setMsg('prepConn', `<span class="step-bad">✗ ${d.message || d.detail || 'Falló la conexión'}</span>`); return; }
     wzState.connOk = true;
+    connectedHost = host; connectedHostname = d.hostname || '';
     setMsg('prepConn', `<span class="step-ok">✓ ${d.message}</span>${d.hostname ? ' · host: <b>' + d.hostname + '</b>' : ''}`);
-    wzShow(3);
-    checkTools();   // encadena la verificación de fio
+    populateRepos();
+    wzShow(2);
   } catch (e) { setMsg('prepConn', `<span class="step-bad">✗ ${e.message}</span>`); }
 }
 
 // --- Paso 3: herramienta (fio) ---
 async function checkTools() {
+  wzShow(3);
   setMsg('prepTools', '<span class="step-info">Verificando fio…</span>');
   document.getElementById('btnDeploy').style.display = 'none';
   try {
-    const d = await fetch(`${BACKEND}/api/${sessionId}/bench-connection/${currentRepoId()}/tools`).then(r => r.json());
+    const d = await fetch(`${BACKEND}/api/${sessionId}/bench-tools`).then(r => r.json());
     if (d.installed) {
       wzState.toolOk = true;
       setMsg('prepTools', `<span class="step-ok">✓ ${d.detail}</span> — listo para correr.`);
-      setTimeout(() => wzGo(4), 500);
+      setTimeout(() => wzShow(4), 500);
     } else {
       wzState.toolOk = false;
-      setMsg('prepTools', `<span class="step-bad">✗ ${d.detail}</span>`);
+      setMsg('prepTools', `<span class="step-bad">✗ ${d.detail || 'fio no disponible'}</span>`);
       document.getElementById('btnDeploy').style.display = '';
     }
   } catch (e) { setMsg('prepTools', `<span class="step-bad">✗ ${e.message}</span>`); }
@@ -614,7 +652,7 @@ async function checkTools() {
 async function deployTools() {
   setMsg('prepTools', '<span class="step-info">Desplegando fio…</span>');
   try {
-    const d = await fetch(`${BACKEND}/api/${sessionId}/bench-connection/${currentRepoId()}/deploy`, { method: 'POST' }).then(r => r.json());
+    const d = await fetch(`${BACKEND}/api/${sessionId}/bench-deploy`, { method: 'POST' }).then(r => r.json());
     if (d.ok) { checkTools(); } else { setMsg('prepTools', `<span class="step-bad">✗ ${d.message}</span>`); }
   } catch (e) { setMsg('prepTools', `<span class="step-bad">✗ ${e.message}</span>`); }
 }
@@ -807,12 +845,12 @@ function diagnose(g, kind) {
   return `<div class="diag">🔎 El cuello está en el <b>${m[0]}</b>. ${m[1]}${cta}</div>`;
 }
 
-// prefillBench: salta al wizard de benchmark con el repo ya seleccionado (cruce
-// Carril B -> Carril A).
+// prefillBench: salta al wizard de benchmark. Como ahora se conecta primero, el
+// repo queda pendiente y se selecciona al poblar la lista tras la conexión.
+let pendingRepoId = '';
 function prefillBench(repoId) {
+  pendingRepoId = repoId || '';
   showTab('bench');
-  const sel = document.getElementById('benchRepo');
-  if (sel && repoId) { sel.value = repoId; onRepoChange(); }
 }
 
 function toggleGroup(id) {

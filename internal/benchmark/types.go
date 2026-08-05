@@ -61,11 +61,12 @@ type MountInfo struct {
 }
 
 type RepoOption struct {
-	ID     string     `json:"id"`
-	Name   string     `json:"name"`
-	HostOS string     `json:"host_os"`
-	Path   string     `json:"path"` // carpeta real del repo (donde fio mide el disco)
-	Mount  *MountInfo `json:"mount"`
+	ID       string     `json:"id"`
+	Name     string     `json:"name"`
+	HostOS   string     `json:"host_os"`
+	HostName string     `json:"host_name"` // servidor que aloja el repo (para filtrar por host conectado)
+	Path     string     `json:"path"`      // carpeta real del repo (donde fio mide el disco)
+	Mount    *MountInfo `json:"mount"`
 }
 
 type ProxyOption struct {

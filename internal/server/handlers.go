@@ -212,37 +212,33 @@ func (s *Server) benchConnection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
 		return
 	}
-	mode, res, found := s.bench.TestConnection(r.Context(), sess, r.PathValue("session"), in)
-	if !found {
-		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Repositorio no encontrado en esta sesion."})
-		return
-	}
+	mode, res := s.bench.TestConnection(r.Context(), sess, r.PathValue("session"), in)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode": mode, "ok": res.OK, "message": res.Message, "hostname": res.Hostname,
 	})
 }
 
-// benchTools (fase 2): chequea si la herramienta esta instalada.
+// benchTools (paso Herramienta): chequea si fio esta instalada en el host.
 func (s *Server) benchTools(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.session(w, r); !ok {
 		return
 	}
-	res, hasConn := s.bench.CheckTools(r.PathValue("session"), r.PathValue("repo"))
+	res, hasConn := s.bench.CheckTools(r.PathValue("session"))
 	if !hasConn {
-		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host del repositorio. Valida la conexion primero."})
+		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host. Valida la conexion primero."})
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
 }
 
-// benchDeploy (fase 3): despliega la herramienta si falta.
+// benchDeploy: despliega la herramienta si falta.
 func (s *Server) benchDeploy(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.session(w, r); !ok {
 		return
 	}
-	res, hasConn := s.bench.DeployTools(r.PathValue("session"), r.PathValue("repo"))
+	res, hasConn := s.bench.DeployTools(r.PathValue("session"))
 	if !hasConn {
-		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host del repositorio. Valida la conexion primero."})
+		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host. Valida la conexion primero."})
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
