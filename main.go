@@ -7,6 +7,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -19,6 +20,9 @@ import (
 	"yogabench/internal/server"
 	"yogabench/internal/vbr"
 )
+
+// version del binario (se muestra en el banner de arranque y se etiqueta en el release).
+const version = "0.2.3-alpha"
 
 func main() {
 	port := flag.String("port", "8000", "puerto HTTP")
@@ -45,7 +49,21 @@ func main() {
 
 	addr := ":" + *port
 	url := "http://localhost:" + *port
-	log.Printf("Yoga Benchmark escuchando en %s", url)
+
+	// Banner de arranque (ingles): version + que esta corriendo + como abrirlo.
+	fmt.Printf(`
+==================================================
+  Yoga Benchmark  v%s
+  Veeam diagnostics & disk benchmark  (EXPERIMENTAL - lab use only)
+
+  Server is running. Open in your browser:
+      %s
+
+  Press Ctrl+C to stop.
+==================================================
+
+`, version, url)
+	log.Printf("Yoga Benchmark %s escuchando en %s", version, url)
 
 	// Abrir el navegador solo (en desktop). En un server sin GUI, --no-browser.
 	if !*noBrowser {

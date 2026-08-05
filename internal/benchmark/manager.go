@@ -198,7 +198,8 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 		RepositoryID: repo.ID, RepositoryLabel: repo.Name,
 		Operation: in.Operation, Resource: "disk",
 		MountLabel: mountLabel,
-		OSType:     repo.HostOS, Tool: ex.Tool(),
+		Host:       c.Host, Hostname: c.Hostname,
+		OSType: repo.HostOS, Tool: ex.Tool(),
 		DiskBaseline: in.DiskBaseline,
 		Status:       "queued", Progress: 0,
 	}
@@ -206,8 +207,8 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 	m.jobs[job.ID] = job
 	m.mu.Unlock()
 
-	log.Printf("benchmark %s iniciado: repo=%q operacion=%s modo=%s tool=%s",
-		job.ID, repo.Name, in.Operation, c.Mode, ex.Tool())
+	log.Printf("benchmark %s iniciado: repo=%q host=%s path=%s operacion=%s modo=%s tool=%s",
+		job.ID, repo.Name, c.Host, repo.Path, in.Operation, c.Mode, ex.Tool())
 	go m.run(job, ex, in.Duration)
 	return job.ID, job.Status, 0, ""
 }

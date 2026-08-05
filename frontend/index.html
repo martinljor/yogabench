@@ -757,8 +757,9 @@ async function pollJob(jobId) {
       return;
     }
     const op = { backup: 'Backup', restore: 'Restore' }[job.operation] || job.operation;
+    const host = job.hostname || job.host || '';
     statusEl.innerHTML =
-      `<b>${op}</b> · disco · repo <b>${job.repository_label}</b> · ${job.tool} — estado: ${job.status}
+      `<b>${op}</b> · disco · repo <b>${job.repository_label}</b>${host ? ' · host <b>' + host + '</b>' : ''} · ${job.tool} — estado: ${job.status}
        <div class="progress"><div style="width:${job.progress}%"></div></div>`;
     if (job.status === 'completed') { renderResults(job); return; }
     if (job.status === 'failed') { document.getElementById('benchError').textContent = job.error; return; }
@@ -772,8 +773,10 @@ function verdictPill(status) { return `<span class="verdict ${status}">${VERDICT
 function renderResults(job) {
   const rows = (job.results && job.results.disk) || [];
   if (!rows.length) { document.getElementById('benchResults').innerHTML = '<p class="muted">Sin resultados.</p>'; return; }
+  const host = job.hostname || job.host || '';
+  const sub = host ? `<div class="muted" style="font-size:12px;margin-bottom:6px;">host <b>${host}</b> · repo <b>${job.repository_label}</b></div>` : '';
   document.getElementById('benchResults').innerHTML =
-    '<h4 style="margin:16px 0 4px;">Resultados de disco</h4>' + renderDisk(rows);
+    '<h4 style="margin:16px 0 4px;">Resultados de disco</h4>' + sub + renderDisk(rows);
 }
 
 function renderDisk(rows) {

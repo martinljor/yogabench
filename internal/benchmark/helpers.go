@@ -63,6 +63,33 @@ func allRepositories(ctx context.Context, s *vbr.Session) []map[string]any {
 	return append(repos, sobrs...)
 }
 
+// findKey busca (recursivo, case-insensitive) el primer valor string de una clave.
+// Sirve para campos anidados a profundidad variable (ej: mountServer.linux.mountServerId).
+func findKey(obj any, key string) string {
+	switch v := obj.(type) {
+	case map[string]any:
+		for k, val := range v {
+			if strings.EqualFold(k, key) {
+				if s, ok := val.(string); ok && s != "" {
+					return s
+				}
+			}
+		}
+		for _, val := range v {
+			if r := findKey(val, key); r != "" {
+				return r
+			}
+		}
+	case []any:
+		for _, val := range v {
+			if r := findKey(val, key); r != "" {
+				return r
+			}
+		}
+	}
+	return ""
+}
+
 // extractID prueba las claves dadas; si el valor es objeto anidado, busca dentro.
 func extractID(obj map[string]any, keys []string) string {
 	for _, k := range keys {
@@ -113,7 +140,12 @@ func hostName(hostID string, managed []map[string]any, fallback string) string {
 // carpeta real + mount server, con SO resueltos).
 func resolveRepo(repo map[string]any, managed []map[string]any) RepoOption {
 	hostID := extractID(repo, proxyHostKeys)
+	// mount server: clave explicita o mountServerId en cualquier nivel (v13 lo
+	// anida en mountServer.linux.mountServerId).
 	mountID := extractID(repo, mountKeys)
+	if mountID == "" {
+		mountID = findKey(repo, "mountServerId")
+	}
 	var mount *MountInfo
 	if mountID != "" {
 		mount = &MountInfo{ID: mountID, Name: hostName(mountID, managed, "mount server"), OS: hostOS(mountID, managed, "linux")}

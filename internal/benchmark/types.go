@@ -43,6 +43,8 @@ type Job struct {
 	Operation       string  `json:"operation"`
 	Resource        string  `json:"resource"`
 	MountLabel      string  `json:"mount_label"`
+	Host            string  `json:"host"`     // host SSH donde corre el benchmark (IP ingresada)
+	Hostname        string  `json:"hostname"` // hostname que devolvio el host al conectar
 	OSType          string  `json:"os_type"`
 	Tool            string  `json:"tool"`
 	DiskBaseline    string  `json:"disk_baseline"`
