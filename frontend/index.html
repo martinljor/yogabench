@@ -103,6 +103,8 @@
   .seg-btn.active { background:var(--green); color:#0e1a0b; }
   .seg-btn.ghosted { color:var(--muted); opacity:.55; cursor:not-allowed; }
   .seg-btn:not(.active):not(.ghosted):hover { background:#2c313d; }
+  .diag { margin-top:10px; font-size:13px; background:rgba(84,185,72,.07);
+    border-left:2px solid var(--green); padding:7px 11px; border-radius:4px; }
 </style>
 </head>
 <body>
@@ -777,9 +779,40 @@ function groupCard(g, kind) {
     </div>
     <div style="font-size:13px;margin-top:6px;">Cuello principal por run: <b>${prim}</b></div>
     ${bottleneckBars(g.bottleneckAvg)}
+    ${diagnose(g, kind)}
     <button class="ghost mini" onclick="toggleGroup('${gid}')">Expandir jobs</button>
     <div id="${gid}" style="display:none;margin-top:10px;">${(g.jobs || []).map(renderJobCard).join('')}</div>
   </div>`;
+}
+
+// diagnose: traduce el stage dominante (telemetria de Veeam, Carril B) a "dónde
+// está el cuello y qué hacer". Cuando es el destino/disco, enlaza al benchmark
+// (Carril A) — ahi se cruzan los dos carriles.
+function diagnose(g, kind) {
+  let stage = g.bottleneckAvg && g.bottleneckAvg.primary;
+  if (!stage) {
+    const pc = g.primaryCounts || {};
+    stage = Object.keys(pc).sort((a, b) => pc[b] - pc[a])[0];
+  }
+  if (!stage) return '';
+  const M = {
+    target:  ['destino — el disco del repositorio', 'El storage del repo es el candidato. Confirmalo midiendo el disco.', true],
+    source:  ['origen — lectura del almacenamiento de producción', 'Revisá los discos/almacenamiento de origen (o el proxy de origen).', false],
+    proxy:   ['proxy — CPU, compresión o dedup', 'Mirá la CPU/carga del proxy o subí sus tareas concurrentes.', false],
+    network: ['red entre proxy y repositorio', 'Revisá el enlace: velocidad, MTU, saturación.', false],
+  };
+  const m = M[String(stage).toLowerCase()];
+  if (!m) return '';
+  const cta = (m[2] && kind === 'repo') ? ` <a href="#" onclick="prefillBench('${g.id}');return false;" style="color:var(--green);font-weight:600;">▶ Benchmark de disco de este repo</a>` : '';
+  return `<div class="diag">🔎 El cuello está en el <b>${m[0]}</b>. ${m[1]}${cta}</div>`;
+}
+
+// prefillBench: salta al wizard de benchmark con el repo ya seleccionado (cruce
+// Carril B -> Carril A).
+function prefillBench(repoId) {
+  showTab('bench');
+  const sel = document.getElementById('benchRepo');
+  if (sel && repoId) { sel.value = repoId; onRepoChange(); }
 }
 
 function toggleGroup(id) {
