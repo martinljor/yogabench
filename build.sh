@@ -17,9 +17,11 @@ L="dist/yogabench-linux-amd64-v$VERSION"
 W="dist/yogabench-windows-amd64-v$VERSION.exe"
 M="dist/yogabench-darwin-arm64-v$VERSION"
 
-echo "Linux   x64  ..."; GOOS=linux   GOARCH=amd64 go build -o "$L" .
-echo "Windows x64  ..."; GOOS=windows GOARCH=amd64 go build -o "$W" .
-echo "macOS   arm64..."; GOOS=darwin  GOARCH=arm64 go build -o "$M" .
+# -trimpath quita rutas locales; -s -w quita simbolos/debug (binario mas chico e
+# higiene de release; a veces baja falsos positivos de antivirus, sin garantia).
+echo "Linux   x64  ..."; GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o "$L" .
+echo "Windows x64  ..."; GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o "$W" .
+echo "macOS   arm64..."; GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o "$M" .
 
 # Checksums (portable: sha256sum en Linux, shasum en macOS).
 echo "SHA256SUMS.txt ..."
