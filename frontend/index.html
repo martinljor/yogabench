@@ -114,7 +114,7 @@
     <span id="connDot" class="dot off"></span>
     <span id="connectedAs">Sin conectar</span>
     <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;" data-i18n="btn.refresh">Refrescar</button>
-    <button class="ghost mini" id="btnDiag" onclick="downloadDiag()" style="display:none;" title="Descargar un JSON de diagnóstico para compartir">Diagnóstico</button>
+    <button class="ghost mini" id="btnDiag" onclick="downloadDiag()" style="display:none;" data-i18n="btn.diag" title="Descargar un JSON de diagnóstico para compartir">Diagnóstico</button>
     <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;" data-i18n="btn.disconnect">Desconectar</button>
     <span class="langs">
       <button class="flag" data-lang="es" onclick="setLang('es')" title="Español"><svg viewBox="0 0 3 2"><rect width="3" height="2" fill="#c60b1e"/><rect y=".5" width="3" height="1" fill="#ffc400"/></svg></button>
@@ -155,92 +155,89 @@
   </div>
 
 <div class="card" id="infraPanel">
-  <p class="muted">Conectate a un VBR para ver proxies y repositorios.</p>
+  <p class="muted" data-i18n="infra.connect">Conectate a un VBR para ver proxies y repositorios.</p>
 </div>
 
 <div class="card" id="flowPanel" style="display:none;">
-  <p class="muted" style="font-size:12px;"><b>proxy → repositorio → mount server</b> &nbsp;·&nbsp;
-    <span style="color:#C0392B;">■</span> cuello (según telemetría) · gris = ok / sin datos / cuello fuera de la vista &nbsp;·&nbsp;
-    línea sólida = proxy asignado, punteada = automático &nbsp;·&nbsp;
-    badge <span style="color:#E0A020;">ámbar</span> = muchas conexiones (concentración)</p>
+  <p class="muted" style="font-size:12px;" data-i18n-html="flow.legend"></p>
   <div id="flowDominantNote" class="muted" style="font-size:12px;margin:2px 0 8px;"></div>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
 <div class="card" id="benchPanel" style="display:none;">
-  <h3>Benchmark de disco</h3>
+  <h3 data-i18n="bench.title">Benchmark de disco</h3>
 
   <div class="wz-steps">
-    <div class="wz-step active" id="wzStep1"><span class="wz-num">1</span> Conexión</div>
-    <div class="wz-step" id="wzStep2"><span class="wz-num">2</span> Destino</div>
-    <div class="wz-step" id="wzStep3"><span class="wz-num">3</span> Herramienta</div>
-    <div class="wz-step" id="wzStep4"><span class="wz-num">4</span> Tiempo</div>
+    <div class="wz-step active" id="wzStep1"><span class="wz-num">1</span> <span data-i18n="wz.1">Conexión</span></div>
+    <div class="wz-step" id="wzStep2"><span class="wz-num">2</span> <span data-i18n="wz.2">Destino</span></div>
+    <div class="wz-step" id="wzStep3"><span class="wz-num">3</span> <span data-i18n="wz.3">Herramienta</span></div>
+    <div class="wz-step" id="wzStep4"><span class="wz-num">4</span> <span data-i18n="wz.4">Tiempo</span></div>
   </div>
 
   <!-- Paso 1: Conexión al host -->
   <div class="wz-pane" id="wzPane1">
-    <p class="muted">Elegí el <b>servidor</b> (host del repositorio) y conectá por <b>SSH</b>. Solo aparecen los hosts con repos locales — los de object storage/cloud no se miden por disco.</p>
+    <p class="muted" data-i18n-html="bench.p1"></p>
     <div class="row" style="align-items:flex-end;">
-      <div><label>Servidor</label>
+      <div><label data-i18n="bench.server">Servidor</label>
         <select id="benchHostSel" style="width:280px;" onchange="onHostSelChange()"></select>
       </div>
-      <div id="wrapManualHost" style="display:none;"><label>Host / IP manual</label><input id="proxyHostManual" placeholder="172.16.0.x o FQDN" style="width:180px;"></div>
-      <div><label>Usuario</label><input id="proxyUser" style="width:150px;" placeholder="veeamadmin"></div>
-      <div><label>Password</label><input id="proxyPass" type="password" style="width:160px;" onkeydown="if(event.key==='Enter')testConnection()"></div>
-      <div><button onclick="testConnection()" id="btnConn">Probar conexión</button></div>
+      <div id="wrapManualHost" style="display:none;"><label data-i18n="bench.manual">Host / IP manual</label><input id="proxyHostManual" placeholder="172.16.0.x o FQDN" style="width:180px;"></div>
+      <div><label data-i18n="form.user">Usuario</label><input id="proxyUser" style="width:150px;" placeholder="veeamadmin"></div>
+      <div><label data-i18n="form.pass">Password</label><input id="proxyPass" type="password" style="width:160px;" onkeydown="if(event.key==='Enter')testConnection()"></div>
+      <div><button onclick="testConnection()" id="btnConn" data-i18n="bench.test">Probar conexión</button></div>
     </div>
     <div id="prepConn" class="wz-msg"></div>
   </div>
 
   <!-- Paso 2: Destino (repos de ese host) -->
   <div class="wz-pane" id="wzPane2" style="display:none;">
-    <p class="muted" id="benchDestHint">Elegí el repositorio a medir (de este servidor).</p>
+    <p class="muted" id="benchDestHint" data-i18n="bench.p2">Elegí el repositorio a medir (de este servidor).</p>
     <div class="row">
-      <div><label>Repositorio (destino)</label><select id="benchRepo" style="width:300px;" onchange="onRepoChange()"></select></div>
-      <div><label>Acción</label>
+      <div><label data-i18n="bench.repo">Repositorio (destino)</label><select id="benchRepo" style="width:300px;" onchange="onRepoChange()"></select></div>
+      <div><label data-i18n="bench.action">Acción</label>
         <select id="benchOperation" style="width:180px;">
-          <option value="backup" selected>Backup (escritura)</option>
-          <option value="restore">Restore (lectura)</option>
+          <option value="backup" selected data-i18n="bench.backup">Backup (escritura)</option>
+          <option value="restore" data-i18n="bench.restore">Restore (lectura)</option>
         </select>
       </div>
     </div>
     <div class="muted" id="benchRepoPath" style="margin-top:8px;font-size:12px;"></div>
     <div style="margin-top:14px;">
-      <label>Recurso</label>
+      <label data-i18n="bench.resource">Recurso</label>
       <div class="seg">
-        <button type="button" class="seg-btn active">Disco</button>
-        <button type="button" class="seg-btn ghosted" disabled title="Próximamente">Red · fase 2</button>
+        <button type="button" class="seg-btn active" data-i18n="bench.disk">Disco</button>
+        <button type="button" class="seg-btn ghosted" disabled data-i18n="bench.net">Red · fase 2</button>
       </div>
     </div>
     <div class="wz-nav">
-      <button class="ghost" onclick="wzGo(1)">← Atrás</button>
-      <button onclick="checkTools()">Siguiente →</button>
+      <button class="ghost" onclick="wzGo(1)" data-i18n="bench.back">← Atrás</button>
+      <button onclick="checkTools()" data-i18n="bench.next">Siguiente →</button>
     </div>
   </div>
 
   <!-- Paso 3: Herramienta -->
   <div class="wz-pane" id="wzPane3" style="display:none;">
-    <p class="muted">Verificamos que <b>fio</b> esté disponible en el host.</p>
+    <p class="muted" data-i18n-html="bench.p3"></p>
     <div id="prepTools" class="wz-msg"></div>
     <div class="wz-nav">
-      <button class="ghost" onclick="wzGo(2)">← Atrás</button>
+      <button class="ghost" onclick="wzGo(2)" data-i18n="bench.back">← Atrás</button>
       <span>
-        <button class="ghost" onclick="deployTools()" id="btnDeploy" style="display:none;">Desplegar fio</button>
-        <button onclick="checkTools()" id="btnCheck">Verificar herramienta</button>
+        <button class="ghost" onclick="deployTools()" id="btnDeploy" style="display:none;" data-i18n="bench.deploy">Desplegar fio</button>
+        <button onclick="checkTools()" id="btnCheck" data-i18n="bench.verify">Verificar herramienta</button>
       </span>
     </div>
   </div>
 
   <!-- Paso 4: Tiempo recomendado + correr -->
   <div class="wz-pane" id="wzPane4" style="display:none;">
-    <p class="muted">Duración de cada test. <b>Recomendado: 15s</b> (más estable). fio escribe ~2 GB temporales en el repo y los borra al terminar.</p>
+    <p class="muted" data-i18n-html="bench.p4"></p>
     <div class="row">
-      <div><label>Disco esperado (baseline)</label><select id="benchDiskBaseline" style="width:220px;"></select></div>
-      <div><label>Duración por test (s)</label><input id="benchDuration" value="15" style="width:110px;"></div>
+      <div><label data-i18n="bench.baseline">Disco esperado (baseline)</label><select id="benchDiskBaseline" style="width:220px;"></select></div>
+      <div><label data-i18n="bench.duration">Duración por test (s)</label><input id="benchDuration" value="15" style="width:110px;"></div>
     </div>
     <div class="wz-nav">
-      <button class="ghost" onclick="wzGo(3)">← Atrás</button>
-      <button onclick="runBenchmark()" id="benchBtn">Correr benchmark</button>
+      <button class="ghost" onclick="wzGo(3)" data-i18n="bench.back">← Atrás</button>
+      <button onclick="runBenchmark()" id="benchBtn" data-i18n="bench.run">Correr benchmark</button>
     </div>
     <div class="error" id="benchError" style="margin-top:12px;"></div>
     <div id="benchStatus" style="margin-top:14px;"></div>
@@ -249,17 +246,14 @@
 </div>
 
 <div class="card" id="analysisPanel" style="display:none;">
-  <h3>Analisis de rendimiento — por repositorio y proxy</h3>
-  <p class="muted">Estadistica de los jobs ya ejecutados en el VBR, agrupada por
-    <b>repositorio</b> y por <b>proxy</b> — <b>sin correr nada</b> (compatible con
-    appliances). Elegi la ventana de tiempo, toca Analizar, y expandi cada fila
-    para ver los jobs por debajo.</p>
+  <h3 data-i18n="an.title">Analisis de rendimiento — por repositorio y proxy</h3>
+  <p class="muted" data-i18n-html="an.desc"></p>
   <div class="row">
-    <div><label>Dias a considerar</label><input id="anDays" style="width:90px;"></div>
+    <div><label data-i18n="an.days">Dias a considerar</label><input id="anDays" style="width:90px;"></div>
     <div style="align-self:flex-end;"><span id="anRange" class="muted"></span></div>
-    <div><button onclick="runAnalysis()" id="anBtn">Analizar</button></div>
+    <div><button onclick="runAnalysis()" id="anBtn" data-i18n="an.analyze">Analizar</button></div>
   </div>
-  <div id="analysisContent" style="margin-top:12px;"><p class="muted">Elegi los dias y toca Analizar.</p></div>
+  <div id="analysisContent" style="margin-top:12px;"><p class="muted" data-i18n="an.pick">Elegi los dias y toca Analizar.</p></div>
 </div>
 
   </main>
@@ -275,25 +269,141 @@ let activeTab = 'infra';
 
 // --- i18n (ES / EN / PT) ----------------------------------------------------
 const I18N = {
-  es: { 'brand.sub':'· diagnóstico Veeam', 'conn.none':'Sin conectar',
+  es: {
+    'brand.sub':'· diagnóstico Veeam','conn.none':'Sin conectar',
     'conn.to':'Conectado a {where} (sesión expira en {exp}s)',
-    'btn.refresh':'Refrescar','btn.disconnect':'Desconectar','btn.connect':'Conectar',
+    'btn.refresh':'Refrescar','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestructura','nav.group.analysis':'Análisis',
     'nav.infra':'Infraestructura','nav.flow':'Arquitectura','nav.analysis':'Análisis','nav.bench':'Benchmark',
-    'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version' },
-  en: { 'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
+    'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version',
+    'col.name':'Nombre','col.type':'Tipo','col.os':'SO','col.desc':'Descripción','col.path':'Path',
+    'common.loading':'Cargando…','common.mode':'modo','common.host':'host','common.status':'estado',
+    'infra.connect':'Conectate a un VBR para ver proxies y repositorios.',
+    'infra.proxies':'Proxies','infra.repos':'Repositorios',
+    'infra.proxynote':'Nota: para ver <b>todos</b> los proxies (VMware, Hyper-V y general-purpose/Agent) conectá con <b>API version 1.3-rev0</b> (v13). Con versiones más viejas solo aparece el VMware.',
+    'flow.legend':'<b>proxy → repositorio → mount server</b> · <span style="color:#C0392B;">■</span> cuello (según telemetría) · gris = ok / sin datos / cuello fuera de la vista · línea sólida = proxy asignado, punteada = automático · badge <span style="color:#E0A020;">ámbar</span> = muchas conexiones (concentración)',
+    'flow.empty':'Sin datos todavía',
+    'flow.dom.prefix':'🔎 Cuello dominante del período:','flow.dom.inview':'— resaltado en <span style="color:#e07070;">rojo</span> abajo.','flow.dom.outview':'— no es un nodo de esta vista (por eso no se pinta ninguno).',
+    'stage.source':'origen — lectura del almacenamiento de producción','stage.proxy':'proxy','stage.network':'red','stage.target':'destino — disco del repositorio',
+    'an.title':'Análisis de rendimiento — por repositorio y proxy',
+    'an.desc':'Estadística de los jobs ya ejecutados en el VBR, agrupada por <b>repositorio</b> y por <b>proxy</b> — <b>sin correr nada</b> (compatible con appliances). Elegí la ventana de tiempo, tocá Analizar, y expandí cada fila para ver los jobs por debajo.',
+    'an.days':'Días a considerar','an.analyze':'Analizar','an.pick':'Elegí los días y tocá Analizar.',
+    'an.range':'Info disponible: {n} día(s) ({from} → {to})','an.nohistory':'Sin datos de jobs en el historial.',
+    'an.invalid':'Ingresá una cantidad de días válida (ej: 7).','an.analyzing':'Analizando…','an.failed':'No se pudo analizar: {msg}',
+    'an.byproxy':'Por proxy','an.byrepo':'Por repositorio (destino)','an.noproxy':'Sin proxy identificado en la config de los jobs.','an.nodata':'No hay jobs de datos en esa ventana de tiempo.',
+    'an.runs':'{n} run(s)','an.transferred':'{v} transferidos','an.primary':'Cuello principal por run:','an.expand':'Expandir jobs',
+    'an.bnmain':'Cuello de botella principal:','an.nobn':'Sin datos de bottleneck para este job.',
+    'diag.target.h':'destino — el disco del repositorio','diag.target.t':'El storage del repo es el candidato. Confirmalo midiendo el disco.','diag.target.cta':'▶ Benchmark de disco de este repo',
+    'diag.source.h':'origen — lectura del almacenamiento de producción','diag.source.t':'Revisá los discos/almacenamiento de origen (o el proxy de origen).',
+    'diag.proxy.h':'proxy — CPU, compresión o dedup','diag.proxy.t':'Mirá la CPU/carga del proxy o subí sus tareas concurrentes.',
+    'diag.network.h':'red entre proxy y repositorio','diag.network.t':'Revisá el enlace: velocidad, MTU, saturación.','diag.prefix':'🔎 El cuello está en el',
+    'tbl.obj':'Objeto','tbl.result':'Resultado','tbl.bottleneck':'Bottleneck','tbl.rate':'Tasa','tbl.processed':'Procesado','tbl.read':'Leído','tbl.transferred':'Transferido','tbl.reduction':'Reducción','tbl.duration':'Duración',
+    'v.ok':'OK','v.warn':'Atención','v.low':'Bajo lo esperado',
+    'bench.title':'Benchmark de disco','wz.1':'Conexión','wz.2':'Destino','wz.3':'Herramienta','wz.4':'Tiempo',
+    'bench.p1':'Elegí el <b>servidor</b> (host del repositorio) y conectá por <b>SSH</b>. Solo aparecen los hosts con repos locales — los de object storage/cloud no se miden por disco.',
+    'bench.server':'Servidor','bench.manual':'Host / IP manual','bench.test':'Probar conexión','bench.back':'← Atrás','bench.next':'Siguiente →',
+    'bench.p2':'Elegí el repositorio a medir (de este servidor).','bench.repo':'Repositorio (destino)','bench.action':'Acción','bench.backup':'Backup (escritura)','bench.restore':'Restore (lectura)',
+    'bench.resource':'Recurso','bench.disk':'Disco','bench.net':'Red · fase 2','bench.measure':'Se medirá el disco en',
+    'bench.p3':'Verificamos que <b>fio</b> esté disponible en el host.','bench.deploy':'Desplegar fio','bench.verify':'Verificar herramienta',
+    'bench.p4':'Duración de cada test. <b>Recomendado: 15s</b> (más estable). fio escribe ~2 GB temporales en el repo y los borra al terminar.',
+    'bench.baseline':'Disco esperado (baseline)','bench.duration':'Duración por test (s)','bench.run':'Correr benchmark',
+    'bench.needcreds':'Elegí un servidor y completá usuario y password.','bench.testing':'Probando conexión SSH…','bench.connfail':'Falló la conexión',
+    'bench.checking':'Verificando fio…','bench.fionotfound':'fio no disponible','bench.ready':'listo para correr.','bench.deploying':'Desplegando fio…',
+    'bench.results':'Resultados de disco','bench.nores':'Sin resultados.','bench.host':'host','bench.startfail':'No se pudo iniciar el benchmark.',
+    'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latencia (ms)','tbl.expected':'Esperado','tbl.pct':'% del esperado','tbl.verdict':'Veredicto',
+    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—'
+  },
+  en: {
+    'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
     'conn.to':'Connected to {where} (session expires in {exp}s)',
-    'btn.refresh':'Refresh','btn.disconnect':'Disconnect','btn.connect':'Connect',
+    'btn.refresh':'Refresh','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
     'nav.group.infra':'Infrastructure','nav.group.analysis':'Analytics',
     'nav.infra':'Infrastructure','nav.flow':'Architecture','nav.analysis':'Analysis','nav.bench':'Benchmark',
-    'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version' },
-  pt: { 'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
+    'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version',
+    'col.name':'Name','col.type':'Type','col.os':'OS','col.desc':'Description','col.path':'Path',
+    'common.loading':'Loading…','common.mode':'mode','common.host':'host','common.status':'status',
+    'infra.connect':'Connect to a VBR to see proxies and repositories.',
+    'infra.proxies':'Proxies','infra.repos':'Repositories',
+    'infra.proxynote':'Note: to see <b>all</b> proxies (VMware, Hyper-V and general-purpose/Agent) connect with <b>API version 1.3-rev0</b> (v13). Older versions only return the VMware one.',
+    'flow.legend':'<b>proxy → repository → mount server</b> · <span style="color:#C0392B;">■</span> bottleneck (from telemetry) · gray = ok / no data / bottleneck outside this view · solid line = assigned proxy, dashed = automatic · <span style="color:#E0A020;">amber</span> badge = many connections (concentration)',
+    'flow.empty':'No data yet',
+    'flow.dom.prefix':'🔎 Dominant bottleneck for the period:','flow.dom.inview':'— highlighted in <span style="color:#e07070;">red</span> below.','flow.dom.outview':'— not a node in this view (that is why none is highlighted).',
+    'stage.source':'source — reading production storage','stage.proxy':'proxy','stage.network':'network','stage.target':'target — repository disk',
+    'an.title':'Performance analysis — by repository and proxy',
+    'an.desc':'Statistics of jobs already run in VBR, grouped by <b>repository</b> and by <b>proxy</b> — <b>without running anything</b> (appliance-friendly). Pick the time window, click Analyze, and expand each row to see the jobs underneath.',
+    'an.days':'Days to consider','an.analyze':'Analyze','an.pick':'Pick the days and click Analyze.',
+    'an.range':'Data available: {n} day(s) ({from} → {to})','an.nohistory':'No job history available.',
+    'an.invalid':'Enter a valid number of days (e.g. 7).','an.analyzing':'Analyzing…','an.failed':'Could not analyze: {msg}',
+    'an.byproxy':'By proxy','an.byrepo':'By repository (target)','an.noproxy':'No proxy identified in the jobs config.','an.nodata':'No data jobs in that time window.',
+    'an.runs':'{n} run(s)','an.transferred':'{v} transferred','an.primary':'Main bottleneck per run:','an.expand':'Expand jobs',
+    'an.bnmain':'Main bottleneck:','an.nobn':'No bottleneck data for this job.',
+    'diag.target.h':'target — the repository disk','diag.target.t':'The repo storage is the candidate. Confirm it by benchmarking the disk.','diag.target.cta':'▶ Disk benchmark of this repo',
+    'diag.source.h':'source — reading production storage','diag.source.t':'Check the source storage/disks (or the source proxy).',
+    'diag.proxy.h':'proxy — CPU, compression or dedup','diag.proxy.t':'Check the proxy CPU/load or raise its concurrent tasks.',
+    'diag.network.h':'network between proxy and repository','diag.network.t':'Check the link: speed, MTU, saturation.','diag.prefix':'🔎 The bottleneck is in the',
+    'tbl.obj':'Object','tbl.result':'Result','tbl.bottleneck':'Bottleneck','tbl.rate':'Rate','tbl.processed':'Processed','tbl.read':'Read','tbl.transferred':'Transferred','tbl.reduction':'Reduction','tbl.duration':'Duration',
+    'v.ok':'OK','v.warn':'Warning','v.low':'Below expected',
+    'bench.title':'Disk benchmark','wz.1':'Connection','wz.2':'Target','wz.3':'Tool','wz.4':'Time',
+    'bench.p1':'Pick the <b>server</b> (repository host) and connect over <b>SSH</b>. Only hosts with local repos appear — object storage/cloud repos are not disk-measured.',
+    'bench.server':'Server','bench.manual':'Host / IP (manual)','bench.test':'Test connection','bench.back':'← Back','bench.next':'Next →',
+    'bench.p2':'Pick the repository to measure (on this server).','bench.repo':'Repository (target)','bench.action':'Action','bench.backup':'Backup (write)','bench.restore':'Restore (read)',
+    'bench.resource':'Resource','bench.disk':'Disk','bench.net':'Network · phase 2','bench.measure':'Disk will be measured at',
+    'bench.p3':'We check that <b>fio</b> is available on the host.','bench.deploy':'Deploy fio','bench.verify':'Verify tool',
+    'bench.p4':'Duration per test. <b>Recommended: 15s</b> (more stable). fio writes ~2 GB temporarily to the repo and deletes it when done.',
+    'bench.baseline':'Expected disk (baseline)','bench.duration':'Duration per test (s)','bench.run':'Run benchmark',
+    'bench.needcreds':'Pick a server and fill in username and password.','bench.testing':'Testing SSH connection…','bench.connfail':'Connection failed',
+    'bench.checking':'Checking fio…','bench.fionotfound':'fio not available','bench.ready':'ready to run.','bench.deploying':'Deploying fio…',
+    'bench.results':'Disk results','bench.nores':'No results.','bench.host':'host','bench.startfail':'Could not start the benchmark.',
+    'tbl.test':'Test','tbl.mode':'Mode','tbl.iops':'IOPS','tbl.lat':'Latency (ms)','tbl.expected':'Expected','tbl.pct':'% of expected','tbl.verdict':'Verdict',
+    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—'
+  },
+  pt: {
+    'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
     'conn.to':'Conectado a {where} (sessão expira em {exp}s)',
-    'btn.refresh':'Atualizar','btn.disconnect':'Desconectar','btn.connect':'Conectar',
+    'btn.refresh':'Atualizar','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestrutura','nav.group.analysis':'Análise',
     'nav.infra':'Infraestrutura','nav.flow':'Arquitetura','nav.analysis':'Análise','nav.bench':'Benchmark',
-    'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API' },
+    'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API',
+    'col.name':'Nome','col.type':'Tipo','col.os':'SO','col.desc':'Descrição','col.path':'Caminho',
+    'common.loading':'Carregando…','common.mode':'modo','common.host':'host','common.status':'estado',
+    'infra.connect':'Conecte-se a um VBR para ver proxies e repositórios.',
+    'infra.proxies':'Proxies','infra.repos':'Repositórios',
+    'infra.proxynote':'Nota: para ver <b>todos</b> os proxies (VMware, Hyper-V e general-purpose/Agent) conecte com <b>API version 1.3-rev0</b> (v13). Versões mais antigas só mostram o VMware.',
+    'flow.legend':'<b>proxy → repositório → mount server</b> · <span style="color:#C0392B;">■</span> gargalo (pela telemetria) · cinza = ok / sem dados / gargalo fora da vista · linha sólida = proxy atribuído, tracejada = automático · badge <span style="color:#E0A020;">âmbar</span> = muitas conexões (concentração)',
+    'flow.empty':'Sem dados ainda',
+    'flow.dom.prefix':'🔎 Gargalo dominante do período:','flow.dom.inview':'— destacado em <span style="color:#e07070;">vermelho</span> abaixo.','flow.dom.outview':'— não é um nó desta vista (por isso nenhum é destacado).',
+    'stage.source':'origem — leitura do armazenamento de produção','stage.proxy':'proxy','stage.network':'rede','stage.target':'destino — disco do repositório',
+    'an.title':'Análise de desempenho — por repositório e proxy',
+    'an.desc':'Estatística dos jobs já executados no VBR, agrupada por <b>repositório</b> e por <b>proxy</b> — <b>sem rodar nada</b> (compatível com appliances). Escolha a janela de tempo, clique Analisar e expanda cada linha para ver os jobs.',
+    'an.days':'Dias a considerar','an.analyze':'Analisar','an.pick':'Escolha os dias e clique Analisar.',
+    'an.range':'Dados disponíveis: {n} dia(s) ({from} → {to})','an.nohistory':'Sem histórico de jobs.',
+    'an.invalid':'Informe um número de dias válido (ex: 7).','an.analyzing':'Analisando…','an.failed':'Não foi possível analisar: {msg}',
+    'an.byproxy':'Por proxy','an.byrepo':'Por repositório (destino)','an.noproxy':'Nenhum proxy identificado na config dos jobs.','an.nodata':'Sem jobs de dados nessa janela de tempo.',
+    'an.runs':'{n} run(s)','an.transferred':'{v} transferidos','an.primary':'Gargalo principal por run:','an.expand':'Expandir jobs',
+    'an.bnmain':'Gargalo principal:','an.nobn':'Sem dados de gargalo para este job.',
+    'diag.target.h':'destino — o disco do repositório','diag.target.t':'O storage do repo é o candidato. Confirme medindo o disco.','diag.target.cta':'▶ Benchmark de disco deste repo',
+    'diag.source.h':'origem — leitura do armazenamento de produção','diag.source.t':'Verifique os discos/armazenamento de origem (ou o proxy de origem).',
+    'diag.proxy.h':'proxy — CPU, compressão ou dedup','diag.proxy.t':'Veja a CPU/carga do proxy ou aumente suas tarefas simultâneas.',
+    'diag.network.h':'rede entre proxy e repositório','diag.network.t':'Verifique o link: velocidade, MTU, saturação.','diag.prefix':'🔎 O gargalo está no',
+    'tbl.obj':'Objeto','tbl.result':'Resultado','tbl.bottleneck':'Gargalo','tbl.rate':'Taxa','tbl.processed':'Processado','tbl.read':'Lido','tbl.transferred':'Transferido','tbl.reduction':'Redução','tbl.duration':'Duração',
+    'v.ok':'OK','v.warn':'Atenção','v.low':'Abaixo do esperado',
+    'bench.title':'Benchmark de disco','wz.1':'Conexão','wz.2':'Destino','wz.3':'Ferramenta','wz.4':'Tempo',
+    'bench.p1':'Escolha o <b>servidor</b> (host do repositório) e conecte por <b>SSH</b>. Só aparecem hosts com repos locais — os de object storage/cloud não são medidos por disco.',
+    'bench.server':'Servidor','bench.manual':'Host / IP manual','bench.test':'Testar conexão','bench.back':'← Voltar','bench.next':'Avançar →',
+    'bench.p2':'Escolha o repositório a medir (deste servidor).','bench.repo':'Repositório (destino)','bench.action':'Ação','bench.backup':'Backup (escrita)','bench.restore':'Restore (leitura)',
+    'bench.resource':'Recurso','bench.disk':'Disco','bench.net':'Rede · fase 2','bench.measure':'O disco será medido em',
+    'bench.p3':'Verificamos que o <b>fio</b> esteja disponível no host.','bench.deploy':'Instalar fio','bench.verify':'Verificar ferramenta',
+    'bench.p4':'Duração de cada teste. <b>Recomendado: 15s</b> (mais estável). O fio escreve ~2 GB temporários no repo e apaga ao terminar.',
+    'bench.baseline':'Disco esperado (baseline)','bench.duration':'Duração por teste (s)','bench.run':'Rodar benchmark',
+    'bench.needcreds':'Escolha um servidor e preencha usuário e senha.','bench.testing':'Testando conexão SSH…','bench.connfail':'Falha na conexão',
+    'bench.checking':'Verificando fio…','bench.fionotfound':'fio não disponível','bench.ready':'pronto para rodar.','bench.deploying':'Instalando fio…',
+    'bench.results':'Resultados de disco','bench.nores':'Sem resultados.','bench.host':'host','bench.startfail':'Não foi possível iniciar o benchmark.',
+    'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latência (ms)','tbl.expected':'Esperado','tbl.pct':'% do esperado','tbl.verdict':'Veredito',
+    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—'
+  },
 };
+// tp: t con reemplazo de {placeholders}
+function tp(key, vars) { let s = t(key); for (const k in (vars||{})) s = s.replace('{'+k+'}', vars[k]); return s; }
 let LANG = localStorage.getItem('lang') || 'es';
 let connState = null;  // {where, exp} cuando esta conectado
 
@@ -301,6 +411,7 @@ function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.es[key] || key;
 
 function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n-html')); });
   const c = document.getElementById('connectedAs');
   if (c) {
     c.textContent = connState
@@ -313,6 +424,8 @@ function setLang(l) {
   LANG = l; localStorage.setItem('lang', l);
   document.querySelectorAll('.flag').forEach(f => f.classList.toggle('active', f.dataset.lang === l));
   applyI18n();
+  // Re-renderiza el panel activo para traducir tambien el contenido dinamico.
+  if (sessionId && typeof activeTab !== 'undefined' && activeTab) showTab(activeTab);
 }
 
 function showTab(tab) {
@@ -347,7 +460,7 @@ function refreshComponents() {
 async function downloadDiag() {
   const btn = document.getElementById('btnDiag');
   const prev = btn.textContent;
-  btn.textContent = 'Generando…'; btn.disabled = true;
+  btn.textContent = t('common.generating'); btn.disabled = true;
   try {
     const txt = await fetch(`${BACKEND}/api/${sessionId}/diagnostics`).then(r => r.text());
     const a = document.createElement('a');
@@ -355,7 +468,7 @@ async function downloadDiag() {
     a.download = `yogabench-diag-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '')}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(a.href);
-  } catch (e) { alert('No se pudo generar el diagnóstico: ' + e.message); }
+  } catch (e) { alert(t('diag.fail') + e.message); }
   finally { btn.textContent = prev; btn.disabled = false; }
 }
 
@@ -376,7 +489,7 @@ async function disconnect() {
   document.getElementById('connectCard').style.display = 'block';  // desconectado: mostrar el form
   showTab('infra');
   document.getElementById('infraPanel').innerHTML =
-    '<p class="muted">Conectate a un VBR para ver proxies y repositorios.</p>';
+    `<p class="muted">${t('infra.connect')}</p>`;
   const svg = document.getElementById('flowCanvas'); if (svg) svg.innerHTML = '';
   document.getElementById('benchStatus').innerHTML = '';
   document.getElementById('benchResults').innerHTML = '';
@@ -421,7 +534,7 @@ function onConnected(data, where) {
 
 async function loadInfra() {
   const panel = document.getElementById('infraPanel');
-  panel.innerHTML = '<p>Cargando...</p>';
+  panel.innerHTML = `<p>${t('common.loading')}</p>`;
   try {
     const [proxiesRes, reposRes] = await Promise.all([
       fetch(`${BACKEND}/api/${sessionId}/proxies`).then(r => r.json()),
@@ -430,13 +543,13 @@ async function loadInfra() {
     const proxies = proxiesRes.data || proxiesRes;
     const repos = reposRes.data || reposRes;
 
-    let html = '<h3>Proxies</h3><table><tr><th>Nombre</th><th>Tipo</th><th>SO</th><th>Descripcion</th></tr>';
+    let html = `<h3>${t('infra.proxies')}</h3><table><tr><th>${t('col.name')}</th><th>${t('col.type')}</th><th>${t('col.os')}</th><th>${t('col.desc')}</th></tr>`;
     for (const p of proxies)
       html += `<tr><td>${p.name || ''}</td><td><span class="pill">${p.type || 'proxy'}</span></td><td>${p.os || '-'}</td><td>${p.description || ''}</td></tr>`;
     html += '</table>';
-    html += '<p class="muted" style="font-size:12px;margin-top:6px;">Nota: para ver <b>todos</b> los proxies (VMware, Hyper-V y general-purpose/Agent) conectá con <b>API version 1.3-rev0</b> (v13). Con versiones más viejas solo aparece el VMware.</p>';
+    html += `<p class="muted" style="font-size:12px;margin-top:6px;">${t('infra.proxynote')}</p>`;
 
-    html += '<h3 style="margin-top:18px;">Repositorios</h3><table><tr><th>Nombre</th><th>Tipo</th><th>Path</th></tr>';
+    html += `<h3 style="margin-top:18px;">${t('infra.repos')}</h3><table><tr><th>${t('col.name')}</th><th>${t('col.type')}</th><th>${t('col.path')}</th></tr>`;
     for (const r of repos) {
       const path = (r.repository && (r.repository.path || r.repository.folder)) || '';
       html += `<tr><td>${r.name || ''}</td><td><span class="pill">${r.type || 'repository'}</span></td><td>${path}</td></tr>`;
@@ -493,10 +606,9 @@ function showFlowDominant(an) {
     for (const k in (g.primaryCounts || {})) counts[k] = (counts[k] || 0) + g.primaryCounts[k];
   const dom = topPrimary(counts);
   if (!dom) { el.innerHTML = ''; return; }
-  const MAP = { Source: 'origen — lectura del almacenamiento de producción', Proxy: 'proxy', Network: 'red', Target: 'destino — disco del repositorio' };
+  const MAP = { Source: t('stage.source'), Proxy: t('stage.proxy'), Network: t('stage.network'), Target: t('stage.target') };
   const inView = dom === 'Proxy' || dom === 'Target';
-  el.innerHTML = `🔎 Cuello dominante del período: <b>${MAP[dom] || dom}</b>` +
-    (inView ? ' — resaltado en <span style="color:#e07070;">rojo</span> abajo.' : ' — no es un nodo de esta vista (por eso no se pinta ninguno).');
+  el.innerHTML = `${t('flow.dom.prefix')} <b>${MAP[dom] || dom}</b> ` + (inView ? t('flow.dom.inview') : t('flow.dom.outview'));
 }
 
 // Ordena los nodos DENTRO de cada columna para minimizar cruces de líneas
@@ -617,7 +729,7 @@ function renderFlow(graph) {
 
   if (graph.nodes.length === 0) {
     const msg = mk('text', { x:450, y:210, 'text-anchor':'middle', fill:'#8b909c' });
-    msg.textContent = 'Sin datos todavia';
+    msg.textContent = t('flow.empty');
     svg.appendChild(msg);
   }
 }
@@ -655,7 +767,7 @@ function populateHostSelect() {
   const hosts = [...new Set(benchRepos.map(r => r.host_name).filter(Boolean))].sort();
   const sel = document.getElementById('benchHostSel');
   sel.innerHTML = hosts.map(h => `<option value="${h}">${h}</option>`).join('') +
-    '<option value="__manual__">Otro (host / IP manual)…</option>';
+    `<option value="__manual__">${t('bench.other')}</option>`;
   onHostSelChange();
 }
 function onHostSelChange() {
@@ -671,9 +783,9 @@ function onRepoChange() {
   const repo = selectedRepo();
   wzState.repoOk = !!(repo && repo.id);
   wzState.toolOk = false;   // cambiar de repo -> re-verificar herramienta
-  const path = repo && repo.path ? repo.path : '(ruta por defecto del host)';
+  const path = repo && repo.path ? repo.path : t('bench.defpath');
   document.getElementById('benchRepoPath').innerHTML =
-    repo ? `Se medirá el disco en <b>${path}</b>` : '';
+    repo ? `${t('bench.measure')} <b>${path}</b>` : '';
 }
 
 // Repos del host conectado (match por nombre de servidor); si no matchea, todos.
@@ -693,8 +805,8 @@ function populateRepos() {
   document.getElementById('benchRepo').innerHTML = repos.map(r =>
     `<option value="${r.id}">${r.name}${r.host_name ? ' — ' + r.host_name : ''}</option>`).join('');
   document.getElementById('benchDestHint').innerHTML = filtered
-    ? `Repositorios en <b>${connectedHostname || connectedHost}</b>:`
-    : 'No pude filtrar por host — mostrando todos los repositorios (elegí el de este servidor).';
+    ? `${t('bench.desthint')} <b>${connectedHostname || connectedHost}</b>:`
+    : t('bench.nofilter');
   // Si vinimos del cruce con el Análisis, seleccionar ese repo si está disponible.
   if (pendingRepoId) {
     const sel = document.getElementById('benchRepo');
@@ -739,15 +851,15 @@ async function testConnection() {
   const host = selectedHost();
   const user = document.getElementById('proxyUser').value.trim();
   const pass = document.getElementById('proxyPass').value;
-  if (!host || !user || !pass) { setMsg('prepConn', '<span class="step-bad">Elegí un servidor y completá usuario y password.</span>'); return; }
-  setMsg('prepConn', '<span class="step-info">Probando conexión SSH…</span>');
+  if (!host || !user || !pass) { setMsg('prepConn', `<span class="step-bad">${t('bench.needcreds')}</span>`); return; }
+  setMsg('prepConn', `<span class="step-info">${t('bench.testing')}</span>`);
   try {
     const r = await fetch(`${BACKEND}/api/${sessionId}/bench-connection`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ host, username: user, password: pass })
     });
     const d = await r.json();
-    if (!r.ok || !d.ok) { setMsg('prepConn', `<span class="step-bad">✗ ${d.message || d.detail || 'Falló la conexión'}</span>`); return; }
+    if (!r.ok || !d.ok) { setMsg('prepConn', `<span class="step-bad">✗ ${d.message || d.detail || t('bench.connfail')}</span>`); return; }
     wzState.connOk = true;
     connectedHost = host; connectedHostname = d.hostname || '';
     setMsg('prepConn', `<span class="step-ok">✓ ${d.message}</span>${d.hostname ? ' · host: <b>' + d.hostname + '</b>' : ''}`);
@@ -759,24 +871,24 @@ async function testConnection() {
 // --- Paso 3: herramienta (fio) ---
 async function checkTools() {
   wzShow(3);
-  setMsg('prepTools', '<span class="step-info">Verificando fio…</span>');
+  setMsg('prepTools', `<span class="step-info">${t('bench.checking')}</span>`);
   document.getElementById('btnDeploy').style.display = 'none';
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/bench-tools`).then(r => r.json());
     if (d.installed) {
       wzState.toolOk = true;
-      setMsg('prepTools', `<span class="step-ok">✓ ${d.detail}</span> — listo para correr.`);
+      setMsg('prepTools', `<span class="step-ok">✓ ${d.detail}</span> — ${t('bench.ready')}`);
       setTimeout(() => wzShow(4), 500);
     } else {
       wzState.toolOk = false;
-      setMsg('prepTools', `<span class="step-bad">✗ ${d.detail || 'fio no disponible'}</span>`);
+      setMsg('prepTools', `<span class="step-bad">✗ ${d.detail || t('bench.fionotfound')}</span>`);
       document.getElementById('btnDeploy').style.display = '';
     }
   } catch (e) { setMsg('prepTools', `<span class="step-bad">✗ ${e.message}</span>`); }
 }
 
 async function deployTools() {
-  setMsg('prepTools', '<span class="step-info">Desplegando fio…</span>');
+  setMsg('prepTools', `<span class="step-info">${t('bench.deploying')}</span>`);
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/bench-deploy`, { method: 'POST' }).then(r => r.json());
     if (d.ok) { checkTools(); } else { setMsg('prepTools', `<span class="step-bad">✗ ${d.message}</span>`); }
@@ -803,7 +915,7 @@ async function runBenchmark() {
       body: JSON.stringify(body)
     });
     const start = await r.json();
-    if (!r.ok) { errEl.textContent = start.detail || 'No se pudo iniciar el benchmark.'; return; }
+    if (!r.ok) { errEl.textContent = start.detail || t('bench.startfail'); return; }
     await pollJob(start.job_id);
   } catch (e) { errEl.textContent = e.message; }
   finally { btn.disabled = false; }
@@ -825,7 +937,7 @@ async function pollJob(jobId) {
     const op = { backup: 'Backup', restore: 'Restore' }[job.operation] || job.operation;
     const host = job.hostname || job.host || '';
     statusEl.innerHTML =
-      `<b>${op}</b> · disco · repo <b>${job.repository_label}</b>${host ? ' · host <b>' + host + '</b>' : ''} · ${job.tool} — estado: ${job.status}
+      `<b>${op}</b> · ${t('bench.disk').toLowerCase()} · ${t('common.repo')} <b>${job.repository_label}</b>${host ? ' · ' + t('common.host') + ' <b>' + host + '</b>' : ''} · ${job.tool} — ${t('common.status')}: ${job.status}
        <div class="progress"><div style="width:${job.progress}%"></div></div>`;
     if (job.status === 'completed') { renderResults(job); return; }
     if (job.status === 'failed') { document.getElementById('benchError').textContent = job.error; return; }
@@ -833,22 +945,21 @@ async function pollJob(jobId) {
   }
 }
 
-const VERDICT_LABEL = { ok: 'OK', warn: 'Atencion', low: 'Bajo lo esperado' };
-function verdictPill(status) { return `<span class="verdict ${status}">${VERDICT_LABEL[status] || status}</span>`; }
+function verdictPill(status) { return `<span class="verdict ${status}">${t('v.'+status) || status}</span>`; }
 
 function renderResults(job) {
   const rows = (job.results && job.results.disk) || [];
-  if (!rows.length) { document.getElementById('benchResults').innerHTML = '<p class="muted">Sin resultados.</p>'; return; }
+  if (!rows.length) { document.getElementById('benchResults').innerHTML = `<p class="muted">${t('bench.nores')}</p>`; return; }
   const host = job.hostname || job.host || '';
-  const sub = host ? `<div class="muted" style="font-size:12px;margin-bottom:6px;">host <b>${host}</b> · repo <b>${job.repository_label}</b></div>` : '';
+  const sub = host ? `<div class="muted" style="font-size:12px;margin-bottom:6px;">${t('common.host')} <b>${host}</b> · ${t('common.repo')} <b>${job.repository_label}</b></div>` : '';
   document.getElementById('benchResults').innerHTML =
-    '<h4 style="margin:16px 0 4px;">Resultados de disco</h4>' + sub + renderDisk(rows);
+    `<h4 style="margin:16px 0 4px;">${t('bench.results')}</h4>` + sub + renderDisk(rows);
 }
 
 function renderDisk(rows) {
   const maxBw = Math.max(...rows.map(r => r.bw_mbps), 1);
-  let html = `<table><tr><th>Test</th><th>Modo</th><th>MB/s</th><th></th><th>IOPS</th>
-      <th>Latencia (ms)</th><th>Esperado</th><th>% del esperado</th><th>Veredicto</th></tr>`;
+  let html = `<table><tr><th>${t('tbl.test')}</th><th>${t('tbl.mode')}</th><th>MB/s</th><th></th><th>${t('tbl.iops')}</th>
+      <th>${t('tbl.lat')}</th><th>${t('tbl.expected')}</th><th>${t('tbl.pct')}</th><th>${t('tbl.verdict')}</th></tr>`;
   for (const r of rows) {
     const pct = (r.bw_mbps / maxBw) * 100;
     html += `<tr>
@@ -889,9 +1000,9 @@ async function loadAnalysis() {
     const r = await getJSON(`${BACKEND}/api/${sessionId}/analysis-range`);
     if (r.from) {
       daysEl.value = r.days_available || 7;
-      rangeEl.textContent = `Info disponible: ${r.days_available} día(s) (${r.from} → ${r.to})`;
+      rangeEl.textContent = tp('an.range', { n: r.days_available, from: r.from, to: r.to });
     } else {
-      rangeEl.textContent = 'Sin datos de jobs en el historial.';
+      rangeEl.textContent = t('an.nohistory');
     }
   } catch (e) {
     if (!daysEl.value) daysEl.value = 7;   // default para que no quede vacio
@@ -903,15 +1014,15 @@ async function runAnalysis() {
   const el = document.getElementById('analysisContent');
   const days = parseInt((document.getElementById('anDays').value || '').trim(), 10);
   if (!days || days < 1) {   // catch: no se ingreso un valor valido
-    el.innerHTML = '<p class="error">Ingresá una cantidad de días válida (ej: 7).</p>';
+    el.innerHTML = `<p class="error">${t('an.invalid')}</p>`;
     return;
   }
-  el.innerHTML = '<p class="muted">Analizando…</p>';
+  el.innerHTML = `<p class="muted">${t('an.analyzing')}</p>`;
   try {
     const d = await getJSON(`${BACKEND}/api/${sessionId}/analysis?days=${days}`);
     renderAnalysis(d);
   } catch (e) {
-    el.innerHTML = `<p class="error">No se pudo analizar: ${e.message}</p>`;
+    el.innerHTML = `<p class="error">${tp('an.failed', { msg: e.message })}</p>`;
   }
 }
 
@@ -920,13 +1031,13 @@ function renderAnalysis(d) {
   const repo = (d && d.byRepository) || [];
   const prx = (d && d.byProxy) || [];
   if (!repo.length && !prx.length) {
-    el.innerHTML = '<p class="muted">No hay jobs de datos en esa ventana de tiempo.</p>';
+    el.innerHTML = `<p class="muted">${t('an.nodata')}</p>`;
     return;
   }
   el.innerHTML =
-    `<h3 style="margin-top:8px;">Por proxy</h3>
-     ${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : '<p class="muted">Sin proxy identificado en la config de los jobs.</p>'}
-     <h3 style="margin-top:18px;">Por repositorio (destino)</h3>
+    `<h3 style="margin-top:8px;">${t('an.byproxy')}</h3>
+     ${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : `<p class="muted">${t('an.noproxy')}</p>`}
+     <h3 style="margin-top:18px;">${t('an.byrepo')}</h3>
      ${repo.map(g => groupCard(g, 'repo')).join('')}`;
 }
 
@@ -940,14 +1051,14 @@ function groupCard(g, kind) {
   return `<div class="jobcard">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <b>${g.name}</b>
-      <span class="muted" style="font-size:12px;">${g.runs} run(s)</span>
+      <span class="muted" style="font-size:12px;">${tp('an.runs', { n: g.runs })}</span>
       ${badges}
-      <span class="muted" style="font-size:12px;">· ${fmtGB(g.transferredSize)} transferidos</span>
+      <span class="muted" style="font-size:12px;">· ${tp('an.transferred', { v: fmtGB(g.transferredSize) })}</span>
     </div>
-    <div style="font-size:13px;margin-top:6px;">Cuello principal por run: <b>${prim}</b></div>
+    <div style="font-size:13px;margin-top:6px;">${t('an.primary')} <b>${prim}</b></div>
     ${g.bottleneckAvg ? bottleneckBars(g.bottleneckAvg) : ''}
     ${diagnose(g, kind)}
-    <button class="ghost mini" onclick="toggleGroup('${gid}')">Expandir jobs</button>
+    <button class="ghost mini" onclick="toggleGroup('${gid}')">${t('an.expand')}</button>
     <div id="${gid}" style="display:none;margin-top:10px;">${(g.jobs || []).map(renderJobCard).join('')}</div>
   </div>`;
 }
@@ -962,16 +1073,11 @@ function diagnose(g, kind) {
     stage = Object.keys(pc).sort((a, b) => pc[b] - pc[a])[0];
   }
   if (!stage) return '';
-  const M = {
-    target:  ['destino — el disco del repositorio', 'El storage del repo es el candidato. Confirmalo midiendo el disco.', true],
-    source:  ['origen — lectura del almacenamiento de producción', 'Revisá los discos/almacenamiento de origen (o el proxy de origen).', false],
-    proxy:   ['proxy — CPU, compresión o dedup', 'Mirá la CPU/carga del proxy o subí sus tareas concurrentes.', false],
-    network: ['red entre proxy y repositorio', 'Revisá el enlace: velocidad, MTU, saturación.', false],
-  };
-  const m = M[String(stage).toLowerCase()];
-  if (!m) return '';
-  const cta = (m[2] && kind === 'repo') ? ` <a href="#" onclick="prefillBench('${g.id}');return false;" style="color:var(--green);font-weight:600;">▶ Benchmark de disco de este repo</a>` : '';
-  return `<div class="diag">🔎 El cuello está en el <b>${m[0]}</b>. ${m[1]}${cta}</div>`;
+  const s = String(stage).toLowerCase();
+  if (!['target', 'source', 'proxy', 'network'].includes(s)) return '';
+  const isTarget = s === 'target';
+  const cta = (isTarget && kind === 'repo') ? ` <a href="#" onclick="prefillBench('${g.id}');return false;" style="color:var(--green);font-weight:600;">${t('diag.target.cta')}</a>` : '';
+  return `<div class="diag">${t('diag.prefix')} <b>${t('diag.'+s+'.h')}</b>. ${t('diag.'+s+'.t')}${cta}</div>`;
 }
 
 // prefillBench: salta al wizard de benchmark. Como ahora se conecta primero, el
@@ -995,8 +1101,8 @@ function resultBadge(r) {
 function fmtGB(b) { return b ? (b / 1073741824).toFixed(1) + ' GB' : '-'; }
 
 function bottleneckBars(b) {
-  if (!b) return '<p class="muted" style="font-size:12px;">Sin datos de bottleneck para este job.</p>';
-  let h = `<div class="bnk"><div style="font-size:13px;margin-bottom:4px;">Cuello de botella principal: <b>${b.primary || '?'}</b></div>`;
+  if (!b) return `<p class="muted" style="font-size:12px;">${t('an.nobn')}</p>`;
+  let h = `<div class="bnk"><div style="font-size:13px;margin-bottom:4px;">${t('an.bnmain')} <b>${b.primary || '?'}</b></div>`;
   if (b.source === undefined) return h + '</div>';
   const primary = (b.primary || '').toLowerCase();
   for (const [label, key] of [['Source','source'],['Proxy','proxy'],['Network','network'],['Target','target']]) {
@@ -1011,8 +1117,8 @@ function bottleneckBars(b) {
 
 function tasksTable(tasks) {
   if (!tasks || !tasks.length) return '';
-  let h = `<table><tr><th>Objeto</th><th>Resultado</th><th>Bottleneck</th><th>Tasa</th>
-    <th>Procesado</th><th>Leido</th><th>Transferido</th><th>Reduccion</th><th>Duracion</th></tr>`;
+  let h = `<table><tr><th>${t('tbl.obj')}</th><th>${t('tbl.result')}</th><th>${t('tbl.bottleneck')}</th><th>${t('tbl.rate')}</th>
+    <th>${t('tbl.processed')}</th><th>${t('tbl.read')}</th><th>${t('tbl.transferred')}</th><th>${t('tbl.reduction')}</th><th>${t('tbl.duration')}</th></tr>`;
   for (const t of tasks) {
     h += `<tr><td>${t.name || ''}</td><td>${t.result || ''}</td><td>${t.bottleneck || '-'}</td>
       <td>${t.processingRate || '-'}</td><td>${fmtGB(t.processedSize)}</td><td>${fmtGB(t.readSize)}</td>
