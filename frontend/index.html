@@ -160,6 +160,7 @@
     <div class="navgroup" data-i18n="nav.group.analysis">Análisis</div>
     <div class="navitem" id="tabAnalysis" onclick="showTab('analysis')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16"/><path d="M6 20v-6M11 20V7M16 20v-9"/></svg></span> <span data-i18n="nav.analysis">Análisis</span></div>
     <div class="navitem" id="tabBench" onclick="showTab('bench')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18a8 8 0 0 1 16 0"/><path d="M12 18l4-5"/></svg></span> <span data-i18n="nav.bench">Benchmark</span></div>
+    <div class="navitem" id="tabNet" onclick="showTab('net')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="15" width="18" height="5" rx="1"/><path d="M7 9v6M17 9v6M7 6.5h.01M7 17.5h.01"/></svg></span> <span data-i18n="nav.net">Red</span></div>
   </nav>
   <main class="main">
 
@@ -286,6 +287,40 @@
   <div id="analysisContent" style="margin-top:12px;"><p class="muted" data-i18n="an.pick">Elegi los dias y toca Analizar.</p></div>
 </div>
 
+<div class="card" id="netPanel" style="display:none;">
+  <h3 data-i18n="net.title">Red — puertos y ancho de banda</h3>
+  <p class="muted" style="font-size:12px;" data-i18n="net.note"></p>
+  <datalist id="netHosts"></datalist>
+
+  <h4 style="margin:14px 0 6px;" data-i18n="net.portsref">Puertos requeridos (referencia)</h4>
+  <div id="netPortsRef"></div>
+
+  <div class="subcard">
+    <h4 style="margin:0 0 8px;" data-i18n="net.check">Test de conectividad</h4>
+    <div class="row" style="align-items:flex-end;">
+      <div><label data-i18n="net.src">Origen</label><input id="netSrc" list="netHosts" style="width:230px;" placeholder="host / IP"></div>
+      <div><label data-i18n="net.target">Destino</label><input id="netTarget" list="netHosts" style="width:230px;" placeholder="host / IP"></div>
+      <div><label data-i18n="form.user">Usuario</label><input id="netUser" style="width:130px;" placeholder="veeamadmin"></div>
+      <div><label data-i18n="form.pass">Password</label><input id="netPass" type="password" style="width:140px;"></div>
+      <div><button onclick="runPortsCheck()" id="netBtnPorts" data-i18n="net.runports">Probar puertos</button></div>
+    </div>
+    <div id="netPortsResult" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="subcard">
+    <h4 style="margin:0 0 8px;" data-i18n="net.iperf">Ancho de banda (iperf3)</h4>
+    <div class="row" style="align-items:flex-end;">
+      <div><label data-i18n="net.server">Servidor (iperf -s)</label><input id="netServer" list="netHosts" style="width:230px;" placeholder="host / IP"></div>
+      <div><label data-i18n="net.client">Cliente (iperf -c)</label><input id="netClient" list="netHosts" style="width:230px;" placeholder="host / IP"></div>
+      <div><label data-i18n="form.user">Usuario</label><input id="netUser2" style="width:130px;" placeholder="veeamadmin"></div>
+      <div><label data-i18n="form.pass">Password</label><input id="netPass2" type="password" style="width:140px;"></div>
+      <div><label data-i18n="bench.duration">Duración por test (s)</label><input id="netDur" value="10" style="width:90px;"></div>
+      <div><button onclick="runIperf()" id="netBtnIperf" data-i18n="net.runiperf">Correr iperf</button></div>
+    </div>
+    <div id="netIperfResult" style="margin-top:10px;"></div>
+  </div>
+</div>
+
   </main>
 </div>
 
@@ -341,7 +376,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio no disponible','bench.ready':'listo para correr.','bench.deploying':'Desplegando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sin resultados.','bench.host':'host','bench.startfail':'No se pudo iniciar el benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latencia (ms)','tbl.expected':'Esperado','tbl.pct':'% del esperado','tbl.verdict':'Veredicto',
-    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción'
+    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','nav.net':'Red','net.title':'Red — puertos y ancho de banda','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'El test de puertos usa SSH al origen; iperf requiere iperf3 instalado en ambos hosts.','net.send':'Envío','net.recv':'Recepción'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -385,7 +420,7 @@ const I18N = {
     'bench.checking':'Checking fio…','bench.fionotfound':'fio not available','bench.ready':'ready to run.','bench.deploying':'Deploying fio…',
     'bench.results':'Disk results','bench.nores':'No results.','bench.host':'host','bench.startfail':'Could not start the benchmark.',
     'tbl.test':'Test','tbl.mode':'Mode','tbl.iops':'IOPS','tbl.lat':'Latency (ms)','tbl.expected':'Expected','tbl.pct':'% of expected','tbl.verdict':'Verdict',
-    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction'
+    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','nav.net':'Network','net.title':'Network — ports and bandwidth','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'The ports test uses SSH from the source; iperf requires iperf3 installed on both hosts.','net.send':'Send','net.recv':'Receive'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -429,7 +464,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio não disponível','bench.ready':'pronto para rodar.','bench.deploying':'Instalando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sem resultados.','bench.host':'host','bench.startfail':'Não foi possível iniciar o benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latência (ms)','tbl.expected':'Esperado','tbl.pct':'% do esperado','tbl.verdict':'Veredito',
-    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução'
+    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','nav.net':'Rede','net.title':'Rede — portas e largura de banda','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'O teste de portas usa SSH desde a origem; o iperf requer iperf3 em ambos os hosts.','net.send':'Envio','net.recv':'Recepção'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -462,18 +497,20 @@ function showTab(tab) {
   // Sin sesion, solo Infraestructura (con su placeholder); el resto bloqueado.
   if (!sessionId && tab !== 'infra') return;
   activeTab = tab;
-  const ids = { infra:'tabInfra', flow:'tabFlow', bench:'tabBench', analysis:'tabAnalysis' };
+  const ids = { infra:'tabInfra', flow:'tabFlow', bench:'tabBench', analysis:'tabAnalysis', net:'tabNet' };
   for (const [k, id] of Object.entries(ids))
     document.getElementById(id).classList.toggle('active', tab === k);
   document.getElementById('infraPanel').style.display    = tab === 'infra'    ? 'block' : 'none';
   document.getElementById('flowPanel').style.display     = tab === 'flow'     ? 'block' : 'none';
   document.getElementById('benchPanel').style.display    = tab === 'bench'    ? 'block' : 'none';
   document.getElementById('analysisPanel').style.display = tab === 'analysis' ? 'block' : 'none';
+  document.getElementById('netPanel').style.display      = tab === 'net'      ? 'block' : 'none';
   if (!sessionId) return;
   if (tab === 'infra') loadInfra();
   if (tab === 'flow') loadFlow();
   if (tab === 'bench') loadBenchOptions();
   if (tab === 'analysis') loadAnalysis();
+  if (tab === 'net') loadNet();
 }
 
 // Recarga los componentes de TODAS las solapas desde el backend.
@@ -1040,6 +1077,60 @@ function renderDisk(rows) {
     </tr>`;
   }
   return html + '</table>';
+}
+
+// --- Red: referencia de puertos, conectividad e iperf -----------------------
+async function loadNet() {
+  if (!benchRepos.length) {
+    try { const res = await fetch(`${BACKEND}/api/${sessionId}/benchmark-options`).then(r => r.json()); benchRepos = res.repositories || []; } catch (_) {}
+  }
+  const hosts = [...new Set(benchRepos.map(r => r.host_name).filter(Boolean))].sort();
+  document.getElementById('netHosts').innerHTML = hosts.map(h => `<option value="${h}">`).join('');
+  try {
+    const d = await fetch(`${BACKEND}/api/${sessionId}/ports`).then(r => r.json());
+    let h = `<table><tr><th>${t('net.src')}</th><th>${t('net.target')}</th><th>Puerto</th><th>${t('net.use')}</th></tr>`;
+    for (const p of (d.data || [])) h += `<tr><td>${p.from}</td><td>${p.to}</td><td><span class="pill">${p.port}</span></td><td>${p.desc}</td></tr>`;
+    document.getElementById('netPortsRef').innerHTML = h + '</table>';
+  } catch (e) { document.getElementById('netPortsRef').innerHTML = `<p class="error">${e.message}</p>`; }
+}
+
+async function runPortsCheck() {
+  const el = document.getElementById('netPortsResult');
+  const src = document.getElementById('netSrc').value.trim(), target = document.getElementById('netTarget').value.trim();
+  const u = document.getElementById('netUser').value.trim(), p = document.getElementById('netPass').value;
+  if (!src || !target || !u || !p) { el.innerHTML = `<p class="error">${t('bench.needcreds')}</p>`; return; }
+  el.innerHTML = `<p class="muted">${t('net.testing')}</p>`;
+  try {
+    const r = await fetch(`${BACKEND}/api/${sessionId}/ports-check`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ srcHost: src, targetHost: target, username: u, password: p })
+    });
+    const d = await r.json();
+    if (d.detail) { el.innerHTML = `<p class="error">${d.detail}</p>`; return; }
+    let h = `<table><tr><th>Puerto</th><th>${src} → ${target}</th></tr>`;
+    for (const x of (d.data || [])) h += `<tr><td><span class="pill">${x.port}</span></td><td>${x.open ? '<span class="verdict ok">✓</span>' : '<span class="verdict low">✗</span>'}</td></tr>`;
+    el.innerHTML = h + '</table>';
+  } catch (e) { el.innerHTML = `<p class="error">${e.message}</p>`; }
+}
+
+async function runIperf() {
+  const el = document.getElementById('netIperfResult');
+  const server = document.getElementById('netServer').value.trim(), client = document.getElementById('netClient').value.trim();
+  const u = document.getElementById('netUser2').value.trim(), p = document.getElementById('netPass2').value;
+  const dur = parseInt(document.getElementById('netDur').value || '10', 10);
+  if (!server || !client || !u || !p) { el.innerHTML = `<p class="error">${t('bench.needcreds')}</p>`; return; }
+  const btn = document.getElementById('netBtnIperf'); btn.disabled = true;
+  el.innerHTML = `<p class="muted">${t('net.running')}</p>`;
+  try {
+    const d = await fetch(`${BACKEND}/api/${sessionId}/iperf`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serverHost: server, clientHost: client, username: u, password: p, duration: dur > 0 ? dur : 10 })
+    }).then(r => r.json());
+    if (d.error) { el.innerHTML = `<p class="error">${d.error}</p>`; return; }
+    el.innerHTML = `<table><tr><th>${t('net.send')}</th><th>${t('net.recv')}</th></tr>
+      <tr><td><b>${d.sendMbps} Mbps</b></td><td><b>${d.recvMbps} Mbps</b></td></tr></table>`;
+  } catch (e) { el.innerHTML = `<p class="error">${e.message}</p>`; }
+  finally { btn.disabled = false; }
 }
 
 // --- Analisis (Carril B): por repositorio y proxy ---------------------------

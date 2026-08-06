@@ -151,6 +151,78 @@ func (s *Server) flow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, g)
 }
 
+// --- Red (puertos + iperf) --------------------------------------------------
+
+// ports: referencia estatica de puertos requeridos entre componentes de Veeam.
+func (s *Server) ports(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.session(w, r); !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": benchmark.VeeamPorts, "tested": benchmark.PortsToTest})
+}
+
+type portsCheckInput struct {
+	SrcHost    string `json:"srcHost"`
+	TargetHost string `json:"targetHost"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Port       int    `json:"port"`
+}
+
+// portsCheck: prueba (por SSH desde srcHost) el alcance TCP a targetHost en los
+// puertos clave de Veeam.
+func (s *Server) portsCheck(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	if sess.Demo {
+		writeJSON(w, http.StatusOK, map[string]string{"detail": "El test de puertos no corre en modo demo (necesita SSH)."})
+		return
+	}
+	var in portsCheckInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		return
+	}
+	res, err := benchmark.CheckConnectivity(in.SrcHost, in.Port, in.Username, in.Password, in.TargetHost, benchmark.PortsToTest)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"detail": "No se pudo conectar por SSH a " + in.SrcHost + ": " + err.Error()})
+		return
+	}
+	log.Printf("ports-check %s -> %s: %d puertos", in.SrcHost, in.TargetHost, len(res))
+	writeJSON(w, http.StatusOK, map[string]any{"data": res})
+}
+
+type iperfInput struct {
+	ServerHost string `json:"serverHost"`
+	ClientHost string `json:"clientHost"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Duration   int    `json:"duration"`
+}
+
+// iperf: benchmark de red iperf3 entre dos hosts (por SSH).
+func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	if sess.Demo {
+		writeJSON(w, http.StatusOK, map[string]string{"error": "El benchmark de red no corre en modo demo (necesita SSH + iperf3)."})
+		return
+	}
+	var in iperfInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		return
+	}
+	log.Printf("iperf %s -> %s iniciado", in.ClientHost, in.ServerHost)
+	res := benchmark.RunIperf(in.ServerHost, in.ClientHost, 0, in.Username, in.Password, in.Duration)
+	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps err=%q", in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, res.Error)
+	writeJSON(w, http.StatusOK, res)
+}
+
 // recommendations: sugerencias de asignacion de proxies (VMware) para balancear.
 func (s *Server) recommendations(w http.ResponseWriter, r *http.Request) {
 	sess, ok := s.session(w, r)

@@ -66,6 +66,11 @@ func (s *Server) routes(web fs.FS) {
 	m.HandleFunc("GET /api/{session}/benchmark/{job}", s.benchmarkGet)
 	m.HandleFunc("GET /api/{session}/benchmarks", s.benchmarkList)
 
+	// Red: referencia de puertos, test de conectividad y benchmark iperf.
+	m.HandleFunc("GET /api/{session}/ports", s.ports)
+	m.HandleFunc("POST /api/{session}/ports-check", s.portsCheck)
+	m.HandleFunc("POST /api/{session}/iperf", s.iperf)
+
 	// Frontend embebido (catch-all; las rutas /api y /health tienen prioridad).
 	m.Handle("GET /", http.FileServer(http.FS(web)))
 }
