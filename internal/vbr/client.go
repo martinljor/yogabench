@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -80,17 +81,21 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 
 	resp, e := httpClient(s.VerifySSL).Do(req)
 	if e != nil {
+		log.Printf("REST GET %s: sin respuesta: %v", path, e)
 		return nil, &APIError{504, fmt.Sprintf("Error consultando %s: %v", path, e)}
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == 401 {
+		log.Printf("REST GET %s: HTTP 401 (token expirado)", path)
 		return nil, &APIError{401, "Token expirado. Reconectate."}
 	}
 	if resp.StatusCode != 200 {
+		log.Printf("REST GET %s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
 		return nil, &APIError{resp.StatusCode, string(body)}
 	}
 	if !json.Valid(body) {
+		log.Printf("REST GET %s: respuesta no-JSON", path)
 		return nil, &APIError{502, fmt.Sprintf("Respuesta no-JSON de %s", path)}
 	}
 	return json.RawMessage(body), nil

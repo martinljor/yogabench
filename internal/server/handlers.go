@@ -92,6 +92,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	access, refresh, expiresIn, err := vbr.Authenticate(
 		r.Context(), req.Host, req.Port, req.Username, req.Password, req.APIVersion, req.VerifySSL)
 	if err != nil {
+		log.Printf("VBR conexion fallida: host=%s puerto=%d apiVersion=%s: %v", req.Host, req.Port, req.APIVersion, err) // sin password
 		writeErr(w, err)
 		return
 	}
