@@ -63,7 +63,7 @@ func main() {
 ==================================================
 
 `, version, url)
-	log.Printf("Yoga Benchmark %s escuchando en %s", version, url)
+	log.Printf("Yoga Benchmark %s listening on %s", version, url)
 
 	// Abrir el navegador solo (en desktop). En un server sin GUI, --no-browser.
 	if !*noBrowser {

@@ -45,8 +45,8 @@ var defaultTests = []string{"seqread", "seqwrite", "randread", "randwrite"}
 // hasta que haga falta el canal Windows (el appliance v13 es Linux -> SSH).
 type winRMExecutor struct{ host string }
 
-const winRMNotReady = "El benchmark por WinRM (Windows/diskspd) todavia no esta portado a esta version. " +
-	"El appliance v13 es Linux: usa un repositorio con host Linux (canal SSH+fio)."
+const winRMNotReady = "The WinRM (Windows/diskspd) benchmark is not ported to this version yet. " +
+	"The v13 appliance is Linux: use a repository on a Linux host (SSH+fio channel)."
 
 func (e *winRMExecutor) Tool() string { return "diskspd" }
 

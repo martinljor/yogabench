@@ -26,12 +26,12 @@ type PortRule struct {
 var VeeamPorts = []PortRule{
 	{"VBR server", "Managed servers (proxy/repo)", "6160", "Veeam Installer Service"},
 	{"VBR server", "Managed servers", "6162", "Veeam Data Mover"},
-	{"Proxy", "Repository / Proxy", "2500-3300", "Transferencia de datos (un puerto por tarea)"},
+	{"Proxy", "Repository / Proxy", "2500-3300", "Data transfer (one port per task)"},
 	{"VBR / Mount server", "Repository", "6170", "Veeam Mount Service"},
-	{"VBR server", "vCenter / ESXi", "443", "API de vSphere"},
-	{"VBR / Proxy", "ESXi", "902", "Transporte NBD (VMware)"},
-	{"Cliente / navegador", "VBR", "9419", "REST API de VBR"},
-	{"Herramienta", "Host del repo (Linux)", "22", "SSH (benchmark de disco / red)"},
+	{"VBR server", "vCenter / ESXi", "443", "vSphere API"},
+	{"VBR / Proxy", "ESXi", "902", "NBD transport (VMware)"},
+	{"Client / browser", "VBR", "9419", "REST API de VBR"},
+	{"Tool", "Repo host (Linux)", "22", "SSH (disk/network benchmark)"},
 }
 
 // PortsToTest: puertos concretos que probamos en el test de conectividad (los
@@ -110,7 +110,7 @@ func RunIperf(serverHost, clientHost string, port int, user, pass string, dur in
 	}
 	sc, err := dialSSH(serverHost, 0, user, pass)
 	if err != nil {
-		return IperfResult{Error: "SSH al server (" + serverHost + "): " + err.Error()}
+		return IperfResult{Error: "SSH to server (" + serverHost + "): " + err.Error()}
 	}
 	defer sc.Close()
 	// Server efímero: sirve una prueba y termina. Corre en su propia sesión.
@@ -119,7 +119,7 @@ func RunIperf(serverHost, clientHost string, port int, user, pass string, dur in
 
 	cc, err := dialSSH(clientHost, 0, user, pass)
 	if err != nil {
-		return IperfResult{Error: "SSH al client (" + clientHost + "): " + err.Error()}
+		return IperfResult{Error: "SSH to client (" + clientHost + "): " + err.Error()}
 	}
 	defer cc.Close()
 	out := runSSH(cc, fmt.Sprintf("iperf3 -c %s -p %d -t %d -J", serverHost, port, dur))
@@ -136,7 +136,7 @@ func RunIperf(serverHost, clientHost string, port int, user, pass string, dur in
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal([]byte(extractJSON(out)), &rep); err != nil {
-		return IperfResult{Error: "no pude parsear iperf3 (¿está instalado en ambos hosts?): " + strings.TrimSpace(firstNonEmpty(out, err.Error()))}
+		return IperfResult{Error: "could not parse iperf3 (is it installed on both hosts?): " + strings.TrimSpace(firstNonEmpty(out, err.Error()))}
 	}
 	if rep.Error != "" {
 		return IperfResult{Error: rep.Error}

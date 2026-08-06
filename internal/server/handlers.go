@@ -42,7 +42,7 @@ func writeErr(w http.ResponseWriter, err error) {
 func (s *Server) session(w http.ResponseWriter, r *http.Request) (*vbr.Session, bool) {
 	sess, ok := s.store.Get(r.PathValue("session"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Sesion no encontrada. Reconectate a VBR."})
+		writeJSON(w, http.StatusNotFound, map[string]string{"detail": "Session not found. Reconnect to VBR."})
 		return nil, false
 	}
 	return sess, true
@@ -80,7 +80,7 @@ type connectRequest struct {
 func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	var req connectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
 		return
 	}
 	if req.Port == 0 {
@@ -92,7 +92,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	access, refresh, expiresIn, err := vbr.Authenticate(
 		r.Context(), req.Host, req.Port, req.Username, req.Password, req.APIVersion, req.VerifySSL)
 	if err != nil {
-		log.Printf("VBR conexion fallida: host=%s puerto=%d apiVersion=%s: %v", req.Host, req.Port, req.APIVersion, err) // sin password
+		log.Printf("VBR connection failed: host=%s port=%d apiVersion=%s: %v", req.Host, req.Port, req.APIVersion, err) // no password
 		writeErr(w, err)
 		return
 	}
@@ -100,7 +100,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		Host: req.Host, Port: req.Port, APIVersion: req.APIVersion, VerifySSL: req.VerifySSL,
 		AccessToken: access, RefreshToken: refresh, CreatedAt: time.Now(),
 	})
-	log.Printf("VBR conectado: host=%s puerto=%d apiVersion=%s", req.Host, req.Port, req.APIVersion) // sin password/token
+	log.Printf("VBR connected: host=%s port=%d apiVersion=%s", req.Host, req.Port, req.APIVersion) // no password/token
 	writeJSON(w, http.StatusOK, map[string]any{"session_id": id, "expires_in": expiresIn})
 }
 
@@ -177,20 +177,20 @@ func (s *Server) portsCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sess.Demo {
-		writeJSON(w, http.StatusOK, map[string]string{"detail": "El test de puertos no corre en modo demo (necesita SSH)."})
+		writeJSON(w, http.StatusOK, map[string]string{"detail": "Port test does not run in demo mode (needs SSH)."})
 		return
 	}
 	var in portsCheckInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
 		return
 	}
 	res, err := benchmark.CheckConnectivity(in.SrcHost, in.Port, in.Username, in.Password, in.TargetHost, benchmark.PortsToTest)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"detail": "No se pudo conectar por SSH a " + in.SrcHost + ": " + err.Error()})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"detail": "Could not SSH to " + in.SrcHost + ": " + err.Error()})
 		return
 	}
-	log.Printf("ports-check %s -> %s: %d puertos", in.SrcHost, in.TargetHost, len(res))
+	log.Printf("ports-check %s -> %s: %d ports", in.SrcHost, in.TargetHost, len(res))
 	writeJSON(w, http.StatusOK, map[string]any{"data": res})
 }
 
@@ -209,15 +209,15 @@ func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sess.Demo {
-		writeJSON(w, http.StatusOK, map[string]string{"error": "El benchmark de red no corre en modo demo (necesita SSH + iperf3)."})
+		writeJSON(w, http.StatusOK, map[string]string{"error": "Network benchmark does not run in demo mode (needs SSH + iperf3)."})
 		return
 	}
 	var in iperfInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
 		return
 	}
-	log.Printf("iperf %s -> %s iniciado", in.ClientHost, in.ServerHost)
+	log.Printf("iperf %s -> %s started", in.ClientHost, in.ServerHost)
 	res := benchmark.RunIperf(in.ServerHost, in.ClientHost, 0, in.Username, in.Password, in.Duration)
 	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps err=%q", in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, res.Error)
 	writeJSON(w, http.StatusOK, res)
@@ -353,7 +353,7 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	log.Printf("diagnostico generado: %d proxies, %d repos", len(proxies), len(repos))
+	log.Printf("diagnostics generated: %d proxies, %d repos", len(proxies), len(repos))
 	writeJSON(w, http.StatusOK, report)
 }
 
@@ -384,7 +384,7 @@ func (s *Server) benchConnection(w http.ResponseWriter, r *http.Request) {
 	}
 	var in benchmark.BenchConnInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
 		return
 	}
 	mode, res := s.bench.TestConnection(r.Context(), sess, r.PathValue("session"), in)
@@ -400,7 +400,7 @@ func (s *Server) benchTools(w http.ResponseWriter, r *http.Request) {
 	}
 	res, hasConn := s.bench.CheckTools(r.PathValue("session"))
 	if !hasConn {
-		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host. Valida la conexion primero."})
+		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No connection to the host. Validate the connection first."})
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -413,7 +413,7 @@ func (s *Server) benchDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	res, hasConn := s.bench.DeployTools(r.PathValue("session"))
 	if !hasConn {
-		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No hay conexion al host. Valida la conexion primero."})
+		writeJSON(w, http.StatusConflict, map[string]string{"detail": "No connection to the host. Validate the connection first."})
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -427,7 +427,7 @@ func (s *Server) benchmarkStart(w http.ResponseWriter, r *http.Request) {
 	}
 	var in benchmark.BenchmarkInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "cuerpo invalido"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
 		return
 	}
 	jobID, status, code, detail := s.bench.Start(r.Context(), sess, r.PathValue("session"), in)

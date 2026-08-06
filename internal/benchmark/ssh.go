@@ -63,40 +63,40 @@ func (e *sshExecutor) run(client *ssh.Client, cmd string) (string, string, error
 func (e *sshExecutor) TestConnection() ConnResult {
 	client, err := e.connect()
 	if err != nil {
-		return ConnResult{OK: false, Message: "No se pudo conectar por SSH: " + err.Error()}
+		return ConnResult{OK: false, Message: "Could not connect via SSH: " + err.Error()}
 	}
 	defer client.Close()
 	out, errs, err := e.run(client, "hostname")
 	if err != nil {
 		return ConnResult{OK: false, Message: firstNonEmpty(strings.TrimSpace(errs), err.Error())}
 	}
-	return ConnResult{OK: true, Message: "Conexion SSH OK.", Hostname: strings.TrimSpace(out)}
+	return ConnResult{OK: true, Message: "SSH connection OK.", Hostname: strings.TrimSpace(out)}
 }
 
 func (e *sshExecutor) CheckTools() ToolsResult {
 	client, err := e.connect()
 	if err != nil {
-		return ToolsResult{Installed: false, Detail: "No se pudo conectar por SSH: " + err.Error()}
+		return ToolsResult{Installed: false, Detail: "Could not connect via SSH: " + err.Error()}
 	}
 	defer client.Close()
 	out, _, _ := e.run(client, "command -v fio || which fio")
 	if path := strings.TrimSpace(out); path != "" {
-		return ToolsResult{Installed: true, Detail: "fio encontrado en " + path + "."}
+		return ToolsResult{Installed: true, Detail: "fio found at " + path + "."}
 	}
-	return ToolsResult{Installed: false, Detail: "fio no esta instalado en el host del repositorio."}
+	return ToolsResult{Installed: false, Detail: "fio is not installed on the repository host."}
 }
 
 func (e *sshExecutor) DeployTools() DeployResult {
 	client, err := e.connect()
 	if err != nil {
-		return DeployResult{OK: false, Message: "No se pudo conectar por SSH: " + err.Error()}
+		return DeployResult{OK: false, Message: "Could not connect via SSH: " + err.Error()}
 	}
 	defer client.Close()
 	if out, _, _ := e.run(client, "command -v fio || which fio"); strings.TrimSpace(out) != "" {
-		return DeployResult{OK: true, Message: "fio ya esta presente."}
+		return DeployResult{OK: true, Message: "fio is already present."}
 	}
 	// En un appliance hardened no hay gestor de paquetes ni sudo libre.
-	return DeployResult{OK: false, Message: "No puedo instalar fio automaticamente en el host (appliance sin sudo/paquetes). Instalalo a mano o pedi que lo habiliten."}
+	return DeployResult{OK: false, Message: "Cannot auto-install fio on the host (appliance without sudo/package manager). Install it manually or ask to enable it."}
 }
 
 func (e *sshExecutor) RunDisk(spec Spec, onProgress func(int)) ([]DiskRow, error) {
@@ -124,11 +124,11 @@ func (e *sshExecutor) RunDisk(spec Spec, onProgress func(int)) ([]DiskRow, error
 			out, errs, err = e.run(client, fioCommand(e.dir, name, engine, duration))
 		}
 		if err != nil {
-			return nil, fmt.Errorf("fio %s fallo: %s", name, strings.TrimSpace(firstNonEmpty(errs, err.Error())))
+			return nil, fmt.Errorf("fio %s failed: %s", name, strings.TrimSpace(firstNonEmpty(errs, err.Error())))
 		}
 		rep, perr := parseFioReport([]byte(extractJSON(out)))
 		if perr != nil {
-			return nil, fmt.Errorf("no pude parsear la salida de fio (%s): %v", name, perr)
+			return nil, fmt.Errorf("could not parse fio output (%s): %v", name, perr)
 		}
 		rows = append(rows, normalizeFio(rep)...)
 		if onProgress != nil {

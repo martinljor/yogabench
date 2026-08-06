@@ -50,7 +50,7 @@ func Authenticate(ctx context.Context, host string, port int, user, pass, apiVer
 
 	resp, e := httpClient(verify).Do(req)
 	if e != nil {
-		return "", "", 0, &APIError{502, fmt.Sprintf("No se pudo conectar a %s:%d - %v", host, port, e)}
+		return "", "", 0, &APIError{502, fmt.Sprintf("Could not connect to %s:%d - %v", host, port, e)}
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -64,7 +64,7 @@ func Authenticate(ctx context.Context, host string, port int, user, pass, apiVer
 		ExpiresIn    int    `json:"expires_in"`
 	}
 	if err := json.Unmarshal(body, &t); err != nil {
-		return "", "", 0, &APIError{502, "Respuesta de token no valida"}
+		return "", "", 0, &APIError{502, "Invalid token response"}
 	}
 	return t.AccessToken, t.RefreshToken, t.ExpiresIn, nil
 }
@@ -81,22 +81,22 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 
 	resp, e := httpClient(s.VerifySSL).Do(req)
 	if e != nil {
-		log.Printf("REST GET %s: sin respuesta: %v", path, e)
-		return nil, &APIError{504, fmt.Sprintf("Error consultando %s: %v", path, e)}
+		log.Printf("REST GET %s: no response: %v", path, e)
+		return nil, &APIError{504, fmt.Sprintf("Error querying %s: %v", path, e)}
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == 401 {
-		log.Printf("REST GET %s: HTTP 401 (token expirado)", path)
-		return nil, &APIError{401, "Token expirado. Reconectate."}
+		log.Printf("REST GET %s: HTTP 401 (token expired)", path)
+		return nil, &APIError{401, "Token expired. Reconnect."}
 	}
 	if resp.StatusCode != 200 {
 		log.Printf("REST GET %s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
 		return nil, &APIError{resp.StatusCode, string(body)}
 	}
 	if !json.Valid(body) {
-		log.Printf("REST GET %s: respuesta no-JSON", path)
-		return nil, &APIError{502, fmt.Sprintf("Respuesta no-JSON de %s", path)}
+		log.Printf("REST GET %s: non-JSON response", path)
+		return nil, &APIError{502, fmt.Sprintf("Non-JSON response from %s", path)}
 	}
 	return json.RawMessage(body), nil
 }

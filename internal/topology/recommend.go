@@ -78,8 +78,8 @@ func Recommend(ctx context.Context, s *vbr.Session) ([]Recommendation, error) {
 			lid, lname := leastLoaded()
 			recs = append(recs, Recommendation{
 				Job: jb.name, Kind: "auto",
-				Current: "proxy automático",
-				Suggest: "asignar un proxy fijo: " + lname + " (el de menor carga)",
+				Current: "automatic proxy",
+				Suggest: "assign a fixed proxy: " + lname + " (least loaded)",
 			})
 			load[lid]++
 		}
@@ -98,9 +98,9 @@ func Recommend(ctx context.Context, s *vbr.Session) ([]Recommendation, error) {
 		}
 		if maxN-minN >= 2 {
 			recs = append(recs, Recommendation{
-				Job: "(balanceo de carga)", Kind: "balance",
-				Current: maxP + " concentra " + strconv.Itoa(maxN) + " job(s)",
-				Suggest: "mover algunos a " + minP + " (" + strconv.Itoa(minN) + " job(s))",
+				Job: "(load balancing)", Kind: "balance",
+				Current: maxP + " handles " + strconv.Itoa(maxN) + " job(s)",
+				Suggest: "move some to " + minP + " (" + strconv.Itoa(minN) + " job(s))",
 			})
 		}
 	}

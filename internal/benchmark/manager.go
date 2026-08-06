@@ -114,10 +114,10 @@ func buildExecutor(c *Conn, path string) Executor {
 // conexion activa de la sesion. Devuelve (mode, resultado).
 func (m *Manager) TestConnection(ctx context.Context, s *vbr.Session, sessionID string, in BenchConnInput) (string, ConnResult) {
 	if s.Demo {
-		return "demo", ConnResult{OK: false, Message: "El benchmark real no corre en modo demo (necesita SSH al host)."}
+		return "demo", ConnResult{OK: false, Message: "The real benchmark does not run in demo mode (needs SSH to the host)."}
 	}
 	if strings.TrimSpace(in.Host) == "" || strings.TrimSpace(in.Username) == "" || strings.TrimSpace(in.Password) == "" {
-		return "", ConnResult{OK: false, Message: "Completá host, usuario y password."}
+		return "", ConnResult{OK: false, Message: "Fill in host, username and password."}
 	}
 	port := in.Port
 	if port == 0 {
@@ -171,12 +171,12 @@ func (m *Manager) DeployTools(sessionID string) (DeployResult, bool) {
 func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, in BenchmarkInput) (string, string, int, string) {
 	repo, ok := m.repoByID(ctx, s, in.RepositoryID)
 	if !ok {
-		return "", "", 404, "Repositorio no encontrado en esta sesion."
+		return "", "", 404, "Repository not found in this session."
 	}
 	// Requiere la conexion validada en el primer paso del wizard.
 	c := m.getConn(sessionID)
 	if c == nil {
-		return "", "", 409, "Validá la conexión al host antes de correr (paso Conexión)."
+		return "", "", 409, "Validate the host connection before running (Connection step)."
 	}
 	ex := buildExecutor(c, repo.Path)
 
@@ -207,7 +207,7 @@ func (m *Manager) Start(ctx context.Context, s *vbr.Session, sessionID string, i
 	m.jobs[job.ID] = job
 	m.mu.Unlock()
 
-	log.Printf("benchmark %s iniciado: repo=%q host=%s path=%s operacion=%s modo=%s tool=%s",
+	log.Printf("benchmark %s started: repo=%q host=%s path=%s operation=%s mode=%s tool=%s",
 		job.ID, repo.Name, c.Host, repo.Path, in.Operation, c.Mode, ex.Tool())
 	go m.run(job, ex, in.Duration)
 	return job.ID, job.Status, 0, ""
@@ -226,7 +226,7 @@ func (m *Manager) run(job *Job, ex Executor, duration int) {
 		func(pct int) { m.set(func() { job.Progress = pct }) })
 	if err != nil {
 		m.set(func() { job.Status, job.Error = "failed", err.Error() })
-		log.Printf("benchmark %s FALLO: %v", job.ID, err)
+		log.Printf("benchmark %s FAILED: %v", job.ID, err)
 		return
 	}
 	annotated := annotateDisk(rows, job.DiskBaseline)
@@ -237,7 +237,7 @@ func (m *Manager) run(job *Job, ex Executor, duration int) {
 		job.Progress, job.Status = 100, "completed"
 		summary = summarize(job.Results)
 	})
-	log.Printf("benchmark %s completado: %s", job.ID, summary)
+	log.Printf("benchmark %s completed: %s", job.ID, summary)
 }
 
 // summarize arma una linea compacta de resultados para el log (sin datos sensibles).
