@@ -23,8 +23,10 @@ const (
 )
 
 var (
-	jobHints  = []string{"backup", "replica", "restore", "copy"}
-	skipHints = []string{"configuration", "malware", "compliance", "infrastructure"}
+	jobHints = []string{"backup", "replica", "restore", "copy"}
+	// "agent": los jobs de Veeam Agent devuelven HTTP 500 al pedir taskSessions
+	// (bug de la REST API v13: ESessionType 'AgentManagement' no soportado) -> se saltean.
+	skipHints = []string{"configuration", "malware", "compliance", "infrastructure", "agent"}
 	loadRe    = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
 	primaryRe = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
 )
@@ -82,8 +84,17 @@ type RangeInfo struct {
 type Result struct {
 	Range        RangeInfo `json:"range"`
 	Days         *int      `json:"days"`
+	Summary      Summary   `json:"summary"`
 	ByRepository []Group   `json:"byRepository"`
 	ByProxy      []Group   `json:"byProxy"`
+}
+
+// Summary: visión global del período (cada run contado UNA vez), para mostrar
+// el % de runs por stage dominante y por resultado.
+type Summary struct {
+	Runs    int            `json:"runs"`
+	Results map[string]int `json:"results"` // Success/Warning/Failed
+	Primary map[string]int `json:"primary"` // Source/Proxy/Network/Target
 }
 
 // --- API publica ------------------------------------------------------------
@@ -159,9 +170,25 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	return Result{
 		Range:        rng,
 		Days:         days,
+		Summary:      summarize(recs),
 		ByRepository: aggregate(recs, func(r Record) []string { return r.RepoIDs }, repoNames, "(sin repositorio)"),
 		ByProxy:      aggregate(recs, func(r Record) []string { return r.ProxyIDs }, proxyNames, "(sin proxy identificado)"),
 	}, nil
+}
+
+// summarize: totales del período contando cada run una sola vez.
+func summarize(recs []Record) Summary {
+	s := Summary{Results: map[string]int{}, Primary: map[string]int{}}
+	for _, r := range recs {
+		s.Runs++
+		s.Results[r.Result]++
+		if r.Bottleneck != nil {
+			if p, ok := r.Bottleneck["primary"].(string); ok && p != "" {
+				s.Primary[p]++
+			}
+		}
+	}
+	return s
 }
 
 // --- construccion de cada job ----------------------------------------------

@@ -76,7 +76,9 @@ func findProxyIDs(obj any) []string {
 // --- clasificacion de sesiones ---------------------------------------------
 
 func isDataJob(sess map[string]any) bool {
-	t := strings.ToLower(strOr(sess["type"], str(sess["sessionType"])))
+	// Miramos type Y sessionType: un backup de agente puede venir con type "Backup"
+	// pero sessionType "AgentManagement" (que hay que saltear).
+	t := strings.ToLower(str(sess["type"]) + " " + str(sess["sessionType"]))
 	for _, bad := range skipHints {
 		if strings.Contains(t, bad) {
 			return false

@@ -151,6 +151,20 @@ func (s *Server) flow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, g)
 }
 
+// recommendations: sugerencias de asignacion de proxies (VMware) para balancear.
+func (s *Server) recommendations(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	recs, err := topology.Recommend(r.Context(), sess)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": recs})
+}
+
 // analysis: estadistica de bottleneck agregada por repo y proxy. `days` opcional
 // acota la ventana (sin days = todo el historico disponible, con cota interna).
 func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
