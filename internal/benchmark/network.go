@@ -34,9 +34,83 @@ var VeeamPorts = []PortRule{
 	{"Tool", "Repo host (Linux)", "22", "SSH (disk/network benchmark)"},
 }
 
-// PortsToTest: puertos concretos que probamos en el test de conectividad (los
-// rangos se representan con un puerto muestra).
-var PortsToTest = []int{22, 443, 902, 2500, 6160, 6162, 6170, 9419}
+// --- Escenarios de conectividad (por proposito) -----------------------------
+//
+// En vez de escanear una lista plana de puertos, probamos SOLO los puertos que
+// un proposito concreto necesita (ej: "agregar un proxy"), en el sentido
+// correcto origen->destino. Asi el resultado tiene sentido operativo.
+
+// PortCheck: un puerto concreto a probar, con su etiqueta (puede ser un rango
+// como "2500-3300", del que probamos un puerto muestra) y para que sirve.
+type PortCheck struct {
+	Port    int    `json:"port"`    // puerto concreto que se prueba
+	Label   string `json:"label"`   // etiqueta mostrada (ej: "2500-3300")
+	Purpose string `json:"purpose"` // para que sirve
+}
+
+// ConnScenario: un proposito de conectividad Veeam y los puertos que valida.
+type ConnScenario struct {
+	ID     string      `json:"id"`
+	Name   string      `json:"name"`
+	Source string      `json:"source"` // rol origen (hint para el usuario)
+	Target string      `json:"target"` // rol destino (hint)
+	Note   string      `json:"note"`
+	Ports  []PortCheck `json:"ports"`
+}
+
+// Scenarios: catalogo de propositos de conectividad de un entorno VMware + repo
+// Linux (los puertos siguen la doc oficial de Veeam). Descripciones en ingles
+// (base del backend); el WebUI traduce las etiquetas estaticas.
+func Scenarios() []ConnScenario {
+	return []ConnScenario{
+		{
+			ID: "add-proxy", Name: "Add / validate a backup proxy",
+			Source: "VBR server", Target: "Proxy host",
+			Note:  "Ports the VBR server needs to deploy and drive a backup proxy.",
+			Ports: []PortCheck{{6160, "6160", "Veeam Installer Service (deploy components)"}, {6162, "6162", "Veeam Data Mover"}},
+		},
+		{
+			ID: "add-repo", Name: "Add / validate a backup repository",
+			Source: "VBR / Mount server", Target: "Repository host",
+			Note:  "Ports to deploy the repository and to mount backups for restores.",
+			Ports: []PortCheck{{6160, "6160", "Veeam Installer Service (deploy components)"}, {6162, "6162", "Veeam Data Mover"}, {6170, "6170", "Veeam Mount Service"}},
+		},
+		{
+			ID: "backup-path", Name: "Backup data path (proxy -> repository)",
+			Source: "Proxy", Target: "Repository / gateway",
+			Note:  "Transport ports used to move backup data (one port per parallel task).",
+			Ports: []PortCheck{{2500, "2500-3300", "Data transfer (one port per task)"}},
+		},
+		{
+			ID: "connect-vmware", Name: "Connect VMware (vCenter / ESXi)",
+			Source: "VBR / Proxy", Target: "vCenter / ESXi",
+			Note:  "Management API and NBD data transport for VMware backups.",
+			Ports: []PortCheck{{443, "443", "vSphere API (management)"}, {902, "902", "NBD transport (VM data)"}},
+		},
+		{
+			ID: "rest-api", Name: "REST API access",
+			Source: "Client / browser / this tool", Target: "VBR server",
+			Note:  "The VBR REST API this tool talks to.",
+			Ports: []PortCheck{{9419, "9419", "Veeam REST API"}},
+		},
+		{
+			ID: "ssh-linux", Name: "SSH to a Linux host (management / benchmark)",
+			Source: "This tool / VBR", Target: "Linux host (proxy / repo / appliance)",
+			Note:  "SSH used by this tool for the disk and network benchmarks.",
+			Ports: []PortCheck{{22, "22", "SSH"}},
+		},
+	}
+}
+
+// ScenarioByID busca un escenario por id.
+func ScenarioByID(id string) (ConnScenario, bool) {
+	for _, s := range Scenarios() {
+		if s.ID == id {
+			return s, true
+		}
+	}
+	return ConnScenario{}, false
+}
 
 // --- SSH helpers compartidos ------------------------------------------------
 
@@ -68,14 +142,17 @@ func runSSH(c *ssh.Client, cmd string) string {
 // --- Test de conectividad de puertos ----------------------------------------
 
 type PortResult struct {
-	Target string `json:"target"`
-	Port   int    `json:"port"`
-	Open   bool   `json:"open"`
+	Target  string `json:"target"`
+	Port    int    `json:"port"`
+	Label   string `json:"label"`
+	Purpose string `json:"purpose"`
+	Open    bool   `json:"open"`
 }
 
-// CheckConnectivity: desde srcHost (por SSH) prueba el alcance TCP a
-// targetHost:port de cada puerto (usa el builtin /dev/tcp de bash).
-func CheckConnectivity(srcHost string, srcPort int, user, pass, targetHost string, ports []int) ([]PortResult, error) {
+// CheckConnectivity: desde srcHost (por SSH, con las credenciales del ORIGEN)
+// prueba el alcance TCP a targetHost en los puertos del escenario elegido (usa
+// el builtin /dev/tcp de bash). Solo necesita credenciales del origen.
+func CheckConnectivity(srcHost string, srcPort int, user, pass, targetHost string, ports []PortCheck) ([]PortResult, error) {
 	c, err := dialSSH(srcHost, srcPort, user, pass)
 	if err != nil {
 		return nil, err
@@ -83,9 +160,9 @@ func CheckConnectivity(srcHost string, srcPort int, user, pass, targetHost strin
 	defer c.Close()
 	out := make([]PortResult, 0, len(ports))
 	for _, p := range ports {
-		cmd := fmt.Sprintf("timeout 3 bash -c 'echo > /dev/tcp/%s/%d' 2>/dev/null && echo OPEN || echo CLOSED", targetHost, p)
+		cmd := fmt.Sprintf("timeout 3 bash -c 'echo > /dev/tcp/%s/%d' 2>/dev/null && echo OPEN || echo CLOSED", targetHost, p.Port)
 		r := runSSH(c, cmd)
-		out = append(out, PortResult{Target: targetHost, Port: p, Open: strings.Contains(r, "OPEN")})
+		out = append(out, PortResult{Target: targetHost, Port: p.Port, Label: p.Label, Purpose: p.Purpose, Open: strings.Contains(r, "OPEN")})
 	}
 	return out, nil
 }
@@ -99,16 +176,17 @@ type IperfResult struct {
 }
 
 // RunIperf corre iperf3 entre dos hosts por SSH: server (-1 = una prueba y sale)
-// en serverHost, client en clientHost. Requiere iperf3 en ambos y el puerto
-// abierto entre ellos.
-func RunIperf(serverHost, clientHost string, port int, user, pass string, dur int) IperfResult {
+// en serverHost, client en clientHost. Cada host tiene sus PROPIAS credenciales
+// SSH (pueden ser distintas). Requiere iperf3 en ambos y el puerto abierto entre
+// ellos.
+func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, clientPass string, port, dur int) IperfResult {
 	if port == 0 {
 		port = 5201
 	}
 	if dur <= 0 {
 		dur = 10
 	}
-	sc, err := dialSSH(serverHost, 0, user, pass)
+	sc, err := dialSSH(serverHost, 0, serverUser, serverPass)
 	if err != nil {
 		return IperfResult{Error: "SSH to server (" + serverHost + "): " + err.Error()}
 	}
@@ -117,7 +195,7 @@ func RunIperf(serverHost, clientHost string, port int, user, pass string, dur in
 	go runSSH(sc, fmt.Sprintf("iperf3 -s -1 -p %d", port))
 	time.Sleep(1500 * time.Millisecond) // que el server ligue antes del cliente
 
-	cc, err := dialSSH(clientHost, 0, user, pass)
+	cc, err := dialSSH(clientHost, 0, clientUser, clientPass)
 	if err != nil {
 		return IperfResult{Error: "SSH to client (" + clientHost + "): " + err.Error()}
 	}

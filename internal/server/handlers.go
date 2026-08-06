@@ -153,24 +153,30 @@ func (s *Server) flow(w http.ResponseWriter, r *http.Request) {
 
 // --- Red (puertos + iperf) --------------------------------------------------
 
-// ports: referencia estatica de puertos requeridos entre componentes de Veeam.
+// ports: catalogo de escenarios de conectividad (por proposito) + la matriz de
+// referencia de puertos (que el WebUI muestra oculta, solo a demanda).
 func (s *Server) ports(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.session(w, r); !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": benchmark.VeeamPorts, "tested": benchmark.PortsToTest})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scenarios": benchmark.Scenarios(),
+		"reference": benchmark.VeeamPorts,
+	})
 }
 
 type portsCheckInput struct {
+	Scenario   string `json:"scenario"`
 	SrcHost    string `json:"srcHost"`
 	TargetHost string `json:"targetHost"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
+	Username   string `json:"username"` // credenciales del ORIGEN (SSH desde ahi)
+	Password   string `json:"password"` // no password
 	Port       int    `json:"port"`
 }
 
-// portsCheck: prueba (por SSH desde srcHost) el alcance TCP a targetHost en los
-// puertos clave de Veeam.
+// portsCheck: para el proposito elegido, prueba (por SSH desde srcHost, con las
+// credenciales del origen) el alcance TCP a targetHost en solo los puertos que
+// ese proposito necesita.
 func (s *Server) portsCheck(w http.ResponseWriter, r *http.Request) {
 	sess, ok := s.session(w, r)
 	if !ok {
@@ -185,24 +191,32 @@ func (s *Server) portsCheck(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
 		return
 	}
-	res, err := benchmark.CheckConnectivity(in.SrcHost, in.Port, in.Username, in.Password, in.TargetHost, benchmark.PortsToTest)
+	sc, ok := benchmark.ScenarioByID(in.Scenario)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "Unknown connectivity scenario."})
+		return
+	}
+	res, err := benchmark.CheckConnectivity(in.SrcHost, in.Port, in.Username, in.Password, in.TargetHost, sc.Ports)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"detail": "Could not SSH to " + in.SrcHost + ": " + err.Error()})
 		return
 	}
-	log.Printf("ports-check %s -> %s: %d ports", in.SrcHost, in.TargetHost, len(res))
+	log.Printf("ports-check [%s] %s -> %s: %d ports", in.Scenario, in.SrcHost, in.TargetHost, len(res))
 	writeJSON(w, http.StatusOK, map[string]any{"data": res})
 }
 
 type iperfInput struct {
 	ServerHost string `json:"serverHost"`
+	ServerUser string `json:"serverUser"` // credenciales SSH del servidor
+	ServerPass string `json:"serverPass"` // no password
 	ClientHost string `json:"clientHost"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
+	ClientUser string `json:"clientUser"` // credenciales SSH del cliente (pueden diferir)
+	ClientPass string `json:"clientPass"` // no password
 	Duration   int    `json:"duration"`
 }
 
-// iperf: benchmark de red iperf3 entre dos hosts (por SSH).
+// iperf: benchmark de red iperf3 entre dos hosts (por SSH), con credenciales
+// propias para cada host.
 func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
 	sess, ok := s.session(w, r)
 	if !ok {
@@ -218,7 +232,7 @@ func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("iperf %s -> %s started", in.ClientHost, in.ServerHost)
-	res := benchmark.RunIperf(in.ServerHost, in.ClientHost, 0, in.Username, in.Password, in.Duration)
+	res := benchmark.RunIperf(in.ServerHost, in.ServerUser, in.ServerPass, in.ClientHost, in.ClientUser, in.ClientPass, 0, in.Duration)
 	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps err=%q", in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, res.Error)
 	writeJSON(w, http.StatusOK, res)
 }
@@ -332,19 +346,43 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 				ID          string `json:"id"`
 				Type        string `json:"type"`
 				SessionType string `json:"sessionType"`
+				Result      struct {
+					Result string `json:"result"`
+				} `json:"result"`
 			} `json:"data"`
 		}
 		if json.Unmarshal(b, &wrap) == nil && len(wrap.Data) > 0 {
 			id := wrap.Data[0].ID
-			// Preferir una sesion de datos (backup/replica/restore/copy) — las de
-			// descubrimiento/retention no traen taskSessions ni bottleneck.
+			// Preferir una sesion de DATOS con taskSessions. Cuidado: "ConfigurationBackup"
+			// contiene "backup" pero NO es un data job (taskSessions vacio) -> se excluye,
+			// igual que discovery/retention/malware/agent. Entre las de datos, preferir una
+			// exitosa (Success/Warning): una Failed suele no traer taskSessions.
+			isData := func(tp string) bool {
+				for _, bad := range []string{"configuration", "discover", "retention", "malware", "agentmanagement"} {
+					if strings.Contains(tp, bad) {
+						return false
+					}
+				}
+				return strings.Contains(tp, "backup") || strings.Contains(tp, "replica") ||
+					strings.Contains(tp, "restore") || strings.Contains(tp, "copy")
+			}
+			anyData, okData := "", ""
 			for _, x := range wrap.Data {
 				tp := strings.ToLower(x.Type + x.SessionType)
-				if strings.Contains(tp, "backup") || strings.Contains(tp, "replica") ||
-					strings.Contains(tp, "restore") || strings.Contains(tp, "copy") {
-					id = x.ID
-					break
+				if !isData(tp) {
+					continue
 				}
+				if anyData == "" {
+					anyData = x.ID
+				}
+				if res := strings.ToLower(x.Result.Result); okData == "" && (res == "success" || res == "warning") {
+					okData = x.ID
+				}
+			}
+			if okData != "" {
+				id = okData
+			} else if anyData != "" {
+				id = anyData
 			}
 			report["sampleSession"] = map[string]any{
 				"id":           id,
