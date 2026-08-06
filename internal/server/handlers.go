@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"yogabench/internal/analysis"
@@ -238,14 +239,26 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 	}
 	// Muestra de UNA sesion (taskSessions + logs): para diagnosticar por que el
 	// analisis no encuentra bottleneck / repo / proxy en este ambiente.
-	if b, err := vbr.Get(ctx, sess, "v1/sessions?limit=1&orderColumn=CreationTime&orderAsc=false"); err == nil {
+	if b, err := vbr.Get(ctx, sess, "v1/sessions?limit=25&orderColumn=CreationTime&orderAsc=false"); err == nil {
 		var wrap struct {
 			Data []struct {
-				ID string `json:"id"`
+				ID          string `json:"id"`
+				Type        string `json:"type"`
+				SessionType string `json:"sessionType"`
 			} `json:"data"`
 		}
 		if json.Unmarshal(b, &wrap) == nil && len(wrap.Data) > 0 {
 			id := wrap.Data[0].ID
+			// Preferir una sesion de datos (backup/replica/restore/copy) — las de
+			// descubrimiento/retention no traen taskSessions ni bottleneck.
+			for _, x := range wrap.Data {
+				tp := strings.ToLower(x.Type + x.SessionType)
+				if strings.Contains(tp, "backup") || strings.Contains(tp, "replica") ||
+					strings.Contains(tp, "restore") || strings.Contains(tp, "copy") {
+					id = x.ID
+					break
+				}
+			}
 			report["sampleSession"] = map[string]any{
 				"id":           id,
 				"taskSessions": rawOrErr("v1/sessions/" + id + "/taskSessions"),

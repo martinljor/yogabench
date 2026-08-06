@@ -105,6 +105,19 @@
   .seg-btn:not(.active):not(.ghosted):hover { background:#2c313d; }
   .diag { margin-top:10px; font-size:13px; background:rgba(84,185,72,.07);
     border-left:2px solid var(--green); padding:7px 11px; border-radius:4px; }
+  /* Boton de ayuda + modal Acerca de */
+  .help-btn { width:24px; height:24px; border-radius:50%; background:var(--panel2); border:1px solid var(--border);
+    color:var(--text); font-weight:700; font-size:13px; line-height:1; padding:0; cursor:pointer; }
+  .help-btn:hover { background:#2c313d; border-color:var(--green); }
+  .modal-ov { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:100; }
+  .modal { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:22px; max-width:460px; width:90%;
+    box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .modal-h { display:flex; align-items:center; gap:8px; font-size:16px; margin-bottom:10px; }
+  .modal-x { margin-left:auto; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:2px 6px; }
+  .modal-x:hover { color:var(--text); }
+  .about-row { margin:8px 0; font-size:14px; }
+  .modal a { color:var(--green); text-decoration:none; }
+  .modal a:hover { text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -116,11 +129,26 @@
     <button class="ghost mini" id="btnRefresh" onclick="refreshComponents()" style="display:none;" data-i18n="btn.refresh">Refrescar</button>
     <button class="ghost mini" id="btnDiag" onclick="downloadDiag()" style="display:none;" data-i18n="btn.diag" title="Descargar un JSON de diagnóstico para compartir">Diagnóstico</button>
     <button class="ghost mini" id="btnDisconnect" onclick="disconnect()" style="display:none;" data-i18n="btn.disconnect">Desconectar</button>
+    <button class="help-btn" id="btnHelp" onclick="openAbout()" title="Acerca de / About" aria-label="Acerca de">?</button>
     <span class="langs">
       <button class="flag" data-lang="es" onclick="setLang('es')" title="Español"><svg viewBox="0 0 3 2"><rect width="3" height="2" fill="#c60b1e"/><rect y=".5" width="3" height="1" fill="#ffc400"/></svg></button>
       <button class="flag" data-lang="en" onclick="setLang('en')" title="English"><svg viewBox="0 0 60 40"><rect width="60" height="40" fill="#012169"/><path d="M0 0l60 40M60 0L0 40" stroke="#fff" stroke-width="8"/><path d="M0 0l60 40M60 0L0 40" stroke="#c8102e" stroke-width="4"/><path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="12"/><path d="M30 0v40M0 20h60" stroke="#c8102e" stroke-width="6"/></svg></button>
       <button class="flag" data-lang="pt" onclick="setLang('pt')" title="Português"><svg viewBox="0 0 60 42"><rect width="60" height="42" fill="#009c3b"/><path d="M30 5L55 21 30 37 5 21z" fill="#ffdf00"/><circle cx="30" cy="21" r="8" fill="#002776"/></svg></button>
     </span>
+  </div>
+</div>
+
+<!-- Modal Acerca de / About -->
+<div id="aboutModal" class="modal-ov" style="display:none;" onclick="if(event.target===this)closeAbout()">
+  <div class="modal">
+    <div class="modal-h">
+      <b>Yoga Benchmark for Veeam</b> <span id="aboutVer" class="muted" style="font-size:13px;"></span>
+      <button class="modal-x" onclick="closeAbout()" aria-label="Cerrar">✕</button>
+    </div>
+    <p class="muted" data-i18n="about.desc"></p>
+    <div class="about-row"><span data-i18n="about.author">Autor</span>: <b>Martín Jorge</b> · <a href="mailto:martin.jorge@veeam.com">martin.jorge@veeam.com</a></div>
+    <div class="about-row"><span data-i18n="about.repo">Repositorio</span>: <a href="https://github.com/martinljor/yogabench" target="_blank" rel="noopener">github.com/martinljor/yogabench</a></div>
+    <p class="muted" style="font-size:12px;margin-top:12px;" data-i18n="about.exp"></p>
   </div>
 </div>
 
@@ -160,7 +188,8 @@
 
 <div class="card" id="flowPanel" style="display:none;">
   <p class="muted" style="font-size:12px;" data-i18n-html="flow.legend"></p>
-  <div id="flowDominantNote" class="muted" style="font-size:12px;margin:2px 0 8px;"></div>
+  <div id="flowDominantNote" class="muted" style="font-size:12px;margin:2px 0 4px;"></div>
+  <div id="flowBusyNote" class="muted" style="font-size:12px;margin:2px 0 8px;color:#e0b060;"></div>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
@@ -299,7 +328,7 @@ const I18N = {
     'diag.network.h':'red entre proxy y repositorio','diag.network.t':'Revisá el enlace: velocidad, MTU, saturación.','diag.prefix':'🔎 El cuello está en el',
     'tbl.obj':'Objeto','tbl.result':'Resultado','tbl.bottleneck':'Bottleneck','tbl.rate':'Tasa','tbl.processed':'Procesado','tbl.read':'Leído','tbl.transferred':'Transferido','tbl.reduction':'Reducción','tbl.duration':'Duración',
     'v.ok':'OK','v.warn':'Atención','v.low':'Bajo lo esperado',
-    'bench.title':'Benchmark de disco','wz.1':'Conexión','wz.2':'Destino','wz.3':'Herramienta','wz.4':'Tiempo',
+    'bench.title':'Benchmark','wz.1':'Conexión','wz.2':'Destino','wz.3':'Herramienta','wz.4':'Tiempo',
     'bench.p1':'Elegí el <b>servidor</b> (host del repositorio) y conectá por <b>SSH</b>. Solo aparecen los hosts con repos locales — los de object storage/cloud no se miden por disco.',
     'bench.server':'Servidor','bench.manual':'Host / IP manual','bench.test':'Probar conexión','bench.back':'← Atrás','bench.next':'Siguiente →',
     'bench.p2':'Elegí el repositorio a medir (de este servidor).','bench.repo':'Repositorio (destino)','bench.action':'Acción','bench.backup':'Backup (escritura)','bench.restore':'Restore (lectura)',
@@ -311,7 +340,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio no disponible','bench.ready':'listo para correr.','bench.deploying':'Desplegando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sin resultados.','bench.host':'host','bench.startfail':'No se pudo iniciar el benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latencia (ms)','tbl.expected':'Esperado','tbl.pct':'% del esperado','tbl.verdict':'Veredicto',
-    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—'
+    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -343,7 +372,7 @@ const I18N = {
     'diag.network.h':'network between proxy and repository','diag.network.t':'Check the link: speed, MTU, saturation.','diag.prefix':'🔎 The bottleneck is in the',
     'tbl.obj':'Object','tbl.result':'Result','tbl.bottleneck':'Bottleneck','tbl.rate':'Rate','tbl.processed':'Processed','tbl.read':'Read','tbl.transferred':'Transferred','tbl.reduction':'Reduction','tbl.duration':'Duration',
     'v.ok':'OK','v.warn':'Warning','v.low':'Below expected',
-    'bench.title':'Disk benchmark','wz.1':'Connection','wz.2':'Target','wz.3':'Tool','wz.4':'Time',
+    'bench.title':'Benchmark','wz.1':'Connection','wz.2':'Target','wz.3':'Tool','wz.4':'Time',
     'bench.p1':'Pick the <b>server</b> (repository host) and connect over <b>SSH</b>. Only hosts with local repos appear — object storage/cloud repos are not disk-measured.',
     'bench.server':'Server','bench.manual':'Host / IP (manual)','bench.test':'Test connection','bench.back':'← Back','bench.next':'Next →',
     'bench.p2':'Pick the repository to measure (on this server).','bench.repo':'Repository (target)','bench.action':'Action','bench.backup':'Backup (write)','bench.restore':'Restore (read)',
@@ -355,7 +384,7 @@ const I18N = {
     'bench.checking':'Checking fio…','bench.fionotfound':'fio not available','bench.ready':'ready to run.','bench.deploying':'Deploying fio…',
     'bench.results':'Disk results','bench.nores':'No results.','bench.host':'host','bench.startfail':'Could not start the benchmark.',
     'tbl.test':'Test','tbl.mode':'Mode','tbl.iops':'IOPS','tbl.lat':'Latency (ms)','tbl.expected':'Expected','tbl.pct':'% of expected','tbl.verdict':'Verdict',
-    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—'
+    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -387,7 +416,7 @@ const I18N = {
     'diag.network.h':'rede entre proxy e repositório','diag.network.t':'Verifique o link: velocidade, MTU, saturação.','diag.prefix':'🔎 O gargalo está no',
     'tbl.obj':'Objeto','tbl.result':'Resultado','tbl.bottleneck':'Gargalo','tbl.rate':'Taxa','tbl.processed':'Processado','tbl.read':'Lido','tbl.transferred':'Transferido','tbl.reduction':'Redução','tbl.duration':'Duração',
     'v.ok':'OK','v.warn':'Atenção','v.low':'Abaixo do esperado',
-    'bench.title':'Benchmark de disco','wz.1':'Conexão','wz.2':'Destino','wz.3':'Ferramenta','wz.4':'Tempo',
+    'bench.title':'Benchmark','wz.1':'Conexão','wz.2':'Destino','wz.3':'Ferramenta','wz.4':'Tempo',
     'bench.p1':'Escolha o <b>servidor</b> (host do repositório) e conecte por <b>SSH</b>. Só aparecem hosts com repos locais — os de object storage/cloud não são medidos por disco.',
     'bench.server':'Servidor','bench.manual':'Host / IP manual','bench.test':'Testar conexão','bench.back':'← Voltar','bench.next':'Avançar →',
     'bench.p2':'Escolha o repositório a medir (deste servidor).','bench.repo':'Repositório (destino)','bench.action':'Ação','bench.backup':'Backup (escrita)','bench.restore':'Restore (leitura)',
@@ -399,7 +428,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio não disponível','bench.ready':'pronto para rodar.','bench.deploying':'Instalando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sem resultados.','bench.host':'host','bench.startfail':'Não foi possível iniciar o benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latência (ms)','tbl.expected':'Esperado','tbl.pct':'% do esperado','tbl.verdict':'Veredito',
-    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—'
+    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -583,7 +612,22 @@ async function loadFlow() {
       flowSeverity.repo[g.id] = { pct: g.bottleneckAvg ? g.bottleneckAvg.target : null, dom: primaryOf(g) === 'Target' };
     renderFlow(graph);
     showFlowDominant(an);
+    showFlowBusy(graph);
   } catch (e) { console.error(e); }
+}
+
+// Explica los nodos en ámbar (muchas conexiones): lista cuáles son y su nº de
+// conexiones, para que el color ámbar tenga siempre una explicación al lado.
+function showFlowBusy(graph) {
+  const el = document.getElementById('flowBusyNote');
+  if (!el) return;
+  const deg = {}, byId = {};
+  (graph.nodes || []).forEach(n => byId[n.id] = n);
+  (graph.edges || []).forEach(e => { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; });
+  const busy = Object.keys(deg).filter(id => deg[id] >= 4 && byId[id])
+    .sort((a, b) => deg[b] - deg[a])
+    .map(id => `<b>${byId[id].label}</b> (${deg[id]})`);
+  el.innerHTML = busy.length ? `${t('flow.busy')} ${busy.join(', ')}` : '';
 }
 
 // Color del nodo: con % -> semaforo (ok/atención/cuello); sin % -> rojo si el
@@ -1145,10 +1189,18 @@ function renderJobCard(j) {
 // Aplicar idioma guardado al cargar.
 setLang(LANG);
 
-// Version en el brand (arriba a la izquierda), tomada del backend.
+// Acerca de / About.
+function openAbout() { document.getElementById('aboutModal').style.display = 'flex'; }
+function closeAbout() { document.getElementById('aboutModal').style.display = 'none'; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAbout(); });
+
+// Version en el brand + modal Acerca de, tomada del backend.
 fetch(`${BACKEND}/health`).then(r => r.json()).then(h => {
-  if (h && h.version) document.getElementById('brandVer').textContent =
-    'v' + h.version.replace(/-(\w)/, (m, c) => '-' + c.toUpperCase());
+  if (h && h.version) {
+    const v = 'v' + h.version.replace(/-(\w)/, (m, c) => '-' + c.toUpperCase());
+    document.getElementById('brandVer').textContent = v;
+    document.getElementById('aboutVer').textContent = v;
+  }
 }).catch(() => {});
 </script>
 </body>
