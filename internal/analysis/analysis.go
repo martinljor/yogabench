@@ -58,7 +58,9 @@ type Record struct {
 	Bottleneck      map[string]any `json:"bottleneck"`
 	Tasks           []Task         `json:"tasks"`
 	ProcessedSize   int64          `json:"processedSize"`
+	ReadSize        int64          `json:"readSize"`
 	TransferredSize int64          `json:"transferredSize"`
+	DurationSec     float64        `json:"durationSec"` // de creationTime->endTime
 	RepoIDs         []string       `json:"repoIds"`
 	ProxyIDs        []string       `json:"proxyIds"`
 }
@@ -69,7 +71,10 @@ type Group struct {
 	Runs            int            `json:"runs"`
 	Results         map[string]int `json:"results"`
 	ProcessedSize   int64          `json:"processedSize"`
+	ReadSize        int64          `json:"readSize"`
 	TransferredSize int64          `json:"transferredSize"`
+	Reduction       *float64       `json:"reduction"`      // procesado/transferido (dedup+compresion)
+	ThroughputMBps  float64        `json:"throughputMBps"` // transferido / duracion (calculado por nosotros)
 	BottleneckAvg   map[string]any `json:"bottleneckAvg"`
 	PrimaryCounts   map[string]int `json:"primaryCounts"`
 	Jobs            []Record       `json:"jobs"`
@@ -208,13 +213,21 @@ func buildRecord(ctx context.Context, s *vbr.Session, sess map[string]any, jobPr
 	tasks := buildTasks(getItems(ctx, s, "v1/sessions/"+sid+"/taskSessions"))
 	logs := getItems(ctx, s, "v1/sessions/"+sid+"/logs")
 
-	var processed, transferred int64
+	var processed, read, transferred int64
 	repoSet := map[string]bool{}
 	for _, t := range tasks {
 		processed += t.ProcessedSize
+		read += t.ReadSize
 		transferred += t.TransferredSize
 		if t.RepositoryID != "" && t.RepositoryID != emptyGUID {
 			repoSet[t.RepositoryID] = true
+		}
+	}
+	// Duracion propia de la corrida (creationTime -> endTime), para calcular throughput.
+	var durSec float64
+	if a, okA := parseDT(sess["creationTime"]); okA {
+		if b, okB := parseDT(sess["endTime"]); okB && b.After(a) {
+			durSec = b.Sub(a).Seconds()
 		}
 	}
 
@@ -234,7 +247,9 @@ func buildRecord(ctx context.Context, s *vbr.Session, sess map[string]any, jobPr
 		Bottleneck:      bneck,
 		Tasks:           tasks,
 		ProcessedSize:   processed,
+		ReadSize:        read,
 		TransferredSize: transferred,
+		DurationSec:     durSec,
 		RepoIDs:         keys(repoSet),
 		ProxyIDs:        cleanIDs(jobProxies[str(sess["jobId"])]),
 	}
@@ -357,13 +372,16 @@ func aggregate(records []Record, idsFn func(Record) []string, names map[string]s
 func groupStats(id, name string, recs []Record) Group {
 	counts := map[string]int{"Success": 0, "Warning": 0, "Failed": 0}
 	primaryCounts := map[string]int{}
-	var processed, transferred int64
+	var processed, read, transferred int64
+	var durSec float64
 	sum := [4]int{}
 	n := 0
 	for _, r := range recs {
 		counts[r.Result]++
 		processed += r.ProcessedSize
+		read += r.ReadSize
 		transferred += r.TransferredSize
+		durSec += r.DurationSec
 		if r.Bottleneck != nil {
 			if p, ok := r.Bottleneck["primary"].(string); ok && p != "" {
 				primaryCounts[p]++
@@ -393,9 +411,20 @@ func groupStats(id, name string, recs []Record) Group {
 		a["primary"] = labels[mi]
 		avg = a
 	}
+	// Metricas propias: reduccion (dedup+compresion) y throughput (transferido/tiempo).
+	var reduction *float64
+	if transferred > 0 {
+		v := round1(float64(processed) / float64(transferred))
+		reduction = &v
+	}
+	var throughput float64
+	if durSec > 0 {
+		throughput = round1(float64(transferred) / durSec / 1e6) // bytes/s -> MB/s
+	}
 	return Group{
 		ID: id, Name: name, Runs: len(recs), Results: counts,
-		ProcessedSize: processed, TransferredSize: transferred,
+		ProcessedSize: processed, ReadSize: read, TransferredSize: transferred,
+		Reduction: reduction, ThroughputMBps: throughput,
 		BottleneckAvg: avg, PrimaryCounts: primaryCounts, Jobs: recs,
 	}
 }
