@@ -45,7 +45,7 @@ func main() {
 		log.Fatalf("frontend embebido: %v", err)
 	}
 
-	handler := server.New(vbr.NewStore(), web)
+	handler := server.New(vbr.NewStore(), web, version)
 
 	addr := ":" + *port
 	url := "http://localhost:" + *port

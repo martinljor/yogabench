@@ -64,7 +64,7 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request, path string) {
 // --- handlers ---------------------------------------------------------------
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "active_sessions": s.store.Count()})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "active_sessions": s.store.Count(), "version": s.version})
 }
 
 type connectRequest struct {

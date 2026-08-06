@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Veeam Proxy Benchmark - Prototipo</title>
+<title>Yoga Benchmark for Veeam</title>
 <style>
   /* Open Sans (fuente de marca web de Veeam), embebida y servida localmente. */
   @font-face{
@@ -109,7 +109,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand">Yoga Benchmark</div>
+  <div class="brand">Yoga Benchmark for Veeam <span id="brandVer" style="color:var(--muted);font-weight:500;font-size:13px;"></span></div>
   <div class="topright connbar">
     <span id="connDot" class="dot off"></span>
     <span id="connectedAs">Sin conectar</span>
@@ -1144,6 +1144,12 @@ function renderJobCard(j) {
 
 // Aplicar idioma guardado al cargar.
 setLang(LANG);
+
+// Version en el brand (arriba a la izquierda), tomada del backend.
+fetch(`${BACKEND}/health`).then(r => r.json()).then(h => {
+  if (h && h.version) document.getElementById('brandVer').textContent =
+    'v' + h.version.replace(/-(\w)/, (m, c) => '-' + c.toUpperCase());
+}).catch(() => {});
 </script>
 </body>
 </html>

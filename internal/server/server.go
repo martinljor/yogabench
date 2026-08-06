@@ -11,14 +11,16 @@ import (
 )
 
 type Server struct {
-	store *vbr.Store
-	bench *benchmark.Manager
-	mux   *http.ServeMux
+	store   *vbr.Store
+	bench   *benchmark.Manager
+	mux     *http.ServeMux
+	version string
 }
 
-// New devuelve el handler HTTP listo (con CORS). `web` es el frontend embebido.
-func New(store *vbr.Store, web fs.FS) http.Handler {
-	s := &Server{store: store, bench: benchmark.NewManager(), mux: http.NewServeMux()}
+// New devuelve el handler HTTP listo (con CORS). `web` es el frontend embebido;
+// `version` se expone en /health para que el frontend la muestre en el brand.
+func New(store *vbr.Store, web fs.FS, version string) http.Handler {
+	s := &Server{store: store, bench: benchmark.NewManager(), mux: http.NewServeMux(), version: version}
 	s.routes(web)
 	return cors(s.mux)
 }
