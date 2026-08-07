@@ -212,6 +212,7 @@ type iperfInput struct {
 	ClientHost string `json:"clientHost"`
 	ClientUser string `json:"clientUser"` // credenciales SSH del cliente (pueden diferir)
 	ClientPass string `json:"clientPass"` // no password
+	LinkSpeed  string `json:"linkSpeed"`  // enlace esperado: 1gbe/10gbe/25gbe/40gbe
 	Duration   int    `json:"duration"`
 }
 
@@ -232,7 +233,7 @@ func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("iperf %s -> %s started", in.ClientHost, in.ServerHost)
-	res := benchmark.RunIperf(in.ServerHost, in.ServerUser, in.ServerPass, in.ClientHost, in.ClientUser, in.ClientPass, 0, in.Duration)
+	res := benchmark.RunIperf(in.ServerHost, in.ServerUser, in.ServerPass, in.ClientHost, in.ClientUser, in.ClientPass, in.LinkSpeed, 0, in.Duration)
 	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps err=%q", in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, res.Error)
 	writeJSON(w, http.StatusOK, res)
 }

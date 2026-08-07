@@ -196,8 +196,15 @@
 </div>
 
 <div class="card" id="benchPanel" style="display:none;">
-  <h3 data-i18n="bench.title">Benchmark de disco</h3>
+  <h3 data-i18n="bench.title">Benchmark</h3>
+  <datalist id="benchNetHosts"></datalist>
 
+  <div class="seg" style="margin:4px 0 16px;">
+    <button type="button" class="seg-btn active" id="benchModeDiskBtn" onclick="setBenchMode('disk')" data-i18n="bench.disk">Disco</button>
+    <button type="button" class="seg-btn" id="benchModeNetBtn" onclick="setBenchMode('net')" data-i18n="bench.net">Red</button>
+  </div>
+
+  <div id="benchDiskMode">
   <div class="wz-steps">
     <div class="wz-step active" id="wzStep1"><span class="wz-num">1</span> <span data-i18n="wz.1">Conexión</span></div>
     <div class="wz-step" id="wzStep2"><span class="wz-num">2</span> <span data-i18n="wz.2">Destino</span></div>
@@ -233,13 +240,6 @@
       </div>
     </div>
     <div class="muted" id="benchRepoPath" style="margin-top:8px;font-size:12px;"></div>
-    <div style="margin-top:14px;">
-      <label data-i18n="bench.resource">Recurso</label>
-      <div class="seg">
-        <button type="button" class="seg-btn active" data-i18n="bench.disk">Disco</button>
-        <button type="button" class="seg-btn ghosted" disabled data-i18n="bench.net">Red · fase 2</button>
-      </div>
-    </div>
     <div class="wz-nav">
       <button class="ghost" onclick="wzGo(1)" data-i18n="bench.back">← Atrás</button>
       <button onclick="checkTools()" data-i18n="bench.next">Siguiente →</button>
@@ -274,6 +274,30 @@
     <div id="benchStatus" style="margin-top:14px;"></div>
     <div id="benchResults"></div>
   </div>
+  </div><!-- /benchDiskMode -->
+
+  <!-- Modo Red: ancho de banda entre dos hosts (iperf3) -->
+  <div id="benchNetMode" style="display:none;">
+    <p class="muted" style="font-size:13px;" data-i18n="bench.netp"></p>
+    <div class="subcard">
+      <div class="row" style="align-items:flex-end;">
+        <div><label data-i18n="net.server">Servidor (iperf -s)</label><input id="netServer" list="benchNetHosts" style="width:200px;" placeholder="host / IP"></div>
+        <div><label data-i18n="net.serveruser">Usuario (servidor)</label><input id="netUserS" style="width:130px;" placeholder="veeamadmin"></div>
+        <div><label data-i18n="form.pass">Password</label><input id="netPassS" type="password" style="width:140px;"></div>
+      </div>
+      <div class="row" style="align-items:flex-end;margin-top:8px;">
+        <div><label data-i18n="net.client">Cliente (iperf -c)</label><input id="netClient" list="benchNetHosts" style="width:200px;" placeholder="host / IP"></div>
+        <div><label data-i18n="net.clientuser">Usuario (cliente)</label><input id="netUserC" style="width:130px;" placeholder="veeamadmin"></div>
+        <div><label data-i18n="form.pass">Password</label><input id="netPassC" type="password" style="width:140px;"></div>
+      </div>
+      <div class="row" style="align-items:flex-end;margin-top:8px;">
+        <div><label data-i18n="net.link">Enlace (esperado)</label><select id="netLink" style="width:160px;"></select></div>
+        <div><label data-i18n="bench.duration">Duración por test (s)</label><input id="netDur" value="10" style="width:110px;"></div>
+        <div><button onclick="runIperf()" id="netBtnIperf" data-i18n="net.runiperf">Correr iperf</button></div>
+      </div>
+      <div id="netIperfResult" style="margin-top:12px;"></div>
+    </div>
+  </div>
 </div>
 
 <div class="card" id="analysisPanel" style="display:none;">
@@ -307,23 +331,6 @@
       <div><button onclick="runPortsCheck()" id="netBtnPorts" data-i18n="net.runports">Probar puertos</button></div>
     </div>
     <div id="netPortsResult" style="margin-top:10px;"></div>
-  </div>
-
-  <div class="subcard">
-    <h4 style="margin:0 0 8px;" data-i18n="net.iperf">Ancho de banda entre hosts (iperf3)</h4>
-    <div class="row" style="align-items:flex-end;">
-      <div><label data-i18n="net.server">Servidor (iperf -s)</label><input id="netServer" list="netHosts" style="width:200px;" placeholder="host / IP"></div>
-      <div><label data-i18n="net.serveruser">Usuario (servidor)</label><input id="netUserS" style="width:130px;" placeholder="veeamadmin"></div>
-      <div><label data-i18n="form.pass">Password</label><input id="netPassS" type="password" style="width:140px;"></div>
-    </div>
-    <div class="row" style="align-items:flex-end;margin-top:8px;">
-      <div><label data-i18n="net.client">Cliente (iperf -c)</label><input id="netClient" list="netHosts" style="width:200px;" placeholder="host / IP"></div>
-      <div><label data-i18n="net.clientuser">Usuario (cliente)</label><input id="netUserC" style="width:130px;" placeholder="veeamadmin"></div>
-      <div><label data-i18n="form.pass">Password</label><input id="netPassC" type="password" style="width:140px;"></div>
-      <div><label data-i18n="bench.duration">Duración por test (s)</label><input id="netDur" value="10" style="width:90px;"></div>
-      <div><button onclick="runIperf()" id="netBtnIperf" data-i18n="net.runiperf">Correr iperf</button></div>
-    </div>
-    <div id="netIperfResult" style="margin-top:10px;"></div>
   </div>
 
   <details style="margin-top:14px;">
@@ -379,7 +386,7 @@ const I18N = {
     'bench.p1':'Elegí el <b>servidor</b> (host del repositorio) y conectá por <b>SSH</b>. Solo aparecen los hosts con repos locales — los de object storage/cloud no se miden por disco.',
     'bench.server':'Servidor','bench.manual':'Host / IP manual','bench.test':'Probar conexión','bench.back':'← Atrás','bench.next':'Siguiente →',
     'bench.p2':'Elegí el repositorio a medir (de este servidor).','bench.repo':'Repositorio (destino)','bench.action':'Acción','bench.backup':'Backup (escritura)','bench.restore':'Restore (lectura)',
-    'bench.resource':'Recurso','bench.disk':'Disco','bench.net':'Red · fase 2','bench.measure':'Se medirá el disco en',
+    'bench.resource':'Recurso','bench.disk':'Disco','bench.net':'Red','bench.netp':'Medí el ancho de banda entre dos hosts con iperf3 (requiere iperf3 en ambos). Elegí el enlace esperado para comparar contra su capacidad.','net.link':'Enlace (esperado)','net.vslink':'vs enlace','bench.measure':'Se medirá el disco en',
     'bench.p3':'Verificamos que <b>fio</b> esté disponible en el host.','bench.deploy':'Desplegar fio','bench.verify':'Verificar herramienta',
     'bench.p4':'Duración de cada test. <b>Recomendado: 15s</b> (más estable). fio escribe ~2 GB temporales en el repo y los borra al terminar.',
     'bench.baseline':'Disco esperado (baseline)','bench.duration':'Duración por test (s)','bench.run':'Correr benchmark',
@@ -387,7 +394,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio no disponible','bench.ready':'listo para correr.','bench.deploying':'Desplegando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sin resultados.','bench.host':'host','bench.startfail':'No se pudo iniciar el benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latencia (ms)','tbl.expected':'Esperado','tbl.pct':'% del esperado','tbl.verdict':'Veredicto',
-    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','nav.net':'Red','net.title':'Red — puertos y ancho de banda','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'El test de puertos prueba solo los puertos del propósito elegido, por SSH desde el origen; iperf requiere iperf3 en ambos hosts, con credenciales propias para cada uno.','net.send':'Envío','net.recv':'Recepción','net.scenario':'Propósito','net.port':'Puerto','net.srcuser':'Usuario (origen)','net.serveruser':'Usuario (servidor)','net.clientuser':'Usuario (cliente)'
+    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','nav.net':'Red','net.title':'Red — puertos y conectividad','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'Prueba solo los puertos del propósito elegido, por SSH desde el origen. El test de ancho de banda (iperf) está en la solapa Benchmark.','net.send':'Envío','net.recv':'Recepción','net.scenario':'Propósito','net.port':'Puerto','net.srcuser':'Usuario (origen)','net.serveruser':'Usuario (servidor)','net.clientuser':'Usuario (cliente)'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -423,7 +430,7 @@ const I18N = {
     'bench.p1':'Pick the <b>server</b> (repository host) and connect over <b>SSH</b>. Only hosts with local repos appear — object storage/cloud repos are not disk-measured.',
     'bench.server':'Server','bench.manual':'Host / IP (manual)','bench.test':'Test connection','bench.back':'← Back','bench.next':'Next →',
     'bench.p2':'Pick the repository to measure (on this server).','bench.repo':'Repository (target)','bench.action':'Action','bench.backup':'Backup (write)','bench.restore':'Restore (read)',
-    'bench.resource':'Resource','bench.disk':'Disk','bench.net':'Network · phase 2','bench.measure':'Disk will be measured at',
+    'bench.resource':'Resource','bench.disk':'Disk','bench.net':'Network','bench.netp':'Measure bandwidth between two hosts with iperf3 (requires iperf3 on both). Pick the expected link to compare against its capacity.','net.link':'Link (expected)','net.vslink':'vs link','bench.measure':'Disk will be measured at',
     'bench.p3':'We check that <b>fio</b> is available on the host.','bench.deploy':'Deploy fio','bench.verify':'Verify tool',
     'bench.p4':'Duration per test. <b>Recommended: 15s</b> (more stable). fio writes ~2 GB temporarily to the repo and deletes it when done.',
     'bench.baseline':'Expected disk (baseline)','bench.duration':'Duration per test (s)','bench.run':'Run benchmark',
@@ -431,7 +438,7 @@ const I18N = {
     'bench.checking':'Checking fio…','bench.fionotfound':'fio not available','bench.ready':'ready to run.','bench.deploying':'Deploying fio…',
     'bench.results':'Disk results','bench.nores':'No results.','bench.host':'host','bench.startfail':'Could not start the benchmark.',
     'tbl.test':'Test','tbl.mode':'Mode','tbl.iops':'IOPS','tbl.lat':'Latency (ms)','tbl.expected':'Expected','tbl.pct':'% of expected','tbl.verdict':'Verdict',
-    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','nav.net':'Network','net.title':'Network — ports and bandwidth','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'The ports test probes only the ports for the chosen purpose, via SSH from the source; iperf requires iperf3 on both hosts, each with its own credentials.','net.send':'Send','net.recv':'Receive','net.scenario':'Purpose','net.port':'Port','net.srcuser':'Source user','net.serveruser':'Server user','net.clientuser':'Client user'
+    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','nav.net':'Network','net.title':'Network — ports & connectivity','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'Probes only the ports for the chosen purpose, via SSH from the source. The bandwidth test (iperf) lives in the Benchmark tab.','net.send':'Send','net.recv':'Receive','net.scenario':'Purpose','net.port':'Port','net.srcuser':'Source user','net.serveruser':'Server user','net.clientuser':'Client user'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -467,7 +474,7 @@ const I18N = {
     'bench.p1':'Escolha o <b>servidor</b> (host do repositório) e conecte por <b>SSH</b>. Só aparecem hosts com repos locais — os de object storage/cloud não são medidos por disco.',
     'bench.server':'Servidor','bench.manual':'Host / IP manual','bench.test':'Testar conexão','bench.back':'← Voltar','bench.next':'Avançar →',
     'bench.p2':'Escolha o repositório a medir (deste servidor).','bench.repo':'Repositório (destino)','bench.action':'Ação','bench.backup':'Backup (escrita)','bench.restore':'Restore (leitura)',
-    'bench.resource':'Recurso','bench.disk':'Disco','bench.net':'Rede · fase 2','bench.measure':'O disco será medido em',
+    'bench.resource':'Recurso','bench.disk':'Disco','bench.net':'Rede','bench.netp':'Meça a largura de banda entre dois hosts com iperf3 (requer iperf3 em ambos). Escolha o enlace esperado para comparar com sua capacidade.','net.link':'Enlace (esperado)','net.vslink':'vs enlace','bench.measure':'O disco será medido em',
     'bench.p3':'Verificamos que o <b>fio</b> esteja disponível no host.','bench.deploy':'Instalar fio','bench.verify':'Verificar ferramenta',
     'bench.p4':'Duração de cada teste. <b>Recomendado: 15s</b> (mais estável). O fio escreve ~2 GB temporários no repo e apaga ao terminar.',
     'bench.baseline':'Disco esperado (baseline)','bench.duration':'Duração por teste (s)','bench.run':'Rodar benchmark',
@@ -475,7 +482,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio não disponível','bench.ready':'pronto para rodar.','bench.deploying':'Instalando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sem resultados.','bench.host':'host','bench.startfail':'Não foi possível iniciar o benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latência (ms)','tbl.expected':'Esperado','tbl.pct':'% do esperado','tbl.verdict':'Veredito',
-    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','nav.net':'Rede','net.title':'Rede — portas e largura de banda','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'O teste de portas prova apenas as portas do propósito escolhido, por SSH desde a origem; o iperf requer iperf3 em ambos os hosts, cada um com suas próprias credenciais.','net.send':'Envio','net.recv':'Recepção','net.scenario':'Propósito','net.port':'Porta','net.srcuser':'Usuário (origem)','net.serveruser':'Usuário (servidor)','net.clientuser':'Usuário (cliente)'
+    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','nav.net':'Rede','net.title':'Rede — portas e conectividade','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'Prova apenas as portas do propósito escolhido, por SSH desde a origem. O teste de largura de banda (iperf) está na aba Benchmark.','net.send':'Envio','net.recv':'Recepção','net.scenario':'Propósito','net.port':'Porta','net.srcuser':'Usuário (origem)','net.serveruser':'Usuário (servidor)','net.clientuser':'Usuário (cliente)'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -866,9 +873,24 @@ async function loadBenchOptions() {
     const bl = await fetch(`${BACKEND}/api/baselines`).then(r => r.json());
     dsel.innerHTML = bl.disk.data.map(b =>
       `<option value="${b.key}" ${b.key === bl.disk.default ? 'selected' : ''}>${b.label}</option>`).join('');
+    // Modo Red: selector de enlace esperado (1/10/25/40 GbE).
+    const lsel = document.getElementById('netLink');
+    if (lsel) lsel.innerHTML = (bl.net?.data || []).map(b =>
+      `<option value="${b.key}" ${b.key === bl.net.default ? 'selected' : ''}>${b.label}</option>`).join('');
   }
+  // Datalist de hosts para el modo Red (iperf).
+  const hosts = [...new Set(benchRepos.map(r => r.host_name).filter(Boolean))].sort();
+  document.getElementById('benchNetHosts').innerHTML = hosts.map(h => `<option value="${h}">`).join('');
   populateHostSelect();
   wzReset();
+}
+
+// setBenchMode: alterna entre benchmark de Disco (wizard) y de Red (iperf).
+function setBenchMode(m) {
+  document.getElementById('benchDiskMode').style.display = m === 'disk' ? 'block' : 'none';
+  document.getElementById('benchNetMode').style.display  = m === 'net'  ? 'block' : 'none';
+  document.getElementById('benchModeDiskBtn').classList.toggle('active', m === 'disk');
+  document.getElementById('benchModeNetBtn').classList.toggle('active', m === 'net');
 }
 
 function currentRepoId() { return document.getElementById('benchRepo').value; }
@@ -1148,17 +1170,20 @@ async function runIperf() {
   const us = document.getElementById('netUserS').value.trim(), ps = document.getElementById('netPassS').value;
   const uc = document.getElementById('netUserC').value.trim(), pc = document.getElementById('netPassC').value;
   const dur = parseInt(document.getElementById('netDur').value || '10', 10);
+  const link = document.getElementById('netLink').value;
   if (!server || !client || !us || !ps || !uc || !pc) { el.innerHTML = `<p class="error">${t('bench.needcreds')}</p>`; return; }
   const btn = document.getElementById('netBtnIperf'); btn.disabled = true;
   el.innerHTML = `<p class="muted">${t('net.running')}</p>`;
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/iperf`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serverHost: server, serverUser: us, serverPass: ps, clientHost: client, clientUser: uc, clientPass: pc, duration: dur > 0 ? dur : 10 })
+      body: JSON.stringify({ serverHost: server, serverUser: us, serverPass: ps, clientHost: client, clientUser: uc, clientPass: pc, linkSpeed: link, duration: dur > 0 ? dur : 10 })
     }).then(r => r.json());
     if (d.error) { el.innerHTML = `<p class="error">${d.error}</p>`; return; }
-    el.innerHTML = `<table><tr><th>${t('net.send')}</th><th>${t('net.recv')}</th></tr>
-      <tr><td><b>${d.sendMbps} Mbps</b></td><td><b>${d.recvMbps} Mbps</b></td></tr></table>`;
+    const vcell = d.status ? `<td><span class="verdict ${d.status}">${d.pct}% · ${d.expectedLabel}</span></td>` : '';
+    const vhead = d.status ? `<th>${t('net.vslink')}</th>` : '';
+    el.innerHTML = `<table><tr><th>${t('net.send')}</th><th>${t('net.recv')}</th>${vhead}</tr>
+      <tr><td><b>${d.sendMbps} Mbps</b></td><td><b>${d.recvMbps} Mbps</b></td>${vcell}</tr></table>`;
   } catch (e) { el.innerHTML = `<p class="error">${e.message}</p>`; }
   finally { btn.disabled = false; }
 }

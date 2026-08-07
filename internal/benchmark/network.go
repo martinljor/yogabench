@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -170,16 +171,21 @@ func CheckConnectivity(srcHost string, srcPort int, user, pass, targetHost strin
 // --- Benchmark de red (iperf3) ----------------------------------------------
 
 type IperfResult struct {
-	SendMbps float64 `json:"sendMbps"`
-	RecvMbps float64 `json:"recvMbps"`
-	Error    string  `json:"error"`
+	SendMbps      float64 `json:"sendMbps"`
+	RecvMbps      float64 `json:"recvMbps"`
+	ExpectedMbps  float64 `json:"expectedMbps"`  // capacidad esperada del enlace elegido
+	ExpectedLabel string  `json:"expectedLabel"` // ej: "10 GbE"
+	Pct           int     `json:"pct"`           // % del enlace alcanzado (mejor de send/recv)
+	Status        string  `json:"status"`        // ok | warn | low
+	Error         string  `json:"error"`
 }
 
 // RunIperf corre iperf3 entre dos hosts por SSH: server (-1 = una prueba y sale)
 // en serverHost, client en clientHost. Cada host tiene sus PROPIAS credenciales
-// SSH (pueden ser distintas). Requiere iperf3 en ambos y el puerto abierto entre
-// ellos.
-func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, clientPass string, port, dur int) IperfResult {
+// SSH (pueden ser distintas). linkKey es el enlace esperado (1gbe/10gbe/...) para
+// anotar el resultado contra su capacidad. Requiere iperf3 en ambos y el puerto
+// abierto entre ellos.
+func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, clientPass, linkKey string, port, dur int) IperfResult {
 	if port == 0 {
 		port = 5201
 	}
@@ -219,8 +225,20 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 	if rep.Error != "" {
 		return IperfResult{Error: rep.Error}
 	}
-	return IperfResult{
+	res := IperfResult{
 		SendMbps: round1(rep.End.SumSent.BitsPerSecond / 1e6),
 		RecvMbps: round1(rep.End.SumReceived.BitsPerSecond / 1e6),
 	}
+	// Anotar contra la capacidad del enlace elegido (mejor de send/recv).
+	exp, label := NetExpected(linkKey)
+	res.ExpectedMbps, res.ExpectedLabel = exp, label
+	best := res.RecvMbps
+	if res.SendMbps > best {
+		best = res.SendMbps
+	}
+	if exp > 0 {
+		res.Pct = int(math.Round(best / exp * 100))
+		res.Status = verdict(best / exp)
+	}
+	return res
 }

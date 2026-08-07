@@ -70,6 +70,16 @@ func NetCatalog() []catalogEntry {
 	return out
 }
 
+// NetExpected: ancho de banda esperado (Mbps) y etiqueta para un enlace (ej:
+// "10gbe" -> 1180 Mbps, "10 GbE"). Cae al default si la clave no existe.
+func NetExpected(key string) (float64, string) {
+	b, ok := netBaselines[key]
+	if !ok {
+		b = netBaselines[defaultNet]
+	}
+	return b.Mbps, b.Label
+}
+
 func verdict(ratio float64) string {
 	switch {
 	case ratio >= okRatio:
