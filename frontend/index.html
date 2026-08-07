@@ -292,6 +292,7 @@
       </div>
       <div class="row" style="align-items:flex-end;margin-top:8px;">
         <div><label data-i18n="net.link">Enlace (esperado)</label><select id="netLink" style="width:160px;"></select></div>
+        <div><label data-i18n="net.port">Puerto iperf</label><input id="netPort" value="5201" style="width:100px;"></div>
         <div><label data-i18n="bench.duration">Duración por test (s)</label><input id="netDur" value="10" style="width:110px;"></div>
         <div><button onclick="runIperf()" id="netBtnIperf" data-i18n="net.runiperf">Correr iperf</button></div>
       </div>
@@ -1171,13 +1172,14 @@ async function runIperf() {
   const uc = document.getElementById('netUserC').value.trim(), pc = document.getElementById('netPassC').value;
   const dur = parseInt(document.getElementById('netDur').value || '10', 10);
   const link = document.getElementById('netLink').value;
+  const port = parseInt(document.getElementById('netPort').value || '5201', 10);
   if (!server || !client || !us || !ps || !uc || !pc) { el.innerHTML = `<p class="error">${t('bench.needcreds')}</p>`; return; }
   const btn = document.getElementById('netBtnIperf'); btn.disabled = true;
   el.innerHTML = `<p class="muted">${t('net.running')}</p>`;
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/iperf`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serverHost: server, serverUser: us, serverPass: ps, clientHost: client, clientUser: uc, clientPass: pc, linkSpeed: link, duration: dur > 0 ? dur : 10 })
+      body: JSON.stringify({ serverHost: server, serverUser: us, serverPass: ps, clientHost: client, clientUser: uc, clientPass: pc, linkSpeed: link, port: port > 0 ? port : 5201, duration: dur > 0 ? dur : 10 })
     }).then(r => r.json());
     if (d.error) { el.innerHTML = `<p class="error">${d.error}</p>`; return; }
     const vcell = d.status ? `<td><span class="verdict ${d.status}">${d.pct}% · ${d.expectedLabel}</span></td>` : '';

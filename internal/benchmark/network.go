@@ -142,6 +142,20 @@ func runSSH(c *ssh.Client, cmd string) string {
 	return out.String()
 }
 
+// runSSHOut: como runSSH pero devuelve stdout y stderr POR SEPARADO. iperf3 -J
+// escribe el JSON en stdout y los errores en stderr; mezclarlos corrompe el JSON.
+func runSSHOut(c *ssh.Client, cmd string) (stdout, stderr string) {
+	sess, err := c.NewSession()
+	if err != nil {
+		return "", err.Error()
+	}
+	defer sess.Close()
+	var out, errb bytes.Buffer
+	sess.Stdout, sess.Stderr = &out, &errb
+	_ = sess.Run(cmd)
+	return out.String(), errb.String()
+}
+
 // --- Test de conectividad de puertos ----------------------------------------
 
 type PortResult struct {
@@ -211,9 +225,10 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 	}
 	defer cc.Close()
 	clientCmd := fmt.Sprintf("iperf3 -c %s -p %d -t %d -J", serverHost, port, dur)
-	out := runSSH(cc, clientCmd)
+	out, errOut := runSSHOut(cc, clientCmd)
 	dbg.Logf("iperf server=%s client=%s cmd=%q", serverHost, clientHost, clientCmd)
-	dbg.Logf("iperf raw output: %s", dbg.Clip(out, 600))
+	dbg.Logf("iperf stdout: %s", dbg.Clip(out, 600))
+	dbg.Logf("iperf stderr: %s", dbg.Clip(errOut, 300))
 
 	var rep struct {
 		End struct {
@@ -227,10 +242,12 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal([]byte(extractJSON(out)), &rep); err != nil {
-		return IperfResult{Error: "could not parse iperf3 (is it installed on both hosts?): " + strings.TrimSpace(firstNonEmpty(out, err.Error()))}
+		// stderr suele traer el motivo real (ej: "unable to connect ... Connection timed out").
+		detail := strings.TrimSpace(firstNonEmpty(errOut, out))
+		return IperfResult{Error: fmt.Sprintf("iperf3 client failed on port %d: %s (hint: TCP %d may be blocked by the firewall between the hosts — try another port or open it)", port, dbg.Clip(detail, 200), port)}
 	}
 	if rep.Error != "" {
-		return IperfResult{Error: rep.Error}
+		return IperfResult{Error: fmt.Sprintf("iperf3: %s (hint: if it's a connection error, TCP %d may be blocked between the hosts)", strings.TrimSpace(rep.Error), port)}
 	}
 	res := IperfResult{
 		SendMbps: round1(rep.End.SumSent.BitsPerSecond / 1e6),
