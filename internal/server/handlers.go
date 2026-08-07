@@ -234,7 +234,8 @@ func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("iperf %s -> %s started", in.ClientHost, in.ServerHost)
 	res := benchmark.RunIperf(in.ServerHost, in.ServerUser, in.ServerPass, in.ClientHost, in.ClientUser, in.ClientPass, in.LinkSpeed, 0, in.Duration)
-	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps err=%q", in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, res.Error)
+	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps link=%s expected=%.0fMbps pct=%d%% verdict=%s err=%q",
+		in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, in.LinkSpeed, res.ExpectedMbps, res.Pct, res.Status, res.Error)
 	writeJSON(w, http.StatusOK, res)
 }
 

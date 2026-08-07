@@ -17,18 +17,21 @@ import (
 	"runtime"
 	"time"
 
+	"yogabench/internal/dbg"
 	"yogabench/internal/server"
 	"yogabench/internal/vbr"
 )
 
 // version del binario (se muestra en el banner de arranque y se etiqueta en el release).
-const version = "0.3.2-alpha"
+const version = "0.3.3-alpha"
 
 func main() {
 	port := flag.String("port", "8000", "puerto HTTP")
 	noBrowser := flag.Bool("no-browser", false, "no abrir el navegador automaticamente (para server headless)")
 	logPath := flag.String("log", "yogabench.log", "archivo de log (para diagnostico); vacio = solo consola")
+	debug := flag.Bool("debug", true, "modo debug: loguea detalle (puertos, salida de iperf, llamadas REST); sin passwords")
 	flag.Parse()
+	dbg.On = *debug
 
 	// Log a consola + archivo (para poder compartir el diagnostico). Best-effort:
 	// si no se puede abrir el archivo, sigue solo por consola. NUNCA loguea
@@ -63,7 +66,7 @@ func main() {
 ==================================================
 
 `, version, url)
-	log.Printf("Yoga Benchmark %s listening on %s", version, url)
+	log.Printf("Yoga Benchmark %s listening on %s (debug=%v)", version, url, *debug)
 
 	// Abrir el navegador solo (en desktop). En un server sin GUI, --no-browser.
 	if !*noBrowser {

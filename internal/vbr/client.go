@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"yogabench/internal/dbg"
 )
 
 // APIError transporta un status HTTP + mensaje para devolver claro al frontend.
@@ -79,6 +81,7 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 	req.Header.Set("Authorization", "Bearer "+s.AccessToken)
 	req.Header.Set("x-api-version", s.APIVersion)
 
+	start := time.Now()
 	resp, e := httpClient(s.VerifySSL).Do(req)
 	if e != nil {
 		log.Printf("REST GET %s: no response: %v", path, e)
@@ -86,6 +89,7 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	dbg.Logf("GET %s -> %d (%dms, %dB)", path, resp.StatusCode, time.Since(start).Milliseconds(), len(body))
 	if resp.StatusCode == 401 {
 		log.Printf("REST GET %s: HTTP 401 (token expired)", path)
 		return nil, &APIError{401, "Token expired. Reconnect."}

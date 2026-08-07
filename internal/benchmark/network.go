@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"yogabench/internal/dbg"
 )
 
 // --- Puertos requeridos entre componentes de Veeam (referencia) -------------
@@ -163,7 +165,9 @@ func CheckConnectivity(srcHost string, srcPort int, user, pass, targetHost strin
 	for _, p := range ports {
 		cmd := fmt.Sprintf("timeout 3 bash -c 'echo > /dev/tcp/%s/%d' 2>/dev/null && echo OPEN || echo CLOSED", targetHost, p.Port)
 		r := runSSH(c, cmd)
-		out = append(out, PortResult{Target: targetHost, Port: p.Port, Label: p.Label, Purpose: p.Purpose, Open: strings.Contains(r, "OPEN")})
+		open := strings.Contains(r, "OPEN")
+		dbg.Logf("port-check %s -> %s:%d = %v (%s)", srcHost, targetHost, p.Port, open, p.Purpose)
+		out = append(out, PortResult{Target: targetHost, Port: p.Port, Label: p.Label, Purpose: p.Purpose, Open: open})
 	}
 	return out, nil
 }
@@ -206,7 +210,10 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 		return IperfResult{Error: "SSH to client (" + clientHost + "): " + err.Error()}
 	}
 	defer cc.Close()
-	out := runSSH(cc, fmt.Sprintf("iperf3 -c %s -p %d -t %d -J", serverHost, port, dur))
+	clientCmd := fmt.Sprintf("iperf3 -c %s -p %d -t %d -J", serverHost, port, dur)
+	out := runSSH(cc, clientCmd)
+	dbg.Logf("iperf server=%s client=%s cmd=%q", serverHost, clientHost, clientCmd)
+	dbg.Logf("iperf raw output: %s", dbg.Clip(out, 600))
 
 	var rep struct {
 		End struct {
@@ -239,6 +246,11 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 	if exp > 0 {
 		res.Pct = int(math.Round(best / exp * 100))
 		res.Status = verdict(best / exp)
+	}
+	// 0/0 sin error de parseo: iperf corrio pero no transfirio -> pista accionable.
+	if res.SendMbps == 0 && res.RecvMbps == 0 {
+		res.Error = "iperf3 reported 0 Mbps — check that iperf3 is installed on both hosts and TCP " +
+			strconv.Itoa(port) + " is open from the client to the server (see the debug log for the raw output)."
 	}
 	return res
 }
