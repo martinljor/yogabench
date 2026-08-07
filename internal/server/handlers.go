@@ -361,7 +361,9 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			// igual que discovery/retention/malware/agent. Entre las de datos, preferir una
 			// exitosa (Success/Warning): una Failed suele no traer taskSessions.
 			isData := func(tp string) bool {
-				for _, bad := range []string{"configuration", "discover", "retention", "malware", "agentmanagement"} {
+				// "deletebackup"/"configurationbackup" contienen "backup" pero NO son
+				// data jobs (taskSessions vacio) -> excluir. Igual discovery/retention/etc.
+				for _, bad := range []string{"delete", "configuration", "discover", "retention", "malware", "agentmanagement", "security", "compliance"} {
 					if strings.Contains(tp, bad) {
 						return false
 					}

@@ -26,7 +26,7 @@ var (
 	jobHints = []string{"backup", "replica", "restore", "copy"}
 	// "agent": los jobs de Veeam Agent devuelven HTTP 500 al pedir taskSessions
 	// (bug de la REST API v13: ESessionType 'AgentManagement' no soportado) -> se saltean.
-	skipHints = []string{"configuration", "malware", "compliance", "infrastructure", "agent"}
+	skipHints = []string{"configuration", "malware", "compliance", "infrastructure", "agent", "delete", "retention", "discover"}
 	loadRe    = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
 	primaryRe = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
 )

@@ -25,14 +25,16 @@ const defaultDisk = "sata-ssd"
 
 type netBaseline struct {
 	Label string
-	Mbps  float64
+	Mbps  float64 // capacidad NOMINAL del enlace en Mbps (iperf reporta Mbps)
 }
 
+// Capacidad nominal del enlace en Mbps (line rate). iperf3 mide en Mbps, asi que
+// el baseline debe estar en Mbps (no MB/s) o el % sale x8. ok>=85% -> saturado.
 var netBaselines = map[string]netBaseline{
-	"1gbe":  {"1 GbE", 118},
-	"10gbe": {"10 GbE", 1180},
-	"25gbe": {"25 GbE", 2950},
-	"40gbe": {"40 GbE", 4720},
+	"1gbe":  {"1 GbE", 1000},
+	"10gbe": {"10 GbE", 10000},
+	"25gbe": {"25 GbE", 25000},
+	"40gbe": {"40 GbE", 40000},
 }
 
 var netOrder = []string{"1gbe", "10gbe", "25gbe", "40gbe"}
