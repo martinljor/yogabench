@@ -191,6 +191,7 @@ func CheckConnectivity(srcHost string, srcPort int, user, pass, targetHost strin
 type IperfResult struct {
 	SendMbps      float64 `json:"sendMbps"`
 	RecvMbps      float64 `json:"recvMbps"`
+	Port          int     `json:"port"`          // puerto que finalmente funciono
 	ExpectedMbps  float64 `json:"expectedMbps"`  // capacidad esperada del enlace elegido
 	ExpectedLabel string  `json:"expectedLabel"` // ej: "10 GbE"
 	Pct           int     `json:"pct"`           // % del enlace alcanzado (mejor de send/recv)
@@ -198,15 +199,17 @@ type IperfResult struct {
 	Error         string  `json:"error"`
 }
 
-// RunIperf corre iperf3 entre dos hosts por SSH: server (-1 = una prueba y sale)
-// en serverHost, client en clientHost. Cada host tiene sus PROPIAS credenciales
-// SSH (pueden ser distintas). linkKey es el enlace esperado (1gbe/10gbe/...) para
-// anotar el resultado contra su capacidad. Requiere iperf3 en ambos y el puerto
-// abierto entre ellos.
+// iperfCandidatePorts: puertos a probar en modo AUTO. Son del rango de transporte
+// de Veeam (2500-3300), que el firewall del appliance abre por defecto y que estan
+// libres cuando no corre un backup. Como no hay sudo para mirar el firewall,
+// probamos empiricamente cual funciona entre los dos hosts.
+var iperfCandidatePorts = []int{2500, 2600, 3000, 3200, 3300}
+
+// RunIperf corre iperf3 entre dos hosts por SSH, cada uno con sus PROPIAS
+// credenciales SSH. linkKey es el enlace esperado (1gbe/10gbe/...) para anotar el
+// resultado. Si port<=0 => modo AUTO: prueba los puertos de Veeam abiertos por
+// defecto y usa el primero que conecte. Requiere iperf3 en ambos hosts.
 func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, clientPass, linkKey string, port, dur int) IperfResult {
-	if port == 0 {
-		port = 5201
-	}
 	if dur <= 0 {
 		dur = 10
 	}
@@ -215,20 +218,60 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 		return IperfResult{Error: "SSH to server (" + serverHost + "): " + err.Error()}
 	}
 	defer sc.Close()
-	// Server efímero: sirve una prueba y termina. Corre en su propia sesión.
-	go runSSH(sc, fmt.Sprintf("iperf3 -s -1 -p %d", port))
-	time.Sleep(1500 * time.Millisecond) // que el server ligue antes del cliente
-
 	cc, err := dialSSH(clientHost, 0, clientUser, clientPass)
 	if err != nil {
 		return IperfResult{Error: "SSH to client (" + clientHost + "): " + err.Error()}
 	}
 	defer cc.Close()
-	clientCmd := fmt.Sprintf("iperf3 -c %s -p %d -t %d -J", serverHost, port, dur)
+
+	ports := []int{port}
+	auto := port <= 0
+	if auto {
+		ports = iperfCandidatePorts
+	}
+
+	var res IperfResult
+	for _, p := range ports {
+		res = runIperfOnce(sc, cc, serverHost, clientHost, p, dur)
+		if res.Error == "" {
+			res.Port = p
+			break
+		}
+		if auto {
+			dbg.Logf("iperf auto: port %d not usable -> %s", p, dbg.Clip(res.Error, 120))
+		}
+	}
+	if res.Error != "" {
+		if auto {
+			res.Error = fmt.Sprintf("no usable port found in the Veeam transport range %v — the firewall may open these only during jobs. Last: %s", iperfCandidatePorts, res.Error)
+		}
+		return res
+	}
+	// Anotar contra la capacidad del enlace elegido (mejor de send/recv).
+	exp, label := NetExpected(linkKey)
+	res.ExpectedMbps, res.ExpectedLabel = exp, label
+	best := res.RecvMbps
+	if res.SendMbps > best {
+		best = res.SendMbps
+	}
+	if exp > 0 {
+		res.Pct = int(math.Round(best / exp * 100))
+		res.Status = verdict(best / exp)
+	}
+	return res
+}
+
+// runIperfOnce corre una prueba en un puerto concreto. El server se autolimita con
+// `timeout` (no deja procesos colgados) y el cliente usa --connect-timeout para
+// fallar rapido si el puerto esta filtrado (evita el cuelgue de ~2 min).
+func runIperfOnce(sc, cc *ssh.Client, serverHost, clientHost string, port, dur int) IperfResult {
+	go runSSH(sc, fmt.Sprintf("timeout %d iperf3 -s -1 -p %d", dur+12, port))
+	time.Sleep(1200 * time.Millisecond) // que el server ligue antes del cliente
+	clientCmd := fmt.Sprintf("timeout %d iperf3 --connect-timeout 5000 -c %s -p %d -t %d -J", dur+8, serverHost, port, dur)
 	out, errOut := runSSHOut(cc, clientCmd)
-	dbg.Logf("iperf server=%s client=%s cmd=%q", serverHost, clientHost, clientCmd)
-	dbg.Logf("iperf stdout: %s", dbg.Clip(out, 600))
-	dbg.Logf("iperf stderr: %s", dbg.Clip(errOut, 300))
+	dbg.Logf("iperf try port=%d cmd=%q", port, clientCmd)
+	dbg.Logf("iperf stdout: %s", dbg.Clip(out, 500))
+	dbg.Logf("iperf stderr: %s", dbg.Clip(errOut, 200))
 
 	var rep struct {
 		End struct {
@@ -242,32 +285,18 @@ func RunIperf(serverHost, serverUser, serverPass, clientHost, clientUser, client
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal([]byte(extractJSON(out)), &rep); err != nil {
-		// stderr suele traer el motivo real (ej: "unable to connect ... Connection timed out").
 		detail := strings.TrimSpace(firstNonEmpty(errOut, out))
-		return IperfResult{Error: fmt.Sprintf("iperf3 client failed on port %d: %s (hint: TCP %d may be blocked by the firewall between the hosts — try another port or open it)", port, dbg.Clip(detail, 200), port)}
+		return IperfResult{Error: fmt.Sprintf("port %d: %s", port, dbg.Clip(detail, 160))}
 	}
 	if rep.Error != "" {
-		return IperfResult{Error: fmt.Sprintf("iperf3: %s (hint: if it's a connection error, TCP %d may be blocked between the hosts)", strings.TrimSpace(rep.Error), port)}
+		return IperfResult{Error: fmt.Sprintf("port %d: %s", port, strings.TrimSpace(rep.Error))}
 	}
-	res := IperfResult{
+	r := IperfResult{
 		SendMbps: round1(rep.End.SumSent.BitsPerSecond / 1e6),
 		RecvMbps: round1(rep.End.SumReceived.BitsPerSecond / 1e6),
 	}
-	// Anotar contra la capacidad del enlace elegido (mejor de send/recv).
-	exp, label := NetExpected(linkKey)
-	res.ExpectedMbps, res.ExpectedLabel = exp, label
-	best := res.RecvMbps
-	if res.SendMbps > best {
-		best = res.SendMbps
+	if r.SendMbps == 0 && r.RecvMbps == 0 {
+		r.Error = fmt.Sprintf("port %d: iperf3 reported 0 Mbps (connection likely blocked)", port)
 	}
-	if exp > 0 {
-		res.Pct = int(math.Round(best / exp * 100))
-		res.Status = verdict(best / exp)
-	}
-	// 0/0 sin error de parseo: iperf corrio pero no transfirio -> pista accionable.
-	if res.SendMbps == 0 && res.RecvMbps == 0 {
-		res.Error = "iperf3 reported 0 Mbps — check that iperf3 is installed on both hosts and TCP " +
-			strconv.Itoa(port) + " is open from the client to the server (see the debug log for the raw output)."
-	}
-	return res
+	return r
 }

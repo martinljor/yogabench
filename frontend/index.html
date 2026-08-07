@@ -292,7 +292,7 @@
       </div>
       <div class="row" style="align-items:flex-end;margin-top:8px;">
         <div><label data-i18n="net.link">Enlace (esperado)</label><select id="netLink" style="width:160px;"></select></div>
-        <div><label data-i18n="net.port">Puerto iperf</label><input id="netPort" value="5201" style="width:100px;"></div>
+        <div><label data-i18n="net.port">Puerto iperf</label><input id="netPort" value="3300" style="width:110px;" title="Puerto de iperf. 3300 está en el rango de transporte de Veeam (abierto por defecto). También podés poner 'auto' para probar 2500-3300."></div>
         <div><label data-i18n="bench.duration">Duración por test (s)</label><input id="netDur" value="10" style="width:110px;"></div>
         <div><button onclick="runIperf()" id="netBtnIperf" data-i18n="net.runiperf">Correr iperf</button></div>
       </div>
@@ -1172,20 +1172,22 @@ async function runIperf() {
   const uc = document.getElementById('netUserC').value.trim(), pc = document.getElementById('netPassC').value;
   const dur = parseInt(document.getElementById('netDur').value || '10', 10);
   const link = document.getElementById('netLink').value;
-  const port = parseInt(document.getElementById('netPort').value || '5201', 10);
+  const portRaw = (document.getElementById('netPort').value || '').trim().toLowerCase();
+  const port = (portRaw === '' || portRaw === 'auto') ? 0 : (parseInt(portRaw, 10) || 0); // 0 = auto
   if (!server || !client || !us || !ps || !uc || !pc) { el.innerHTML = `<p class="error">${t('bench.needcreds')}</p>`; return; }
   const btn = document.getElementById('netBtnIperf'); btn.disabled = true;
   el.innerHTML = `<p class="muted">${t('net.running')}</p>`;
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/iperf`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serverHost: server, serverUser: us, serverPass: ps, clientHost: client, clientUser: uc, clientPass: pc, linkSpeed: link, port: port > 0 ? port : 5201, duration: dur > 0 ? dur : 10 })
+      body: JSON.stringify({ serverHost: server, serverUser: us, serverPass: ps, clientHost: client, clientUser: uc, clientPass: pc, linkSpeed: link, port: port, duration: dur > 0 ? dur : 10 })
     }).then(r => r.json());
     if (d.error) { el.innerHTML = `<p class="error">${d.error}</p>`; return; }
     const vcell = d.status ? `<td><span class="verdict ${d.status}">${d.pct}% · ${d.expectedLabel}</span></td>` : '';
     const vhead = d.status ? `<th>${t('net.vslink')}</th>` : '';
+    const portNote = d.port ? `<p class="muted" style="font-size:12px;margin-top:6px;">iperf @ TCP ${d.port}</p>` : '';
     el.innerHTML = `<table><tr><th>${t('net.send')}</th><th>${t('net.recv')}</th>${vhead}</tr>
-      <tr><td><b>${d.sendMbps} Mbps</b></td><td><b>${d.recvMbps} Mbps</b></td>${vcell}</tr></table>`;
+      <tr><td><b>${d.sendMbps} Mbps</b></td><td><b>${d.recvMbps} Mbps</b></td>${vcell}</tr></table>${portNote}`;
   } catch (e) { el.innerHTML = `<p class="error">${e.message}</p>`; }
   finally { btn.disabled = false; }
 }
