@@ -284,6 +284,35 @@ func (s *Server) analysisRange(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, analysis.Range(r.Context(), sess))
 }
 
+// analysisJobs: lista de jobs para el listbox del drill-down (modo "Un job").
+func (s *Server) analysisJobs(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": analysis.JobList(r.Context(), sess)})
+}
+
+// analysisJob: modelo de capacidad de UN job (su ultima corrida con datos).
+func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	jobID := r.URL.Query().Get("jobId")
+	if jobID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "jobId required"})
+		return
+	}
+	res, err := analysis.JobCapacity(r.Context(), sess, jobID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
+		return
+	}
+	log.Printf("analysis job %s: session=%s primary=%s saturated=%v", jobID, res.SessionID, res.Primary, res.Saturated)
+	writeJSON(w, http.StatusOK, res)
+}
+
 // sessions: passthrough de las ultimas sesiones de jobs (util para explorar).
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	s.proxy(w, r, "v1/sessions?limit=50&orderColumn=CreationTime&orderAsc=false")
