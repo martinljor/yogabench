@@ -341,12 +341,16 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 	} else {
 		report["flow"] = g
 	}
-	// Muestra de UNA sesion (taskSessions + logs): para diagnosticar por que el
-	// analisis no encuentra bottleneck / repo / proxy en este ambiente.
-	if b, err := vbr.Get(ctx, sess, "v1/sessions?limit=25&orderColumn=CreationTime&orderAsc=false"); err == nil {
+	// Muestra de sesiones de DATOS (taskSessions + logs) para calibrar el modelo de
+	// capacidad: hasta N jobs DISTINTOS, la corrida exitosa mas reciente de cada uno
+	// (asi hay variedad de cuellos: Target/Source/Proxy/Network). "ConfigurationBackup"
+	// contiene "backup" pero NO es data job -> se excluye, igual discovery/retention/etc.
+	if b, err := vbr.Get(ctx, sess, "v1/sessions?limit=200&orderColumn=CreationTime&orderAsc=false"); err == nil {
 		var wrap struct {
 			Data []struct {
 				ID          string `json:"id"`
+				Name        string `json:"name"`
+				JobID       string `json:"jobId"`
 				Type        string `json:"type"`
 				SessionType string `json:"sessionType"`
 				Result      struct {
@@ -354,45 +358,49 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 				} `json:"result"`
 			} `json:"data"`
 		}
-		if json.Unmarshal(b, &wrap) == nil && len(wrap.Data) > 0 {
-			id := wrap.Data[0].ID
-			// Preferir una sesion de DATOS con taskSessions. Cuidado: "ConfigurationBackup"
-			// contiene "backup" pero NO es un data job (taskSessions vacio) -> se excluye,
-			// igual que discovery/retention/malware/agent. Entre las de datos, preferir una
-			// exitosa (Success/Warning): una Failed suele no traer taskSessions.
-			isData := func(tp string) bool {
-				// "deletebackup"/"configurationbackup" contienen "backup" pero NO son
-				// data jobs (taskSessions vacio) -> excluir. Igual discovery/retention/etc.
-				for _, bad := range []string{"delete", "configuration", "discover", "retention", "malware", "agentmanagement", "security", "compliance"} {
-					if strings.Contains(tp, bad) {
-						return false
-					}
+		isData := func(tp string) bool {
+			for _, bad := range []string{"delete", "configuration", "discover", "retention", "malware", "agentmanagement", "security", "compliance"} {
+				if strings.Contains(tp, bad) {
+					return false
 				}
-				return strings.Contains(tp, "backup") || strings.Contains(tp, "replica") ||
-					strings.Contains(tp, "restore") || strings.Contains(tp, "copy")
 			}
-			anyData, okData := "", ""
+			return strings.Contains(tp, "backup") || strings.Contains(tp, "replica") ||
+				strings.Contains(tp, "restore") || strings.Contains(tp, "copy")
+		}
+		if json.Unmarshal(b, &wrap) == nil && len(wrap.Data) > 0 {
+			const maxSamples = 10
+			seenJob := map[string]bool{}
+			var samples []map[string]any
 			for _, x := range wrap.Data {
 				tp := strings.ToLower(x.Type + x.SessionType)
-				if !isData(tp) {
+				res := strings.ToLower(x.Result.Result)
+				if !isData(tp) || (res != "success" && res != "warning") {
 					continue
 				}
-				if anyData == "" {
-					anyData = x.ID
+				if x.JobID != "" && seenJob[x.JobID] { // una por job (la mas reciente)
+					continue
 				}
-				if res := strings.ToLower(x.Result.Result); okData == "" && (res == "success" || res == "warning") {
-					okData = x.ID
+				seenJob[x.JobID] = true
+				samples = append(samples, map[string]any{
+					"id": x.ID, "name": x.Name, "sessionType": x.SessionType, "result": x.Result.Result,
+					"taskSessions": rawOrErr("v1/sessions/" + x.ID + "/taskSessions"),
+					"logs":         rawOrErr("v1/sessions/" + x.ID + "/logs"),
+				})
+				if len(samples) >= maxSamples {
+					break
 				}
 			}
-			if okData != "" {
-				id = okData
-			} else if anyData != "" {
-				id = anyData
-			}
-			report["sampleSession"] = map[string]any{
-				"id":           id,
-				"taskSessions": rawOrErr("v1/sessions/" + id + "/taskSessions"),
-				"logs":         rawOrErr("v1/sessions/" + id + "/logs"),
+			if len(samples) > 0 {
+				report["sampleSessions"] = samples
+				report["sampleSession"] = samples[0] // back-compat
+			} else {
+				// Ninguna sesion de datos exitosa: al menos mostrar la mas reciente.
+				id := wrap.Data[0].ID
+				report["sampleSession"] = map[string]any{
+					"id":           id,
+					"taskSessions": rawOrErr("v1/sessions/" + id + "/taskSessions"),
+					"logs":         rawOrErr("v1/sessions/" + id + "/logs"),
+				}
 			}
 		}
 	}
