@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	scanSessions   = 8          // cuantas sesiones recientes del job miramos para hallar una con datos
-	satBytes       = int64(1) << 30 // ~1 GiB transferido = corrida "con datos" (piso para dar rate absoluto)
+	scanSessions   = 8            // cuantas sesiones recientes del job miramos para elegir la de mas datos
+	satBytes       = int64(256) << 20 // 256 MiB movidos (max leido/transferido) = corrida "observed" (rate firme)
 	bindThreshold  = 85         // util% a partir del cual un stage se considera "topando"
 	coLimitSpread  = 6          // stages dentro de este spread del maximo tambien co-limitan
 )
@@ -115,11 +115,12 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 		return nil, fmt.Errorf("no successful data sessions found for this job")
 	}
 
-	// Buscar la corrida mas reciente que movio datos (>= satBytes). Si ninguna,
-	// usar la mas reciente (veredicto relativo, sin MB/s absoluto).
+	// Entre las corridas recientes elegimos la que MAS datos movio (max de
+	// leido/transferido) — asi mostramos la mas significativa, no un incremental
+	// no-op. Empate -> la mas reciente (cand ya viene ordenado desc).
 	var chosen map[string]any
 	var chosenTasks []Task
-	var chosenXfer int64
+	bestData := int64(-1)
 	scanned := 0
 	for _, x := range cand {
 		if scanned >= scanSessions {
@@ -127,16 +128,17 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 		}
 		scanned++
 		tasks := buildTasks(getItems(ctx, s, "v1/sessions/"+str(x["id"])+"/taskSessions"))
-		var xfer int64
+		var xfer, read int64
 		for _, t := range tasks {
 			xfer += t.TransferredSize
+			read += t.ReadSize
 		}
-		if chosen == nil { // fallback: la mas reciente
-			chosen, chosenTasks, chosenXfer = x, tasks, xfer
+		data := xfer
+		if read > data {
+			data = read
 		}
-		if xfer >= satBytes {
-			chosen, chosenTasks, chosenXfer = x, tasks, xfer
-			break
+		if data > bestData {
+			bestData, chosen, chosenTasks = data, x, tasks
 		}
 	}
 
@@ -144,16 +146,16 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 	logs := getItems(ctx, s, "v1/sessions/"+sid+"/logs")
 	res, _ := chosen["result"].(map[string]any)
 
-	var processed, read int64
+	var processed, read, transferred int64
 	repoSet := map[string]bool{}
 	for _, t := range chosenTasks {
 		processed += t.ProcessedSize
 		read += t.ReadSize
+		transferred += t.TransferredSize
 		if t.RepositoryID != "" && t.RepositoryID != emptyGUID {
 			repoSet[t.RepositoryID] = true
 		}
 	}
-	transferred := chosenXfer
 
 	durSec := 0.0
 	if a, okA := parseDT(chosen["creationTime"]); okA {
@@ -176,12 +178,25 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 		out.ReadMBps = round1(float64(read) / durSec / 1e6)
 		out.WriteMBps = round1(float64(transferred) / durSec / 1e6)
 	}
-	out.Saturated = transferred >= satBytes
-	if out.Saturated {
+	// Confianza en 3 niveles segun cuanto movio (max de leido/transferido):
+	//   observed   >= satBytes  -> numero firme
+	//   low        >0           -> rates indicativos (muestra chica)
+	//   insufficient ~0         -> solo veredicto relativo (no-op)
+	maxData := transferred
+	if read > maxData {
+		maxData = read
+	}
+	hasData := maxData > 0
+	out.Saturated = maxData >= satBytes
+	switch {
+	case out.Saturated:
 		out.Confidence = "observed"
-	} else {
+	case hasData:
+		out.Confidence = "low"
+		out.Notes = append(out.Notes, "Small sample (this run moved little data): rates are indicative, not the hardware ceiling. Run an Active Full for a firm number.")
+	default:
 		out.Confidence = "insufficient"
-		out.Notes = append(out.Notes, "This run moved little/no data (incremental no-op): the bottleneck stage is valid (relative), but absolute MB/s and time projection are not meaningful. Run an Active Full for a firm number.")
+		out.Notes = append(out.Notes, "This run moved no data (incremental no-op): the bottleneck stage is valid (relative), but MB/s and time projection are not meaningful. Run an Active Full.")
 	}
 
 	// Stages desde la linea Load: (nivel job). Si no hay, usar el bottleneck por tarea.
@@ -198,8 +213,8 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 	// Recursos (REST): proxies del job + repos usados, con su maxTaskCount provisto.
 	out.Resources = jobResources(ctx, s, jobID, keys(repoSet))
 
-	// Proyeccion de tiempo + recomendaciones (solo con datos utiles).
-	out.Projection = projectTime(out.Stages, durSec, out.Saturated)
+	// Proyeccion de tiempo + recomendaciones (con cualquier corrida que movio datos).
+	out.Projection = projectTime(out.Stages, durSec, hasData)
 	out.Recommendations = recommend(out)
 
 	return out, nil
@@ -244,8 +259,8 @@ func buildStages(bneck map[string]any) []StageInfo {
 
 // projectTime: T_new ≈ T_now × (U_next / U_binding). U_next = mayor util entre
 // los NO binding. Solo si la corrida movio datos y hay margen real.
-func projectTime(stages []StageInfo, durSec float64, saturated bool) *Projection {
-	if !saturated || durSec <= 0 {
+func projectTime(stages []StageInfo, durSec float64, hasData bool) *Projection {
+	if !hasData || durSec <= 0 {
 		return nil
 	}
 	bindUtil, nextUtil, nextName := 0, 0, ""

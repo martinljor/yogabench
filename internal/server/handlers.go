@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -309,7 +310,12 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
 		return
 	}
-	log.Printf("analysis job %s: session=%s primary=%s saturated=%v", jobID, res.SessionID, res.Primary, res.Saturated)
+	proj := "-"
+	if res.Projection != nil {
+		proj = fmt.Sprintf("%s ~%d%%", res.Projection.NextStage, res.Projection.ImprovementPct)
+	}
+	log.Printf("analysis job %s: session=%s primary=%s conf=%s read=%.0fMB/s write=%.0fMB/s proj=%s",
+		jobID, res.SessionID, res.Primary, res.Confidence, res.ReadMBps, res.WriteMBps, proj)
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -388,7 +394,7 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			} `json:"data"`
 		}
 		isData := func(tp string) bool {
-			for _, bad := range []string{"delete", "configuration", "discover", "retention", "malware", "agentmanagement", "security", "compliance"} {
+			for _, bad := range []string{"delete", "configuration", "discover", "retention", "malware", "agentmanagement", "security", "compliance", "filelevel", "flr"} {
 				if strings.Contains(tp, bad) {
 					return false
 				}
