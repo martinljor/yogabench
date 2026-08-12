@@ -52,13 +52,6 @@ type ResourceInfo struct {
 	FreeGB       *float64 `json:"freeGB,omitempty"`
 }
 
-type Reco struct {
-	Stage      string `json:"stage"`
-	Severity   string `json:"severity"` // info | warn | high
-	Text       string `json:"text"`
-	Confidence string `json:"confidence"` // estimate | observed
-}
-
 type Projection struct {
 	NextStage      string  `json:"nextStage"`
 	NewDurationSec float64 `json:"newDurationSec"`
@@ -87,8 +80,9 @@ type JobCapacityResult struct {
 	Tasks           []Task         `json:"tasks"`
 	Resources       []ResourceInfo `json:"resources"`
 	Projection      *Projection    `json:"projection"`
-	Recommendations []Reco         `json:"recommendations"`
+	Verdict         *Verdict       `json:"verdict"` // la conclusion accionable (ver verdict.go)
 	Notes           []string       `json:"notes"`
+	RepDurationSec  float64        `json:"repDurationSec"` // duracion de la corrida representativa
 	// Ventana (promedios estilo Veeam ONE).
 	Days         int          `json:"days"`
 	Runs         int          `json:"runs"`         // corridas analizadas en la ventana
@@ -293,6 +287,7 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*
 	if repSess != nil {
 		out.SessionID, out.SessionName = str(repSess["id"]), str(repSess["name"])
 		out.Result, out.CreationTime, out.EndTime = resultOf(repSess), str(repSess["creationTime"]), str(repSess["endTime"])
+		out.RepDurationSec = round1(sessionDur(repSess))
 		out.Tasks = repTasks
 		repoSet := map[string]bool{}
 		for _, t := range repTasks {
@@ -304,7 +299,7 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*
 	}
 
 	out.Projection = projectTime(out.Stages, out.DurationSec, out.RunsWithData > 0)
-	out.Recommendations = recommend(out)
+	out.Verdict = BuildVerdict(out, nil) // sin deep: la causa queda por confirmar
 	return out, nil
 }
 
@@ -381,70 +376,6 @@ func projectTime(stages []StageInfo, durSec float64, hasData bool) *Projection {
 		NewDurationSec: round1(durSec * ratio),
 		ImprovementPct: int((1 - ratio) * 100),
 	}
-}
-
-// recommend: sugerencias atadas al/los stage(s) que topan. Con cores/RAM del host
-// (ingresados por el usuario) la recomendacion es FIRME y aplica el gate de
-// viabilidad; sin ellos, queda CONDICIONAL (rule of thumb ~1 task/core + 2GB/task).
-func recommend(r *JobCapacityResult) []Reco {
-	var recs []Reco
-	// advice: consejo resource-gated para un stage que "posee" un host (proxy/repo).
-	advice := func(kind, scaleOut string) (string, string) {
-		var res *ResourceInfo
-		for i := range r.Resources {
-			if r.Resources[i].Kind == kind {
-				res = &r.Resources[i]
-				break
-			}
-		}
-		if res == nil {
-			return "", "estimate"
-		}
-		if res.Cores <= 0 { // sin datos de hardware -> condicional
-			return fmt.Sprintf("%s has %d task slot(s). Enter its CPU cores/RAM (Resources) for a firm recommendation (~1 task/core + 2GB/task).", res.Name, res.MaxTaskCount), "estimate"
-		}
-		viable := res.Cores
-		if res.RamGB > 0 && res.RamGB/2 < viable {
-			viable = res.RamGB / 2
-		}
-		base := fmt.Sprintf("%s: %d cores / %d GB -> ~%d viable task(s), %d configured. ", res.Name, res.Cores, res.RamGB, viable, res.MaxTaskCount)
-		switch {
-		case viable <= 2: // gate de viabilidad
-			return base + "Low-resource host: raising concurrency won't help — " + scaleOut + ".", "firm"
-		case res.MaxTaskCount < viable:
-			return base + fmt.Sprintf("Raise task slots to %d (free win, no new hardware).", viable), "firm"
-		default:
-			return base + "Already at capacity — " + scaleOut + ".", "firm"
-		}
-	}
-	for _, st := range r.Stages {
-		if !st.Binding {
-			continue
-		}
-		switch st.Name {
-		case "Source":
-			recs = append(recs, Reco{st.Name, "warn", "Source (VMware read) is the ceiling: check datastore/storage read speed, CBT health and the transport mode (nbd vs hotadd/SAN). The deep-log mode reports the actual transport and why.", "estimate"})
-		case "Proxy":
-			txt, conf := advice("proxy", "add CPU/RAM or another proxy")
-			recs = append(recs, Reco{st.Name, "high", "Proxy processing is the ceiling. " + txt, conf})
-		case "Network":
-			recs = append(recs, Reco{st.Name, "high", "The proxy<->repository network is the ceiling. Validate the real link with iperf (Benchmark > Network); consider co-locating proxy and repository or a faster link.", "estimate"})
-		case "Target":
-			txt, conf := advice("repository", "use a faster repo / add SOBR extents")
-			recs = append(recs, Reco{st.Name, "high", "Repository write is the ceiling. " + txt + " Measure the disk with fio (Benchmark > Disk).", conf})
-		}
-	}
-	if r.Projection != nil {
-		recs = append(recs, Reco{
-			Stage: r.Projection.NextStage, Severity: "info",
-			Text:       fmt.Sprintf("If the bottleneck is relieved, the next limit is %s — estimated ~%d%% faster (validate on the next run).", r.Projection.NextStage, r.Projection.ImprovementPct),
-			Confidence: "estimate",
-		})
-	}
-	if len(recs) == 0 && r.Saturated {
-		recs = append(recs, Reco{Stage: "", Severity: "info", Text: "No single stage is saturated — the pipeline looks balanced for this run.", Confidence: "observed"})
-	}
-	return recs
 }
 
 // jobResources: proxies del job + repos usados, con maxTaskCount (REST), cores/RAM

@@ -98,10 +98,12 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	id := s.store.New(&vbr.Session{
+	sess := &vbr.Session{
 		Host: req.Host, Port: req.Port, APIVersion: req.APIVersion, VerifySSL: req.VerifySSL,
-		AccessToken: access, RefreshToken: refresh, CreatedAt: time.Now(),
-	})
+		CreatedAt: time.Now(),
+	}
+	sess.SetTokens(access, refresh, expiresIn) // se renuevan solos (ver vbr.Get)
+	id := s.store.New(sess)
 	log.Printf("VBR connected: host=%s port=%d apiVersion=%s", req.Host, req.Port, req.APIVersion) // no password/token
 	writeJSON(w, http.StatusOK, map[string]any{"session_id": id, "expires_in": expiresIn})
 }
@@ -323,7 +325,25 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("analysis job %s: session=%s primary=%s conf=%s read=%.0fMB/s write=%.0fMB/s proj=%s",
 		jobID, res.SessionID, res.Primary, res.Confidence, res.ReadMBps, res.WriteMBps, proj)
+	logVerdict(jobID, res.Verdict)
 	writeJSON(w, http.StatusOK, res)
+}
+
+// logVerdict deja el veredicto en el log (en ingles) para poder calibrar el
+// motor con lo que pasa en campo.
+func logVerdict(jobID string, v *analysis.Verdict) {
+	if v == nil {
+		return
+	}
+	top := "-"
+	if len(v.Actions) > 0 {
+		top = v.Actions[0].Code
+		if g := v.Actions[0].GainPct; g != nil {
+			top = fmt.Sprintf("%s(-%d%%)", top, *g)
+		}
+	}
+	log.Printf("verdict job %s: sev=%s stage=%s cause=%s(known=%v) gain=%d%% deep=%v actions=%d top=%s | %s",
+		jobID, v.Severity, v.Stage, v.CauseCode, v.CauseKnown, v.GainPct, v.HasDeep, len(v.Actions), top, v.Headline)
 }
 
 type deepInput struct {
@@ -332,6 +352,7 @@ type deepInput struct {
 	Username string `json:"username"`
 	Password string `json:"password"` // no password
 	Domain   string `json:"domain"`
+	Days     int    `json:"days"`
 }
 
 // analysisJobDeep: "doble-click" — entra al OS del VBR (Windows: SMB2 a C$) con las
@@ -376,7 +397,23 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 	res := deeplog.Parse(jobLog, taskLogs)
 	res.JobName = name
 	log.Printf("deep analysis: job=%q host=%s transport=%s vms=%d", name, host, res.Transport, len(res.VMs)) // no password
-	writeJSON(w, http.StatusOK, res)
+
+	// Con los logs en mano recalculamos el VEREDICTO: ahora la causa se confirma
+	// (transporte, 4-stage por VM, opciones). Si la capacidad falla, igual
+	// devolvemos el deep.
+	out := map[string]any{"deep": res}
+	days := in.Days
+	if days <= 0 {
+		days = 7
+	}
+	if capRes, err := analysis.JobCapacity(r.Context(), sess, in.JobID, days); err == nil {
+		v := analysis.BuildVerdict(capRes, &res)
+		out["verdict"], out["capacity"] = v, capRes
+		logVerdict(in.JobID, v)
+	} else {
+		log.Printf("deep analysis: no capacity context for job %s: %v", in.JobID, err)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 type hostResInput struct {

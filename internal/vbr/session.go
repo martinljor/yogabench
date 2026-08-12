@@ -15,19 +15,46 @@ type HostRes struct {
 	RamGB int `json:"ramGB"`
 }
 
-// Session es una conexion viva a un VBR (o una sesion demo).
+// Session es una conexion viva a un VBR (o una sesion demo). Los tokens se
+// renuevan solos (ver renewToken en client.go): el usuario no tiene que
+// reconectarse a los 25 minutos.
 type Session struct {
-	Demo         bool
-	Host         string
-	Port         int
-	APIVersion   string
-	VerifySSL    bool
-	AccessToken  string
-	RefreshToken string
-	CreatedAt    time.Time
+	Demo       bool
+	Host       string
+	Port       int
+	APIVersion string
+	VerifySSL  bool
+	CreatedAt  time.Time
+
+	tokMu        sync.Mutex // protege los tokens (los GET corren en paralelo)
+	renewMu      sync.Mutex // serializa la renovacion (una sola, no una por GET)
+	accessToken  string
+	refreshToken string
+	expiresAt    time.Time
 
 	mu      sync.Mutex
 	hostRes map[string]HostRes // hostId -> cores/ram (manual, opcional)
+}
+
+// SetTokens guarda el par de tokens y cuando expira el access token.
+// expiresIn<=0 = sin dato: asumimos una vida corta y refrescamos por 401.
+func (s *Session) SetTokens(access, refresh string, expiresIn int) {
+	s.tokMu.Lock()
+	defer s.tokMu.Unlock()
+	s.accessToken, s.refreshToken = access, refresh
+	if expiresIn > 0 {
+		s.expiresAt = time.Now().Add(time.Duration(expiresIn) * time.Second)
+	} else {
+		s.expiresAt = time.Time{}
+	}
+}
+
+// token devuelve el access token vigente y si conviene renovarlo ya (queda
+// menos de un minuto de vida).
+func (s *Session) token() (tok string, stale bool) {
+	s.tokMu.Lock()
+	defer s.tokMu.Unlock()
+	return s.accessToken, !s.expiresAt.IsZero() && time.Now().After(s.expiresAt.Add(-time.Minute))
 }
 
 // SetHostRes guarda (o borra si cores y ram son 0) los recursos de un host.

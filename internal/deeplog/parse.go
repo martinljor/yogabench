@@ -34,6 +34,8 @@ type VMDeep struct {
 	Primary     string     `json:"primary"`
 	DurationSec float64    `json:"durationSec"`
 	Disks       []DiskInfo `json:"disks"`
+
+	scanned bool // los discos salieron del escaneo de paths, no de la linea "Disk:"
 }
 
 type Result struct {
@@ -59,6 +61,10 @@ var (
 	modeRe   = regexp.MustCompile(`Detected mode \[(\w+)\]`)
 	durRe    = regexp.MustCompile(`Completed: THREAD: ([^\s(]+) \(CancellableThread\.Create: \d+\) in\s+(\d+):(\d+):(\d+)`)
 	diskRe   = regexp.MustCompile(`Disk: label "([^"]+)", path "([^"]+)", capacity (\d+) GB.*?thinProvisioned "(\w+)"`)
+	// Fallback cuando no hay linea "Disk: label ..." (Hyper-V, agentes): contamos
+	// los discos virtuales nombrados en el log. Los .avhdx son checkpoints
+	// (delta), no discos del guest, y quedan afuera a proposito.
+	vdiskRe = regexp.MustCompile(`(?i)['"\[]((?:[A-Za-z]:\\|\\\\)[^'"\]\r\n]+?\.(?:vhdx|vhd|vmdk))['"\]]`)
 	dedupRe  = regexp.MustCompile(`<EnableDeduplication>(\w+)</EnableDeduplication>`)
 	compRe   = regexp.MustCompile(`<CompressionLevel>(\d+)</CompressionLevel>`)
 	blockRe  = regexp.MustCompile(`<StgBlockSize>KbBlockSize(\d+)</StgBlockSize>`)
@@ -77,7 +83,22 @@ func Parse(jobLog string, taskLogs map[string]string) Result {
 	}
 	r.applyDurations()
 	sort.SliceStable(r.VMs, func(i, j int) bool { return r.VMs[i].DurationSec > r.VMs[j].DurationSec })
+	for _, vm := range r.VMs {
+		if vm.scanned { // avisamos que el listado es best-effort (sin capacidad)
+			r.Notes = append(r.Notes, "Disk list taken from the virtual-disk paths in the log (no capacity/thin info): this workload does not log the VMware-style \"Disk:\" line.")
+			break
+		}
+	}
 	return r
+}
+
+// pathBase: nombre de archivo de un path Windows/UNC (no usamos filepath porque
+// el path es del VBR remoto, no del host donde corre esto).
+func pathBase(p string) string {
+	if i := strings.LastIndexAny(p, `\/`); i >= 0 {
+		return p[i+1:]
+	}
+	return p
 }
 
 func parseJob(s string, r *Result) {
@@ -138,6 +159,21 @@ func parseTask(vm, s string) VMDeep {
 		}
 		seen[key] = true
 		d.Disks = append(d.Disks, DiskInfo{Label: m[1], Path: m[2], CapacityGB: atoi(m[3]), Thin: strings.EqualFold(m[4], "true")})
+	}
+	if len(d.Disks) == 0 { // Hyper-V / agentes: sin linea "Disk:", escaneamos paths
+		for _, m := range vdiskRe.FindAllStringSubmatch(s, -1) {
+			p := m[1]
+			if strings.Contains(strings.ToLower(p), ".avhdx") { // checkpoint, no disco del guest
+				continue
+			}
+			key := strings.ToLower(p)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			d.Disks = append(d.Disks, DiskInfo{Label: pathBase(p), Path: p})
+			d.scanned = true
+		}
 	}
 	return d
 }

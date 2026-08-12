@@ -124,3 +124,45 @@ Para una corrida que movió datos:
 7. (Perf) filtrar no-data antes del N+1.
 
 Fuera de v0.4 (después): probe SSH de recursos en lab (`nproc`/`free`), restore pipeline, fio/iperf integrado a la recomendación, detalle por-disco.
+
+---
+
+# v0.5 · Motor de VEREDICTO (autogestión)
+
+**El problema de v0.4:** mostrábamos **datos** (como Veeam ONE) — 4-stage, rates, recomendaciones genéricas escondidas en un colapsable. El SE tenía que interpretar.
+**v0.5:** el tool **razona y dictamina**. La salida principal ya no es una tabla, es **una conclusión accionable**.
+
+## Las 4 señales que se sintetizan
+| # | Señal | De dónde | Aporta |
+|---|---|---|---|
+| 1 | **Observado** | REST (sesiones + `Load:`) | qué stage topa, % de corridas, rates, duración |
+| 2 | **Causa** | logs en disco del VBR (modo deep, SMB/C$) | transporte real y **por qué**, 4-stage **por VM**, opciones del job |
+| 3 | **Recursos** | `maxTaskCount` + cores/RAM + `/repositories/states` | si la recomendación es viable (gate) |
+| 4 | **Medido** | fio / iperf (lab) | **techo real** del hardware *(pendiente de wire)* |
+
+## Salida (`internal/analysis/verdict.go` → `BuildVerdict`)
+- **Headline**: qué topa y cuánto (`hl.bound` / `hl.bound2` co-limitantes / `hl.boundnopct` sin % / `hl.balanced` / `hl.nodata`).
+- **Causa**: por qué (`cause.nbdHotadd`, `cause.slots`, `cause.repowrite`, …) con flag **`causeKnown`** — sin deep **no se inventa** una causa: se ofrece correr el deep.
+- **Ganancia**: `gainPct` + `currentSec → targetSec`, del modelo de proyección **acotado a `maxCredibleGain` (75%)**.
+- **Acciones** rankeadas por impacto (`high` > `hygiene` > `medium` > `verify` > `info`); la que libera el cuello lleva la **ganancia**; `alt` marca alternativas **no acumulativas**.
+- **Señales**: qué entró y qué falta (✓/○) — le dice al usuario **cómo hacer el veredicto más firme**.
+
+## Reglas clave (deterministas, testeadas en `verdict_test.go`)
+- **Source + deep=nbd + hotadd no disponible** → causa confirmada, acción #1 `act.hotadd` con ganancia. *El caso estrella que vONE no da.*
+- **Proxy/Target + cores conocidos**: `slots < ~min(cores, RAM/2)` → `act.slots` **firme** con el número exacto; `viable<=2` → `act.scaleHost` (**subir concurrencia no ayuda**); ya al límite → `act.atCapacity`.
+- **Sin cores/RAM** → nunca se promete un número: `act.slotsUnknown` como *verify*.
+- **Serialización** (deep): con `S`=Σ duración por VM y `T`=duración de la corrida, `S/T ≈ 1` (y VMs parejas) → `act.serial`. `S << T` **no** es serialización sino overhead: no se opina.
+- **Skew**: ≥3 VMs y una se lleva ≥60% del tiempo → `act.skew`.
+- **Repo <10% libre** → `act.repoFree` (*high* si <5%).
+- **Confianza `insufficient`** → **no hay veredicto de performance**: sólo `act.window`.
+
+## i18n
+El motor emite **código + params** (`vd.<code>`) **y** el texto en inglés como respaldo (logs/diagnóstico). El WebUI traduce a ES/EN/PT: el veredicto se ve en el idioma del cliente.
+
+## Por qué NO un LLM (decisión)
+El núcleo es **determinista**: mismo input = mismo veredicto, auditable, **offline** y sin que ningún dato del cliente salga del sitio (nuestro diferencial). Un LLM queda como **narrador opcional** más adelante (opt-in, con modelo **local**), nunca como el motor.
+
+## Pendiente
+- Wire de **fio/iperf** como señal #4 (comparar lo que hace el job vs el techo medido).
+- **Assessment del entorno** (roll-up entre jobs): "tu infra sostiene ~X TB/h; cuello recurrente Y; Top-3 acciones".
+- Derivar cores/RAM de la utilización en vez del input manual.

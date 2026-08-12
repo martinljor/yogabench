@@ -132,6 +132,32 @@
   details.exp[open] > summary::before { transform:rotate(90deg); }
   details.exp > summary:hover { color:#fff; }
   details.exp .exp-body { padding:2px 2px 12px; }
+
+  /* Veredicto: titular grafico arriba, acciones rankeadas abajo. */
+  .vd { border:1px solid var(--border); border-left:4px solid var(--muted); border-radius:10px;
+    background:var(--panel2); padding:13px 16px; margin-bottom:12px; }
+  .vd.critical { border-left-color:var(--red); }
+  .vd.warn     { border-left-color:var(--amber); }
+  .vd.ok       { border-left-color:var(--green); }
+  .vd-hl { font-size:19px; font-weight:600; line-height:1.3; margin-top:8px; }
+  .vd-cause { font-size:13px; color:#b9c0cc; margin-top:5px; }
+  .vd-cause b { color:var(--text); font-weight:600; }
+  .act { display:flex; gap:10px; align-items:flex-start; padding:11px 2px; border-bottom:1px solid var(--border); }
+  .act:last-child { border-bottom:none; }
+  .act-b { flex:0 0 auto; margin-top:1px; font-size:11px; font-weight:600; border-radius:4px; padding:2px 7px; white-space:nowrap; }
+  .act-b.high    { background:rgba(224,86,86,.18);  color:#f08b8b; }
+  .act-b.hygiene,
+  .act-b.medium  { background:rgba(224,160,32,.18); color:#f0c368; }
+  .act-b.verify  { background:rgba(58,142,230,.18); color:#8ec2f5; }
+  .act-b.info    { background:#2b2f3b; color:#b9c0cc; }
+  .act-txt { flex:1; font-size:13.5px; line-height:1.45; }
+  .act-src { font-size:11px; color:var(--muted); margin-top:2px; }
+  .act-gain { flex:0 0 auto; color:#7ede6f; font-size:13px; white-space:nowrap; margin-top:1px; }
+  .gain-track { height:9px; background:#2b2f3b; border-radius:5px; overflow:hidden; margin-top:7px; }
+  .gain-fill { height:100%; background:#54b948; display:block; }
+  .sigs { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+  .sig { font-size:12px; color:var(--muted); cursor:help; }
+  .sig.on { color:#7ede6f; }
 </style>
 </head>
 <body>
@@ -447,7 +473,52 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio no disponible','bench.ready':'listo para correr.','bench.deploying':'Desplegando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sin resultados.','bench.host':'host','bench.startfail':'No se pudo iniciar el benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latencia (ms)','tbl.expected':'Esperado','tbl.pct':'% del esperado','tbl.verdict':'Veredicto',
-    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','an.mode.job':'Un job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Elegí un job y tocá Analizar.','an.disabled':'deshabilitado','an.nojobs':'No hay jobs','cap.binding':'cuello','cap.faster':'más rápido','cap.nextlimit':'próximo límite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Cuello','cap.read':'Lectura','cap.write':'Escritura','cap.norate':'Corrida sin datos suficientes: veredicto relativo (sin MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sin datos','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Ingresá cores/RAM del host para recomendaciones firmes','deep.explore':'Explorar en detalle (deep)','deep.hint':'Accede al VBR (Windows: SMB al share C$) con credenciales de admin para leer los logs del job. Solo lectura; no se guardan.','deep.host':'Host del VBR','deep.user':'Usuario (admin)','deep.domain':'Dominio','deep.run':'Analizar deep','deep.running':'Accediendo y parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalle por VM','cap.rates':'Rendimiento','cap.projected':'Proyectado','cap.rwhint':'lectura / escritura MB/s','deep.back':'Volver','deep.title':'Detalle profundo','an.tjobs':'Jobs','an.tsuccess':'Éxito','an.ofruns':'de los runs','cap.avgruns':'prom. de {n} runs','cap.window':'{runs} corridas · últimos {days} días','cap.obs_exp':'Datos reales: la(s) corrida(s) movieron datos suficientes → MB/s, reducción y proyección son firmes.','cap.low_exp':'Indicativo: movieron poca data → los MB/s son orientativos, no el techo del hardware. Sumá un Active Full a la ventana.','cap.insuf_exp':'Sin datos: casi no movieron data (incrementales no-op) → solo el cuello relativo es válido; MB/s/reducción/proyección no aplican.','cap.nopct':'La REST no trajo el desglose por stage (línea Load:) para estas corridas — solo el cuello dominante: {stage}. Abrí "Explorar en detalle" para el 4-stage por VM.','cap.nopctshort':'sin % (REST)','cap.avg':'promedio','cap.runs':'Corridas','cap.date':'Fecha','cap.result':'Resultado','cap.reprun':'corrida representativa','cap.stages':'Cuellos por etapa','cap.time':'Tiempo','cap.resources':'Recursos','cap.reco':'Recomendaciones','cap.pervm':'Por VM','nav.net':'Red','net.title':'Red — puertos y conectividad','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'Prueba solo los puertos del propósito elegido, por SSH desde el origen. El test de ancho de banda (iperf) está en la solapa Benchmark.','net.send':'Envío','net.recv':'Recepción','net.scenario':'Propósito','net.port':'Puerto','net.srcuser':'Usuario (origen)','net.serveruser':'Usuario (servidor)','net.clientuser':'Usuario (cliente)'
+    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','an.mode.job':'Un job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Elegí un job y tocá Analizar.','an.disabled':'deshabilitado','an.nojobs':'No hay jobs','cap.binding':'cuello','cap.faster':'más rápido','cap.nextlimit':'próximo límite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Cuello','cap.read':'Lectura','cap.write':'Escritura','cap.norate':'Corrida sin datos suficientes: veredicto relativo (sin MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sin datos','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Ingresá cores/RAM del host para recomendaciones firmes','deep.explore':'Explorar en detalle (deep)','deep.hint':'Accede al VBR (Windows: SMB al share C$) con credenciales de admin para leer los logs del job. Solo lectura; no se guardan.','deep.host':'Host del VBR','deep.user':'Usuario (admin)','deep.domain':'Dominio','deep.run':'Analizar deep','deep.running':'Accediendo y parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalle por VM','cap.rates':'Rendimiento','cap.projected':'Proyectado','cap.rwhint':'lectura / escritura MB/s','deep.back':'Volver','deep.title':'Detalle profundo','an.tjobs':'Jobs','an.tsuccess':'Éxito','an.ofruns':'de los runs','cap.avgruns':'prom. de {n} runs','cap.window':'{runs} corridas · últimos {days} días','cap.obs_exp':'Datos reales: la(s) corrida(s) movieron datos suficientes → MB/s, reducción y proyección son firmes.','cap.low_exp':'Indicativo: movieron poca data → los MB/s son orientativos, no el techo del hardware. Sumá un Active Full a la ventana.','cap.insuf_exp':'Sin datos: casi no movieron data (incrementales no-op) → solo el cuello relativo es válido; MB/s/reducción/proyección no aplican.','cap.nopct':'La REST no trajo el desglose por stage (línea Load:) para estas corridas — solo el cuello dominante: {stage}. Abrí "Explorar en detalle" para el 4-stage por VM.','cap.nopctshort':'sin % (REST)','cap.avg':'promedio','cap.runs':'Corridas','cap.date':'Fecha','cap.result':'Resultado','cap.reprun':'corrida representativa','cap.stages':'Cuellos por etapa','cap.time':'Tiempo','cap.resources':'Recursos','cap.reco':'Recomendaciones','cap.pervm':'Por VM','nav.net':'Red','net.title':'Red — puertos y conectividad','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'Prueba solo los puertos del propósito elegido, por SSH desde el origen. El test de ancho de banda (iperf) está en la solapa Benchmark.','net.send':'Envío','net.recv':'Recepción','net.scenario':'Propósito','net.port':'Puerto','net.srcuser':'Usuario (origen)','net.serveruser':'Usuario (servidor)','net.clientuser':'Usuario (cliente)',
+    // Veredicto (v0.5): titulares, causas y acciones del motor determinístico.
+    'vd.actions':'Qué hacer','vd.cause':'Causa','vd.causeq':'Causa (a confirmar)','vd.gain':'Ganancia potencial',
+    'vd.nogain':'a medir','vd.alt':'alternativa:','vd.badge.stage':'Cuello','vd.badge.balanced':'Balanceado','vd.badge.nodata':'Sin datos',
+    'vd.gainhint':'Estimado con el modelo de capacidad (tiempo × utilización del próximo límite / utilización del cuello), acotado al {max}%. Validar en la próxima corrida.',
+    'vd.imp.high':'alto','vd.imp.medium':'medio','vd.imp.hygiene':'higiene','vd.imp.verify':'verificar','vd.imp.info':'info',
+    'vd.src.observed':'observado (REST)','vd.src.deep':'logs del VBR','vd.src.resources':'recursos','vd.src.model':'modelo',
+    'vd.hl.bound':'El job está limitado por {stage} ({util}% ocupado)',
+    'vd.hl.bound2':'El job está limitado por {stage} y {stage2} juntos ({util}% / {util2}%)',
+    'vd.hl.boundnopct':'El job está limitado por {stage} (dominante en {pct}% de las corridas)',
+    'vd.hl.balanced':'Ningún stage satura: el pipeline está balanceado','vd.hl.nodata':'No hay datos suficientes para dictaminar',
+    'vd.cause.nbdHotadd':'Lee por <b>nbd</b> (red de gestión) porque hotadd no está disponible: el proxy no es una VM en un ESX apto.',
+    'vd.cause.nbd':'Lee por <b>nbd</b> (red de gestión), el modo de transporte más lento.',
+    'vd.cause.transportOK':'El transporte ya es <b>{transport}</b>: el límite es el storage de origen, no el modo de lectura.',
+    'vd.cause.srcstore':'La lectura del storage de origen es el techo (este workload no tiene modo de transporte VMware que cambiar).',
+    'vd.cause.srcunknown':'La lectura del origen es el techo, pero el motivo (modo de transporte) está sólo en los logs del VBR: corré el modo deep para confirmarlo.',
+    'vd.cause.slots':'<b>{name}</b> está configurado con {slots} slot(s) de tarea para {cores} cores: la concurrencia está por debajo del hardware.',
+    'vd.cause.proxyproc':'El procesamiento del proxy (dedup/compresión/CPU) marca el ritmo, no el storage.',
+    'vd.cause.netlink':'El enlace proxy↔repositorio marca el ritmo: los datos no entran al cable lo suficientemente rápido.',
+    'vd.cause.repowrite':'La escritura en el repositorio marca el ritmo.',
+    'vd.cause.balanced':'Ningún stage pasa el umbral de saturación en esta ventana.',
+    'vd.cause.noop':'Las {runs} corridas de la ventana fueron incrementales casi vacías (movieron casi nada): los rates y el cuello no son representativos.',
+    'vd.act.hotadd':'Desplegar un proxy como VM en un ESX que vea el datastore, para que lea por hotadd en vez de nbd: la lectura del origen deja de pasar por la red de gestión.',
+    'vd.act.srcStorage':'Revisar la velocidad/latencia de lectura del storage de origen y la salud de CBT: sin eso el job no puede leer más rápido.',
+    'vd.act.slots':'Subir los task slots de <b>{name}</b> de {cur} a {target}: el host tiene {cores} cores / {ram} GB y está sub-usado (gratis, sin hardware nuevo).',
+    'vd.act.slotsUnknown':'<b>{name}</b> corre con {slots} slot(s) de tarea. Verificá CPU/RAM del host: si tiene más de {slots} cores, subir los slots es una ganancia gratis.',
+    'vd.act.scaleHost':'<b>{name}</b> tiene sólo {cores} cores / {ram} GB: subir la concurrencia no va a ayudar, hay que escalar el host o sumar otro.',
+    'vd.act.atCapacity':'<b>{name}</b> ya está al límite ({slots} slots para {cores} cores): hay que escalar (host más grande, otro proxy o más extents).',
+    'vd.act.netUpgrade':'Co-ubicar el proxy con el repositorio (o pasar a un enlace más rápido) para que la transferencia deje de ser el límite.',
+    'vd.act.iperf':'Medir el throughput real proxy↔repositorio con iperf (Benchmark › Red) para confirmar que el límite es el enlace y no el protocolo.',
+    'vd.act.fio':'Medir el disco del repositorio con fio (Benchmark › Disco) para conocer su techo real y cuánto le falta al job para alcanzarlo.',
+    'vd.act.deep':'Correr el modo deep: lee los logs del VBR y reporta el transporte real (nbd/hotadd/SAN), por qué se eligió y el 4-stage por VM.',
+    'vd.act.repoFree':'<b>{name}</b> tiene sólo {free} GB libres de {cap} GB ({pct}%): liberar o extender antes de que frene los backups.',
+    'vd.act.compression':'El nivel de compresión es {level}: subirlo a 5 (óptimo) escribe menos bytes en el repositorio, que es justo lo que está saturando.',
+    'vd.act.window':'Ampliar la ventana (más días) o correr un Active Full para que el pipeline mueva datos de verdad, y volver a analizar.',
+    'vd.act.serial':'Las {vms} VMs se procesaron casi en serie ({sum} de tiempo de VM en una corrida de {dur}): subir la concurrencia del job/proxy para solaparlas.',
+    'vd.act.skew':'<b>{vm}</b> se lleva {pct}% del tiempo de VM: darle su propio job/ventana para que deje de estirar este.',
+    'vd.act.balanced':'Nada que corregir en este job: para subir el techo hay que escalar de a pares (proxy + repositorio) y volver a medir.',
+    'vd.signals':'Señales que entraron','vd.signame.observed':'Observado (REST)','vd.signame.deep':'Logs del VBR','vd.signame.resources':'Recursos del host','vd.signame.measured':'Techo medido',
+    'vd.sig.observedD':'REST: {runs} corrida(s) en la ventana, {data} movieron datos.',
+    'vd.sig.deepOn':'Logs deep: transporte {transport}, {vms} VM(s) con stages por VM.',
+    'vd.sig.deepOff':'Logs deep: no leídos. La causa (transporte, stages por VM) queda sin confirmar.',
+    'vd.sig.resOn':'Recursos: CPU/RAM del host conocidos, el consejo de concurrencia es firme.',
+    'vd.sig.resOff':'Recursos: CPU/RAM del host desconocidos, el consejo de concurrencia no puede ser firme.',
+    'vd.sig.measOff':'Techo medido: todavía sin fio/iperf. Medilo para comparar lo que hace el job contra lo que puede el hardware.',
+    'deep.comp':'compresión','deep.block':'bloque'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -491,7 +562,52 @@ const I18N = {
     'bench.checking':'Checking fio…','bench.fionotfound':'fio not available','bench.ready':'ready to run.','bench.deploying':'Deploying fio…',
     'bench.results':'Disk results','bench.nores':'No results.','bench.host':'host','bench.startfail':'Could not start the benchmark.',
     'tbl.test':'Test','tbl.mode':'Mode','tbl.iops':'IOPS','tbl.lat':'Latency (ms)','tbl.expected':'Expected','tbl.pct':'% of expected','tbl.verdict':'Verdict',
-    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','an.mode.job':'Single job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Pick a job and click Analyze.','an.disabled':'disabled','an.nojobs':'No jobs','cap.binding':'bottleneck','cap.faster':'faster','cap.nextlimit':'next limit','cap.slots':'task slots','cap.algo':'Mode','cap.bneck':'Bottleneck','cap.read':'Read','cap.write':'Write','cap.norate':'Run moved little/no data: relative verdict only (no absolute MB/s).','cap.indicative':'indicative','cap.insufficient':'insufficient data','cap.cores':'Cores','cap.apply':'Apply resources','cap.coreshint':'Enter host cores/RAM for firm recommendations','deep.explore':'Explore in detail (deep)','deep.hint':'Accesses the VBR (Windows: SMB to the C$ share) with admin credentials to read the job logs. Read-only; not stored.','deep.host':'VBR host','deep.user':'User (admin)','deep.domain':'Domain','deep.run':'Run deep','deep.running':'Accessing and parsing logs…','deep.transport':'Transport','deep.busy':'Per-VM busy','deep.disks':'Disks','deep.pervm':'Per-VM detail','cap.rates':'Throughput','cap.projected':'Projected','cap.rwhint':'read / write MB/s','deep.back':'Back','deep.title':'Deep detail','an.tjobs':'Jobs','an.tsuccess':'Success','an.ofruns':'of runs','cap.avgruns':'avg of {n} runs','cap.window':'{runs} runs · last {days} days','cap.obs_exp':'Real data: the run(s) moved enough data → MB/s, reduction and projection are firm.','cap.low_exp':'Indicative: little data moved → MB/s are indicative, not the hardware ceiling. Add an Active Full to the window.','cap.insuf_exp':'Insufficient: runs moved almost no data (no-op incrementals) → only the relative bottleneck is valid.','cap.nopct':'REST returned no per-stage breakdown (Load: line) for these runs — only the dominant stage: {stage}. Open "Explore in detail" for the per-VM 4-stage.','cap.nopctshort':'no % (REST)','cap.avg':'average','cap.runs':'Runs','cap.date':'Date','cap.result':'Result','cap.reprun':'representative run','cap.stages':'Per-stage bottleneck','cap.time':'Time','cap.resources':'Resources','cap.reco':'Recommendations','cap.pervm':'Per VM','nav.net':'Network','net.title':'Network — ports & connectivity','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'Probes only the ports for the chosen purpose, via SSH from the source. The bandwidth test (iperf) lives in the Benchmark tab.','net.send':'Send','net.recv':'Receive','net.scenario':'Purpose','net.port':'Port','net.srcuser':'Source user','net.serveruser':'Server user','net.clientuser':'Client user'
+    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','an.mode.job':'Single job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Pick a job and click Analyze.','an.disabled':'disabled','an.nojobs':'No jobs','cap.binding':'bottleneck','cap.faster':'faster','cap.nextlimit':'next limit','cap.slots':'task slots','cap.algo':'Mode','cap.bneck':'Bottleneck','cap.read':'Read','cap.write':'Write','cap.norate':'Run moved little/no data: relative verdict only (no absolute MB/s).','cap.indicative':'indicative','cap.insufficient':'insufficient data','cap.cores':'Cores','cap.apply':'Apply resources','cap.coreshint':'Enter host cores/RAM for firm recommendations','deep.explore':'Explore in detail (deep)','deep.hint':'Accesses the VBR (Windows: SMB to the C$ share) with admin credentials to read the job logs. Read-only; not stored.','deep.host':'VBR host','deep.user':'User (admin)','deep.domain':'Domain','deep.run':'Run deep','deep.running':'Accessing and parsing logs…','deep.transport':'Transport','deep.busy':'Per-VM busy','deep.disks':'Disks','deep.pervm':'Per-VM detail','cap.rates':'Throughput','cap.projected':'Projected','cap.rwhint':'read / write MB/s','deep.back':'Back','deep.title':'Deep detail','an.tjobs':'Jobs','an.tsuccess':'Success','an.ofruns':'of runs','cap.avgruns':'avg of {n} runs','cap.window':'{runs} runs · last {days} days','cap.obs_exp':'Real data: the run(s) moved enough data → MB/s, reduction and projection are firm.','cap.low_exp':'Indicative: little data moved → MB/s are indicative, not the hardware ceiling. Add an Active Full to the window.','cap.insuf_exp':'Insufficient: runs moved almost no data (no-op incrementals) → only the relative bottleneck is valid.','cap.nopct':'REST returned no per-stage breakdown (Load: line) for these runs — only the dominant stage: {stage}. Open "Explore in detail" for the per-VM 4-stage.','cap.nopctshort':'no % (REST)','cap.avg':'average','cap.runs':'Runs','cap.date':'Date','cap.result':'Result','cap.reprun':'representative run','cap.stages':'Per-stage bottleneck','cap.time':'Time','cap.resources':'Resources','cap.reco':'Recommendations','cap.pervm':'Per VM','nav.net':'Network','net.title':'Network — ports & connectivity','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'Probes only the ports for the chosen purpose, via SSH from the source. The bandwidth test (iperf) lives in the Benchmark tab.','net.send':'Send','net.recv':'Receive','net.scenario':'Purpose','net.port':'Port','net.srcuser':'Source user','net.serveruser':'Server user','net.clientuser':'Client user',
+    // Verdict (v0.5).
+    'vd.actions':'What to do','vd.cause':'Cause','vd.causeq':'Cause (to confirm)','vd.gain':'Potential gain',
+    'vd.nogain':'to measure','vd.alt':'alternative:','vd.badge.stage':'Bottleneck','vd.badge.balanced':'Balanced','vd.badge.nodata':'No data',
+    'vd.gainhint':'Estimated with the capacity model (time × next-limit utilization / bottleneck utilization), capped at {max}%. Validate on the next run.',
+    'vd.imp.high':'high','vd.imp.medium':'medium','vd.imp.hygiene':'hygiene','vd.imp.verify':'verify','vd.imp.info':'info',
+    'vd.src.observed':'observed (REST)','vd.src.deep':'VBR logs','vd.src.resources':'resources','vd.src.model':'model',
+    'vd.hl.bound':'The job is limited by {stage} ({util}% busy)',
+    'vd.hl.bound2':'The job is limited by {stage} and {stage2} together ({util}% / {util2}%)',
+    'vd.hl.boundnopct':'The job is limited by {stage} (dominant in {pct}% of the runs)',
+    'vd.hl.balanced':'No stage saturates: the pipeline is balanced','vd.hl.nodata':'Not enough data to judge this job',
+    'vd.cause.nbdHotadd':'It reads over <b>nbd</b> (management network) because hotadd is not available: the proxy is not a VM on a suitable ESX.',
+    'vd.cause.nbd':'It reads over <b>nbd</b> (management network), the slowest transport mode.',
+    'vd.cause.transportOK':'Transport is already <b>{transport}</b>: the limit is the source storage itself, not the read mode.',
+    'vd.cause.srcstore':'The source storage read is the ceiling (this workload has no VMware transport mode to change).',
+    'vd.cause.srcunknown':'The source read is the ceiling, but the reason (transport mode) is only in the VBR logs: run deep mode to confirm it.',
+    'vd.cause.slots':'<b>{name}</b> is configured with {slots} task slot(s) for {cores} cores: concurrency is below the hardware.',
+    'vd.cause.proxyproc':'Proxy processing (dedup/compression/CPU) sets the pace, not the storage.',
+    'vd.cause.netlink':'The proxy↔repository link sets the pace: the data does not fit in the wire fast enough.',
+    'vd.cause.repowrite':'Writing into the repository sets the pace.',
+    'vd.cause.balanced':'No stage is above the saturation threshold in this window.',
+    'vd.cause.noop':'All {runs} run(s) in the window were near no-op incrementals (almost no data moved): rates and bottleneck are not meaningful.',
+    'vd.act.hotadd':'Deploy a proxy as a VM on an ESX that sees the datastore, so it reads via hotadd instead of nbd: the source read stops going through the management network.',
+    'vd.act.srcStorage':'Check the source storage read speed/latency and CBT health: without them the job cannot read faster.',
+    'vd.act.slots':'Raise <b>{name}</b> task slots from {cur} to {target}: the host has {cores} cores / {ram} GB and is under-used (free win, no new hardware).',
+    'vd.act.slotsUnknown':'<b>{name}</b> runs with {slots} task slot(s). Check the host CPU/RAM: if it has more than {slots} cores, raising the slots is a free win.',
+    'vd.act.scaleHost':'<b>{name}</b> only has {cores} cores / {ram} GB: raising concurrency will not help, the host has to grow or another one has to be added.',
+    'vd.act.atCapacity':'<b>{name}</b> is already at capacity ({slots} slots for {cores} cores): you have to scale out (bigger host, another proxy or more extents).',
+    'vd.act.netUpgrade':'Co-locate the proxy with the repository (or move to a faster link) so the transfer stops being the limit.',
+    'vd.act.iperf':'Measure the real proxy↔repository throughput with iperf (Benchmark › Network) to confirm the link is the limit and not the protocol.',
+    'vd.act.fio':'Measure the repository disk with fio (Benchmark › Disk) to know its real ceiling and how far the job is from it.',
+    'vd.act.deep':'Run deep mode: it reads the VBR logs and reports the actual transport (nbd/hotadd/SAN), why it was chosen, and the 4-stage per VM.',
+    'vd.act.repoFree':'<b>{name}</b> has only {free} GB free of {cap} GB ({pct}%): free space or extend it before it stops the backups.',
+    'vd.act.compression':'Compression level is {level}: raising it to 5 (optimal) writes fewer bytes into the repository, which is what is saturating.',
+    'vd.act.window':'Widen the window (more days) or run an Active Full so the pipeline actually moves data, then analyze again.',
+    'vd.act.serial':'The {vms} VMs were processed almost serially ({sum} of VM time in a {dur} run): raise the job/proxy concurrency to overlap them.',
+    'vd.act.skew':'<b>{vm}</b> takes {pct}% of the VM time: give it its own job/window so it stops stretching this one.',
+    'vd.act.balanced':'Nothing to fix on this job: to raise the ceiling you have to scale in pairs (proxy + repository) and measure again.',
+    'vd.signals':'Signals used','vd.signame.observed':'Observed (REST)','vd.signame.deep':'VBR logs','vd.signame.resources':'Host resources','vd.signame.measured':'Measured ceiling',
+    'vd.sig.observedD':'REST: {runs} run(s) in the window, {data} moved data.',
+    'vd.sig.deepOn':'Deep logs: transport {transport}, {vms} VM(s) with per-VM stages.',
+    'vd.sig.deepOff':'Deep logs: not read. The cause (transport, per-VM stages) stays unconfirmed.',
+    'vd.sig.resOn':'Resources: host CPU/RAM known, concurrency advice is firm.',
+    'vd.sig.resOff':'Resources: host CPU/RAM unknown, concurrency advice cannot be firm.',
+    'vd.sig.measOff':'Measured ceiling: no fio/iperf run yet. Measure it to compare what the job does against what the hardware can do.',
+    'deep.comp':'compression','deep.block':'block'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -535,11 +651,58 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio não disponível','bench.ready':'pronto para rodar.','bench.deploying':'Instalando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sem resultados.','bench.host':'host','bench.startfail':'Não foi possível iniciar o benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latência (ms)','tbl.expected':'Esperado','tbl.pct':'% do esperado','tbl.verdict':'Veredito',
-    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','an.mode.job':'Um job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Escolha um job e clique em Analisar.','an.disabled':'desabilitado','an.nojobs':'Sem jobs','cap.binding':'gargalo','cap.faster':'mais rápido','cap.nextlimit':'próximo limite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Gargalo','cap.read':'Leitura','cap.write':'Escrita','cap.norate':'Corrida sem dados suficientes: veredito relativo (sem MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sem dados','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Informe cores/RAM do host para recomendações firmes','deep.explore':'Explorar em detalhe (deep)','deep.hint':'Acessa o VBR (Windows: SMB ao share C$) com credenciais de admin para ler os logs do job. Somente leitura; não são salvas.','deep.host':'Host do VBR','deep.user':'Usuário (admin)','deep.domain':'Domínio','deep.run':'Analisar deep','deep.running':'Acessando e parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalhe por VM','cap.rates':'Desempenho','cap.projected':'Projetado','cap.rwhint':'leitura / escrita MB/s','deep.back':'Voltar','deep.title':'Detalhe profundo','an.tjobs':'Jobs','an.tsuccess':'Sucesso','an.ofruns':'dos runs','cap.avgruns':'méd. de {n} runs','cap.window':'{runs} runs · últimos {days} dias','cap.obs_exp':'Dados reais: a(s) corrida(s) moveram dados suficientes → MB/s, redução e projeção firmes.','cap.low_exp':'Indicativo: pouca data movida → MB/s orientativos, não o teto do hardware. Adicione um Active Full à janela.','cap.insuf_exp':'Sem dados: quase não moveram data (no-op) → só o gargalo relativo é válido.','cap.nopct':'A REST não trouxe o detalhe por stage (linha Load:) — apenas o gargalo dominante: {stage}. Abra "Explorar em detalhe" para o 4-stage por VM.','cap.nopctshort':'sem % (REST)','cap.avg':'média','cap.runs':'Runs','cap.date':'Data','cap.result':'Resultado','cap.reprun':'corrida representativa','cap.stages':'Gargalo por etapa','cap.time':'Tempo','cap.resources':'Recursos','cap.reco':'Recomendações','cap.pervm':'Por VM','nav.net':'Rede','net.title':'Rede — portas e conectividade','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'Prova apenas as portas do propósito escolhido, por SSH desde a origem. O teste de largura de banda (iperf) está na aba Benchmark.','net.send':'Envio','net.recv':'Recepção','net.scenario':'Propósito','net.port':'Porta','net.srcuser':'Usuário (origem)','net.serveruser':'Usuário (servidor)','net.clientuser':'Usuário (cliente)'
+    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','an.mode.job':'Um job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Escolha um job e clique em Analisar.','an.disabled':'desabilitado','an.nojobs':'Sem jobs','cap.binding':'gargalo','cap.faster':'mais rápido','cap.nextlimit':'próximo limite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Gargalo','cap.read':'Leitura','cap.write':'Escrita','cap.norate':'Corrida sem dados suficientes: veredito relativo (sem MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sem dados','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Informe cores/RAM do host para recomendações firmes','deep.explore':'Explorar em detalhe (deep)','deep.hint':'Acessa o VBR (Windows: SMB ao share C$) com credenciais de admin para ler os logs do job. Somente leitura; não são salvas.','deep.host':'Host do VBR','deep.user':'Usuário (admin)','deep.domain':'Domínio','deep.run':'Analisar deep','deep.running':'Acessando e parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalhe por VM','cap.rates':'Desempenho','cap.projected':'Projetado','cap.rwhint':'leitura / escrita MB/s','deep.back':'Voltar','deep.title':'Detalhe profundo','an.tjobs':'Jobs','an.tsuccess':'Sucesso','an.ofruns':'dos runs','cap.avgruns':'méd. de {n} runs','cap.window':'{runs} runs · últimos {days} dias','cap.obs_exp':'Dados reais: a(s) corrida(s) moveram dados suficientes → MB/s, redução e projeção firmes.','cap.low_exp':'Indicativo: pouca data movida → MB/s orientativos, não o teto do hardware. Adicione um Active Full à janela.','cap.insuf_exp':'Sem dados: quase não moveram data (no-op) → só o gargalo relativo é válido.','cap.nopct':'A REST não trouxe o detalhe por stage (linha Load:) — apenas o gargalo dominante: {stage}. Abra "Explorar em detalhe" para o 4-stage por VM.','cap.nopctshort':'sem % (REST)','cap.avg':'média','cap.runs':'Runs','cap.date':'Data','cap.result':'Resultado','cap.reprun':'corrida representativa','cap.stages':'Gargalo por etapa','cap.time':'Tempo','cap.resources':'Recursos','cap.reco':'Recomendações','cap.pervm':'Por VM','nav.net':'Rede','net.title':'Rede — portas e conectividade','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'Prova apenas as portas do propósito escolhido, por SSH desde a origem. O teste de largura de banda (iperf) está na aba Benchmark.','net.send':'Envio','net.recv':'Recepção','net.scenario':'Propósito','net.port':'Porta','net.srcuser':'Usuário (origem)','net.serveruser':'Usuário (servidor)','net.clientuser':'Usuário (cliente)',
+    // Veredito (v0.5).
+    'vd.actions':'O que fazer','vd.cause':'Causa','vd.causeq':'Causa (a confirmar)','vd.gain':'Ganho potencial',
+    'vd.nogain':'a medir','vd.alt':'alternativa:','vd.badge.stage':'Gargalo','vd.badge.balanced':'Balanceado','vd.badge.nodata':'Sem dados',
+    'vd.gainhint':'Estimado com o modelo de capacidade (tempo × utilização do próximo limite / utilização do gargalo), limitado a {max}%. Validar na próxima execução.',
+    'vd.imp.high':'alto','vd.imp.medium':'médio','vd.imp.hygiene':'higiene','vd.imp.verify':'verificar','vd.imp.info':'info',
+    'vd.src.observed':'observado (REST)','vd.src.deep':'logs do VBR','vd.src.resources':'recursos','vd.src.model':'modelo',
+    'vd.hl.bound':'O job está limitado por {stage} ({util}% ocupado)',
+    'vd.hl.bound2':'O job está limitado por {stage} e {stage2} juntos ({util}% / {util2}%)',
+    'vd.hl.boundnopct':'O job está limitado por {stage} (dominante em {pct}% das execuções)',
+    'vd.hl.balanced':'Nenhum stage satura: o pipeline está balanceado','vd.hl.nodata':'Não há dados suficientes para um veredito',
+    'vd.cause.nbdHotadd':'Lê por <b>nbd</b> (rede de gerência) porque o hotadd não está disponível: o proxy não é uma VM em um ESX adequado.',
+    'vd.cause.nbd':'Lê por <b>nbd</b> (rede de gerência), o modo de transporte mais lento.',
+    'vd.cause.transportOK':'O transporte já é <b>{transport}</b>: o limite é o storage de origem, não o modo de leitura.',
+    'vd.cause.srcstore':'A leitura do storage de origem é o teto (este workload não tem modo de transporte VMware a trocar).',
+    'vd.cause.srcunknown':'A leitura da origem é o teto, mas o motivo (modo de transporte) está só nos logs do VBR: rode o modo deep para confirmar.',
+    'vd.cause.slots':'<b>{name}</b> está configurado com {slots} slot(s) de tarefa para {cores} cores: a concorrência está abaixo do hardware.',
+    'vd.cause.proxyproc':'O processamento do proxy (dedup/compressão/CPU) dita o ritmo, não o storage.',
+    'vd.cause.netlink':'O enlace proxy↔repositório dita o ritmo: os dados não entram no cabo rápido o suficiente.',
+    'vd.cause.repowrite':'A escrita no repositório dita o ritmo.',
+    'vd.cause.balanced':'Nenhum stage passa o limiar de saturação nesta janela.',
+    'vd.cause.noop':'As {runs} execuções da janela foram incrementais quase vazias (moveram quase nada): as taxas e o gargalo não são representativos.',
+    'vd.act.hotadd':'Implantar um proxy como VM em um ESX que veja o datastore, para ler por hotadd em vez de nbd: a leitura da origem deixa de passar pela rede de gerência.',
+    'vd.act.srcStorage':'Revisar a velocidade/latência de leitura do storage de origem e a saúde do CBT: sem isso o job não lê mais rápido.',
+    'vd.act.slots':'Subir os task slots de <b>{name}</b> de {cur} para {target}: o host tem {cores} cores / {ram} GB e está subutilizado (de graça, sem hardware novo).',
+    'vd.act.slotsUnknown':'<b>{name}</b> roda com {slots} slot(s) de tarefa. Verifique CPU/RAM do host: se tiver mais de {slots} cores, subir os slots é ganho de graça.',
+    'vd.act.scaleHost':'<b>{name}</b> tem apenas {cores} cores / {ram} GB: subir a concorrência não vai ajudar, é preciso crescer o host ou somar outro.',
+    'vd.act.atCapacity':'<b>{name}</b> já está no limite ({slots} slots para {cores} cores): é preciso escalar (host maior, outro proxy ou mais extents).',
+    'vd.act.netUpgrade':'Colocar o proxy junto do repositório (ou passar a um enlace mais rápido) para que a transferência deixe de ser o limite.',
+    'vd.act.iperf':'Medir o throughput real proxy↔repositório com iperf (Benchmark › Rede) para confirmar que o limite é o enlace e não o protocolo.',
+    'vd.act.fio':'Medir o disco do repositório com fio (Benchmark › Disco) para conhecer o teto real e quanto falta ao job para alcançá-lo.',
+    'vd.act.deep':'Rodar o modo deep: lê os logs do VBR e reporta o transporte real (nbd/hotadd/SAN), por que foi escolhido e o 4-stage por VM.',
+    'vd.act.repoFree':'<b>{name}</b> tem apenas {free} GB livres de {cap} GB ({pct}%): liberar ou estender antes que pare os backups.',
+    'vd.act.compression':'O nível de compressão é {level}: subir para 5 (ótimo) escreve menos bytes no repositório, que é justamente o que está saturando.',
+    'vd.act.window':'Ampliar a janela (mais dias) ou rodar um Active Full para que o pipeline mova dados de verdade, e analisar de novo.',
+    'vd.act.serial':'As {vms} VMs foram processadas quase em série ({sum} de tempo de VM em uma execução de {dur}): subir a concorrência do job/proxy para sobrepô-las.',
+    'vd.act.skew':'<b>{vm}</b> leva {pct}% do tempo de VM: dar a ela o próprio job/janela para parar de esticar este.',
+    'vd.act.balanced':'Nada a corrigir neste job: para subir o teto é preciso escalar em pares (proxy + repositório) e medir de novo.',
+    'vd.signals':'Sinais usados','vd.signame.observed':'Observado (REST)','vd.signame.deep':'Logs do VBR','vd.signame.resources':'Recursos do host','vd.signame.measured':'Teto medido',
+    'vd.sig.observedD':'REST: {runs} execução(ões) na janela, {data} moveram dados.',
+    'vd.sig.deepOn':'Logs deep: transporte {transport}, {vms} VM(s) com stages por VM.',
+    'vd.sig.deepOff':'Logs deep: não lidos. A causa (transporte, stages por VM) fica sem confirmação.',
+    'vd.sig.resOn':'Recursos: CPU/RAM do host conhecidos, o conselho de concorrência é firme.',
+    'vd.sig.resOff':'Recursos: CPU/RAM do host desconhecidos, o conselho de concorrência não pode ser firme.',
+    'vd.sig.measOff':'Teto medido: ainda sem fio/iperf. Meça para comparar o que o job faz contra o que o hardware pode.',
+    'deep.comp':'compressão','deep.block':'bloco'
   },
 };
 // tp: t con reemplazo de {placeholders}
-function tp(key, vars) { let s = t(key); for (const k in (vars||{})) s = s.replace('{'+k+'}', vars[k]); return s; }
+function tp(key, vars) { let s = t(key); for (const k in (vars||{})) s = s.split('{'+k+'}').join(vars[k]); return s; }
+// attrTxt: texto listo para un atributo (title=...): sin HTML y con las comillas escapadas.
+function attrTxt(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, '').replace(/"/g, '&quot;'); }
 let LANG = localStorage.getItem('lang') || 'es';
 let connState = null;  // {where, exp} cuando esta conectado
 
@@ -1345,6 +1508,73 @@ function kpi(lbl, val, sub, cls, subcls) {
   return `<div class="kpi"><div class="k-lbl">${lbl}</div><div class="k-val ${cls || ''}">${val}</div>${sub ? `<div class="k-sub ${subcls || ''}">${sub}</div>` : ''}</div>`;
 }
 
+// --- Veredicto (v0.5): la salida principal del analisis ----------------------
+// El backend manda codigos i18n + params (y el texto en ingles como respaldo);
+// aca solo se traduce y se pinta. Ver internal/analysis/verdict.go.
+
+// vt: traduce un codigo del veredicto (vd.<code>). Si falta la clave usa el
+// texto que manda el backend, asi nunca queda un hueco en pantalla.
+function vt(code, params, fallback) {
+  const k = 'vd.' + code;
+  return t(k) === k ? (fallback || code) : tp(k, params || {});
+}
+
+// verdictHero: el titular grafico — severidad, cuello y CAUSA.
+function verdictHero(v, sub) {
+  const badgeCls = { critical: 'low', warn: 'warn', ok: 'ok' }[v.severity] || '';
+  let badge;
+  if (v.severity === 'ok') badge = `<span class="verdict ok">${t('vd.badge.balanced')}</span>`;
+  else if (v.severity === 'unknown') badge = `<span class="verdict low">${t('vd.badge.nodata')}</span>`;
+  else badge = `<span class="verdict ${badgeCls}">${t('vd.badge.stage')}: ${v.stage}${v.stage2 ? ' + ' + v.stage2 : ''}${v.stageUtil ? ` · ${v.stageUtil}%` : ''}</span>`;
+  const cause = v.causeCode
+    ? `<div class="vd-cause"><b>${v.causeKnown ? t('vd.cause') : t('vd.causeq')}:</b> ${vt(v.causeCode, v.causeParams, v.cause)}</div>` : '';
+  return `<div class="vd ${v.severity}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        ${badge}${sub ? `<span class="muted" style="font-size:12px;">${sub}</span>` : ''}
+      </div>
+      <div class="vd-hl">${vt(v.headlineCode, v.headlineParams, v.headline)}</div>
+      ${cause}
+    </div>`;
+}
+
+// gainTile: KPI de ganancia potencial (numero grande + barra). Sin proyeccion
+// muestra "a medir" en vez de inventar un numero.
+function gainTile(v) {
+  if (!v.gainPct) return kpi(t('vd.gain'), '—', t('vd.nogain'));
+  const w = Math.max(4, Math.min(100, v.gainPct));
+  return `<div class="kpi">
+      <div class="k-lbl" title="${attrTxt(tp('vd.gainhint', { max: 75 }))}" style="cursor:help;">${t('vd.gain')} ⓘ</div>
+      <div class="k-val good">−${v.gainPct}%</div>
+      <div class="k-sub">${fmtDur(v.currentSec)} → ~${fmtDur(v.targetSec)}</div>
+      <div class="gain-track"><span class="gain-fill" style="width:${w}%;"></span></div>
+    </div>`;
+}
+
+// actionsList: que hacer, ordenado por impacto, con la ganancia de la accion
+// que libera el cuello.
+function actionsList(v) {
+  const acts = v.actions || [];
+  if (!acts.length) return '';
+  const rows = acts.map(a => `<div class="act">
+      <span class="act-b ${a.impact}">${t('vd.imp.' + a.impact)}</span>
+      <div class="act-txt">${a.alt ? `<span class="muted">${t('vd.alt')} </span>` : ''}${vt(a.code, a.params, a.text)}
+        <div class="act-src">${t('vd.src.' + a.source)}</div></div>
+      ${a.gainPct != null ? `<span class="act-gain">~−${a.gainPct}%</span>` : ''}
+    </div>`).join('');
+  return `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('vd.actions')}
+      <span class="muted" style="font-weight:400;">(${acts.length})</span></div>${rows}`;
+}
+
+// signalsRow: que datos entraron al veredicto (y cuales faltan para que sea
+// mas firme). El detalle va en el tooltip.
+function signalsRow(v) {
+  const sg = v.signals || [];
+  if (!sg.length) return '';
+  return `<div class="sigs">` + sg.map(s =>
+    `<span class="sig ${s.ok ? 'on' : ''}" title="${attrTxt(vt(s.code, s.params, s.text))}">${s.ok ? '✓' : '○'} ${t('vd.signame.' + s.name)}</span>`
+  ).join('') + `</div>`;
+}
+
 // renderJobCapacity: card prolijo — titulares en tarjetas + cuello + detalle
 // colapsable. El deep abre una vista aparte (openDeep).
 function renderJobCapacity(d) {
@@ -1356,17 +1586,12 @@ function renderJobCapacity(d) {
   else { confCls = 'low'; confLbl = t('cap.insufficient'); confExp = t('cap.insuf_exp'); }
   const conf = `<span class="verdict ${confCls}" title="${confExp}" style="cursor:help;">${confLbl} ⓘ</span>`;
 
-  const prim = (d.stages || []).find(s => s.name === d.primary) || null;
   const hasRate = d.confidence !== 'insufficient';
   const noPct = (d.stages || []).length > 0 && (d.stages || []).every(s => !s.util);
-  const bneckSub = d.primaryPct ? `${d.primaryPct}% ${t('an.ofruns')}` : (prim && prim.util > 0 ? `${prim.util}% busy` : t('cap.nopctshort'));
-  // Tarjetas KPI (promedios de la ventana).
-  let tiles = kpi(t('cap.time'), fmtDur(d.durationSec), tp('cap.avgruns', { n: d.runs }));
-  if (d.projection) {
-    tiles += kpi(t('cap.projected'), fmtDur(d.projection.newDurationSec),
-      `▼ ${d.projection.improvementPct}% · ${t('cap.nextlimit')}: ${d.projection.nextStage}`, 'good', 'good');
-  }
-  tiles += kpi(t('cap.bneck'), d.primary || '—', bneckSub, 'bad');
+  // Tarjetas KPI: primero la ganancia (el numero que el cliente quiere ver),
+  // despues los promedios de la ventana.
+  let tiles = d.verdict ? gainTile(d.verdict) : '';
+  tiles += kpi(t('cap.time'), fmtDur(d.durationSec), tp('cap.avgruns', { n: d.runs }));
   tiles += kpi(t('cap.rates'), hasRate ? `${d.readMBps}<span class="muted" style="font-size:13px;">/</span>${d.writeMBps}` : '—',
     hasRate ? t('cap.rwhint') : t('cap.norate'));
   tiles += kpi(t('an.reduction'), d.reduction ? d.reduction + '×' : '—');
@@ -1380,10 +1605,6 @@ function renderJobCapacity(d) {
       <span class="bnk-track" style="flex:1;"><span class="bnk-fill" style="width:${s.util}%;background:${col};"></span></span>
       <span style="width:44px;text-align:right;font-size:12px;">${s.util ? s.util + '%' : (s.binding ? '◄' : '')}</span></div>`;
   }
-
-  const sevCol = { high: 'var(--red)', warn: 'var(--amber)', info: 'var(--blue)' };
-  const recos = (d.recommendations || []).map(r =>
-    `<li style="margin:5px 0;"><span style="color:${sevCol[r.severity] || 'var(--muted)'};">●</span> ${r.text} <span class="muted" style="font-size:11px;">(${r.confidence})</span></li>`).join('');
 
   // Detalle por corrida (la ventana).
   let runs = `<table><tr><th>${t('cap.date')}</th><th>${t('cap.result')}</th><th>${t('cap.bneck')}</th><th>Read</th><th>Xfer</th><th>Dur</th></tr>`;
@@ -1408,12 +1629,12 @@ function renderJobCapacity(d) {
         <div><b>${d.jobName}</b> · <span class="muted">${tp('cap.window', { runs: d.runs, days: d.days })}</span></div>
         <div style="display:flex;gap:8px;align-items:center;">${conf}<button class="ghost mini" onclick="openDeep()">🔬 ${t('deep.explore')}</button></div>
       </div>
+      ${d.verdict ? verdictHero(d.verdict) : ''}
       <div class="kpi-grid">${tiles}</div>
-      <div style="font-size:13px;font-weight:600;margin:4px 0 4px;">${t('cap.stages')} ${noPct ? '' : `<span class="muted" style="font-weight:400;">(${t('cap.avg')})</span>`}</div>
-      ${noPct ? `<p class="muted" style="font-size:12px;margin:2px 0;">ℹ️ ${tp('cap.nopct', { stage: d.primary || '—' })}</p>` : (stages || '<span class="muted">—</span>')}
-      <div style="margin-top:12px;">
-        <details class="exp"><summary>${t('cap.reco')} <span class="muted">${(d.recommendations || []).length}</span></summary>
-          <div class="exp-body"><ul style="margin:0;padding-left:6px;list-style:none;">${recos || '<li class="muted">—</li>'}</ul></div></details>
+      ${d.verdict ? actionsList(d.verdict) + signalsRow(d.verdict) : ''}
+      <div style="margin-top:14px;">
+        <details class="exp"><summary>${t('cap.stages')} <span class="muted" style="font-weight:400;">${noPct ? '' : `(${t('cap.avg')})`}</span></summary>
+          <div class="exp-body">${noPct ? `<p class="muted" style="font-size:12px;margin:2px 0;">ℹ️ ${tp('cap.nopct', { stage: d.primary || '—' })}</p>` : (stages || '<span class="muted">—</span>')}</div></details>
         <details class="exp"><summary>${t('cap.runs')} <span class="muted">${(d.runList || []).length}</span></summary>
           <div class="exp-body">${runs}</div></details>
         <details class="exp"><summary>${t('cap.pervm')} <span class="muted" style="font-weight:400;">(${t('cap.reprun')})</span> <span class="muted">${(d.tasks || []).length}</span></summary>
@@ -1442,12 +1663,13 @@ async function runDeep() {
   const u = document.getElementById('deepUser').value.trim(), p = document.getElementById('deepPass').value;
   const dom = document.getElementById('deepDomain').value.trim();
   if (!u || !p) { el.innerHTML = `<p class="error">${t('bench.needcreds')}</p>`; return; }
+  const days = parseInt(document.getElementById('anJobDays').value || '7', 10) || 7;
   const btn = document.getElementById('deepRunBtn'); btn.disabled = true;
   el.innerHTML = `<p class="muted">${t('deep.running')}</p>`;
   try {
     const d = await fetch(`${BACKEND}/api/${sessionId}/analysis/job/deep`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId, host, username: u, password: p, domain: dom })
+      body: JSON.stringify({ jobId, host, username: u, password: p, domain: dom, days })
     }).then(r => r.json());
     if (d.detail) { el.innerHTML = `<p class="error">${d.detail}</p>`; return; }
     renderDeep(d);
@@ -1455,22 +1677,27 @@ async function runDeep() {
   finally { btn.disabled = false; }
 }
 
-function renderDeep(d) {
+// renderDeep: con los logs leidos el veredicto se recalcula con la causa
+// CONFIRMADA, asi que va primero; abajo la evidencia (transporte + por VM).
+function renderDeep(payload) {
   const el = document.getElementById('deepResult');
+  const d = payload.deep || payload, v = payload.verdict;
   const stg = s => s ? `${s.source}/${s.proxy}/${s.network}/${s.target}` : '—';
   const transportBadge = d.transport
     ? `<span class="pill">${t('deep.transport')}: <b>${d.transport}</b></span>` : '';
   const note = d.transportNote ? `<p style="margin:6px 0;color:#d29922;font-size:13px;">⚠ ${d.transportNote}</p>` : '';
+  const notes = (d.notes || []).map(n => `<p class="muted" style="font-size:12px;">ℹ️ ${n}</p>`).join('');
   const opts = [];
   if (d.dedup != null) opts.push('dedup ' + (d.dedup ? 'on' : 'off'));
-  if (d.compression != null) opts.push('compresión ' + d.compression);
-  if (d.blockSizeKB != null) opts.push('bloque ' + d.blockSizeKB + ' KB');
+  if (d.compression != null) opts.push(t('deep.comp') + ' ' + d.compression);
+  if (d.blockSizeKB != null) opts.push(t('deep.block') + ' ' + d.blockSizeKB + ' KB');
   let rows = `<table><tr><th>VM</th><th>${t('deep.busy')} (S/P/N/T)</th><th>${t('cap.bneck')}</th><th>Dur</th><th>${t('deep.disks')}</th></tr>`;
-  for (const v of (d.vms || [])) {
-    rows += `<tr><td>${v.name}</td><td>${stg(v.busy)}</td><td>${v.primary || '—'}</td><td>${fmtDur(v.durationSec)}</td><td>${(v.disks || []).length}</td></tr>`;
+  for (const vm of (d.vms || [])) {
+    rows += `<tr><td>${vm.name}</td><td>${stg(vm.busy)}</td><td>${vm.primary || '—'}</td><td>${fmtDur(vm.durationSec)}</td><td>${(vm.disks || []).length}</td></tr>`;
   }
   rows += '</table>';
   el.innerHTML = `
+    ${v ? `<div class="subcard">${verdictHero(v)}<div class="kpi-grid">${gainTile(v)}</div>${actionsList(v)}${signalsRow(v)}</div>` : ''}
     <div class="subcard">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         ${transportBadge}
@@ -1479,7 +1706,7 @@ function renderDeep(d) {
       </div>
       ${note}
       <h4 style="margin:10px 0 4px;">${t('deep.pervm')}</h4>
-      ${rows}
+      ${rows}${notes}
     </div>`;
 }
 

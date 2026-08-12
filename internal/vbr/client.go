@@ -45,7 +45,12 @@ func httpClient(verify bool) *http.Client {
 
 // Authenticate hace el OAuth2 password grant contra VBR.
 func Authenticate(ctx context.Context, host string, port int, user, pass, apiVersion string, verify bool) (access, refresh string, expiresIn int, err error) {
-	form := url.Values{"grant_type": {"password"}, "username": {user}, "password": {pass}}
+	return tokenGrant(ctx, host, port, apiVersion, verify,
+		url.Values{"grant_type": {"password"}, "username": {user}, "password": {pass}})
+}
+
+// tokenGrant hace un POST a /oauth2/token (password o refresh_token grant).
+func tokenGrant(ctx context.Context, host string, port int, apiVersion string, verify bool, form url.Values) (access, refresh string, expiresIn int, err error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, baseURL(host, port)+"/oauth2/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("x-api-version", apiVersion)
@@ -71,36 +76,90 @@ func Authenticate(ctx context.Context, host string, port int, user, pass, apiVer
 	return t.AccessToken, t.RefreshToken, t.ExpiresIn, nil
 }
 
-// Get hace un GET autenticado a la REST API (o devuelve datos demo). Devuelve
-// el JSON crudo, listo para reenviar o parsear.
+// renewToken renueva el access token con el refresh_token, una sola vez aunque
+// varios GET en paralelo se topen con el mismo 401. used = el token que fallo:
+// si otra goroutine ya renovo, no repetimos.
+func renewToken(ctx context.Context, s *Session, used string) error {
+	s.renewMu.Lock()
+	defer s.renewMu.Unlock()
+	if cur, _ := s.token(); cur != used {
+		return nil // ya lo renovo otra request
+	}
+	s.tokMu.Lock()
+	rt := s.refreshToken
+	s.tokMu.Unlock()
+	if rt == "" {
+		return &APIError{401, "Session expired. Reconnect."}
+	}
+	access, refresh, expiresIn, err := tokenGrant(ctx, s.Host, s.Port, s.APIVersion, s.VerifySSL,
+		url.Values{"grant_type": {"refresh_token"}, "refresh_token": {rt}})
+	if err != nil {
+		log.Printf("REST: token renewal failed: %v", err) // no token
+		return &APIError{401, "Session expired. Reconnect."}
+	}
+	s.SetTokens(access, refresh, expiresIn)
+	log.Printf("REST: access token renewed (valid %ds)", expiresIn) // no token
+	return nil
+}
+
+// Get hace un GET autenticado a la REST API (o devuelve datos demo). Renueva el
+// token solo (antes de que venza, y si igual sale 401 reintenta una vez).
+// Devuelve el JSON crudo, listo para reenviar o parsear.
 func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) {
 	if s.Demo {
 		return demoResponse(path), nil
 	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL(s.Host, s.Port)+"/"+path, nil)
-	req.Header.Set("Authorization", "Bearer "+s.AccessToken)
-	req.Header.Set("x-api-version", s.APIVersion)
-
-	start := time.Now()
-	resp, e := httpClient(s.VerifySSL).Do(req)
-	if e != nil {
-		log.Printf("REST GET %s: no response: %v", path, e)
-		return nil, &APIError{504, fmt.Sprintf("Error querying %s: %v", path, e)}
+	tok, stale := s.token()
+	if stale { // esta por vencer: lo renovamos antes de gastar el request
+		if err := renewToken(ctx, s, tok); err != nil {
+			return nil, err
+		}
+		tok, _ = s.token()
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	dbg.Logf("GET %s -> %d (%dms, %dB)", path, resp.StatusCode, time.Since(start).Milliseconds(), len(body))
-	if resp.StatusCode == 401 {
-		log.Printf("REST GET %s: HTTP 401 (token expired)", path)
-		return nil, &APIError{401, "Token expired. Reconnect."}
+	body, status, err := doGet(ctx, s, path, tok)
+	if err != nil {
+		return nil, err
 	}
-	if resp.StatusCode != 200 {
-		log.Printf("REST GET %s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
-		return nil, &APIError{resp.StatusCode, string(body)}
+	if status == 401 { // venció antes de lo previsto: renovar y reintentar
+		if e := renewToken(ctx, s, tok); e != nil {
+			return nil, e
+		}
+		if tok2, _ := s.token(); tok2 != tok {
+			body, status, err = doGet(ctx, s, path, tok2)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if status == 401 {
+		log.Printf("REST GET %s: HTTP 401 after renewal", path)
+		return nil, &APIError{401, "Session expired. Reconnect."}
+	}
+	if status != 200 {
+		log.Printf("REST GET %s: HTTP %d: %s", path, status, strings.TrimSpace(string(body)))
+		return nil, &APIError{status, string(body)}
 	}
 	if !json.Valid(body) {
 		log.Printf("REST GET %s: non-JSON response", path)
 		return nil, &APIError{502, fmt.Sprintf("Non-JSON response from %s", path)}
 	}
 	return json.RawMessage(body), nil
+}
+
+// doGet: un intento de GET con el token dado. Devuelve el body y el status.
+func doGet(ctx context.Context, s *Session, path, token string) ([]byte, int, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL(s.Host, s.Port)+"/"+path, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("x-api-version", s.APIVersion)
+
+	start := time.Now()
+	resp, e := httpClient(s.VerifySSL).Do(req)
+	if e != nil {
+		log.Printf("REST GET %s: no response: %v", path, e)
+		return nil, 0, &APIError{504, fmt.Sprintf("Error querying %s: %v", path, e)}
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	dbg.Logf("GET %s -> %d (%dms, %dB)", path, resp.StatusCode, time.Since(start).Milliseconds(), len(body))
+	return body, resp.StatusCode, nil
 }
