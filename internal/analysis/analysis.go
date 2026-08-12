@@ -48,6 +48,7 @@ type Task struct {
 
 type Record struct {
 	ID              string         `json:"id"`
+	JobID           string         `json:"jobId"` // para agrupar corridas por job (assessment)
 	Name            string         `json:"name"`
 	Type            string         `json:"type"`
 	Operation       string         `json:"operation"`
@@ -87,11 +88,12 @@ type RangeInfo struct {
 }
 
 type Result struct {
-	Range        RangeInfo `json:"range"`
-	Days         *int      `json:"days"`
-	Summary      Summary   `json:"summary"`
-	ByRepository []Group   `json:"byRepository"`
-	ByProxy      []Group   `json:"byProxy"`
+	Range        RangeInfo   `json:"range"`
+	Days         *int        `json:"days"`
+	Summary      Summary     `json:"summary"`
+	Assessment   *Assessment `json:"assessment"` // veredicto del entorno (ver assessment.go)
+	ByRepository []Group     `json:"byRepository"`
+	ByProxy      []Group     `json:"byProxy"`
 }
 
 // Summary: visión global del período (cada run contado UNA vez), para mostrar
@@ -172,10 +174,16 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 		}
 	}
 
+	// Ventana efectiva para el assessment: los dias pedidos o los disponibles.
+	winDays := rng.DaysAvailable
+	if days != nil {
+		winDays = *days
+	}
 	return Result{
 		Range:        rng,
 		Days:         days,
 		Summary:      summarize(recs),
+		Assessment:   BuildAssessment(recs, winDays, repoNames, proxyNames),
 		ByRepository: aggregate(recs, func(r Record) []string { return r.RepoIDs }, repoNames, "(sin repositorio)"),
 		ByProxy:      aggregate(recs, func(r Record) []string { return r.ProxyIDs }, proxyNames, "(sin proxy identificado)"),
 	}, nil
@@ -241,7 +249,7 @@ func buildRecord(ctx context.Context, s *vbr.Session, sess map[string]any, jobPr
 	}
 
 	return &Record{
-		ID: sid, Name: str(sess["name"]), Type: stype, Operation: op,
+		ID: sid, JobID: str(sess["jobId"]), Name: str(sess["name"]), Type: stype, Operation: op,
 		Result: str(res["result"]), Message: str(res["message"]),
 		CreationTime: str(sess["creationTime"]), EndTime: str(sess["endTime"]),
 		Bottleneck:      bneck,

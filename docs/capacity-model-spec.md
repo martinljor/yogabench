@@ -164,5 +164,30 @@ El núcleo es **determinista**: mismo input = mismo veredicto, auditable, **offl
 
 ## Pendiente
 - Wire de **fio/iperf** como señal #4 (comparar lo que hace el job vs el techo medido).
-- **Assessment del entorno** (roll-up entre jobs): "tu infra sostiene ~X TB/h; cuello recurrente Y; Top-3 acciones".
 - Derivar cores/RAM de la utilización en vez del input manual.
+
+---
+
+# v0.6 · VEREDICTO DEL ENTORNO (assessment)
+
+El veredicto por job dice qué arreglar en **un job**; esto dice qué arreglar en la **infra**. Se calcula desde los `Record` que ya trae el modo Global → **cero llamadas REST extra** (`internal/analysis/assessment.go`).
+
+## Métricas (y por qué cada una es defendible)
+| Métrica | Cómo | Por qué así |
+|---|---|---|
+| **Capacidad sostenida** | bytes repartidos en las horas que abarca cada corrida (`spread`), se toma el **bucket máximo** | Una corrida de 02:00 a 06:00 **no** movió todo a las 02:00. Da "lo que la infra sostuvo de verdad", no un promedio aguado |
+| **Cuello recurrente** | distribución del `primary` **ponderada por bytes transferidos** | **La diferencia con vONE**: vONE cuenta corridas, así que 20 incrementales no-op le ganan a un full de 2 TB. Acá el cuello es el que afecta a los bytes reales |
+| **Hotspots** | repo/proxy que concentra el dato *binding*; rate = bytes / **unión de intervalos** | Sumar duraciones duplica el tiempo cuando dos jobs le pegan en paralelo y **subestima** el rate del recurso |
+| **Ventana de backup** | carga por hora del día (de los mismos buckets = actividad, no hora de arranque) + **jobs distintos** que arrancan en cada hora | Detecta el pico evitable: escalonar es **gratis**, no requiere hardware |
+
+## Acciones del entorno
+`act.envRepo` (repo que topa → fio + task slots) · `act.envProxy` (proxy/enlace → iperf + CPU) · `act.envStagger` (≥3 jobs distintos en la hora pico con ≥40% del dato) · `act.envNoData` (jobs que no se pueden dictaminar) · `act.envMeasure` (medir el techo: la pata que falta). Mismo tipo `Action` que el veredicto por job → el WebUI las pinta igual.
+
+## Umbrales
+`hotspotShare=35%` del dato binding para nombrar un recurso · `envStageShare=40%` para declarar cuello de entorno · `staggerJobs=3` jobs distintos en la misma hora · `lowFloor=16 MiB` para que una corrida cuente como "movió datos".
+
+## UI
+El modo **Global** ahora abre con el veredicto del entorno (headline + KPIs + acciones + histograma por hora); el agregado por proxy/repo y el resumen del período quedan colapsados. El resumen del período **cuenta corridas a propósito** (como vONE) con una nota que explica el contraste: es la demostración del diferencial.
+
+## Diagnóstico
+El JSON de diagnóstico ahora incluye `analyzed`: los veredictos por job y el assessment que el usuario **ya vio en pantalla** (cacheados en la sesión, cero REST extra) → se reproduce offline lo que vio y se calibran las reglas.

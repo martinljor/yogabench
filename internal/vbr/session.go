@@ -34,6 +34,31 @@ type Session struct {
 
 	mu      sync.Mutex
 	hostRes map[string]HostRes // hostId -> cores/ram (manual, opcional)
+	// analyzed: lo que el usuario YA analizo en esta sesion (con su veredicto),
+	// para volcarlo en el diagnostico y poder reproducirlo/calibrarlo offline sin
+	// gastar mas llamadas REST. Key: "job:<id>" | "assessment".
+	analyzed map[string]any
+}
+
+// SetAnalyzed guarda un resultado ya calculado (se sobreescribe por key).
+func (s *Session) SetAnalyzed(key string, v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.analyzed == nil {
+		s.analyzed = map[string]any{}
+	}
+	s.analyzed[key] = v
+}
+
+// AnalyzedAll devuelve una copia de lo analizado en la sesion.
+func (s *Session) AnalyzedAll() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]any, len(s.analyzed))
+	for k, v := range s.analyzed {
+		out[k] = v
+	}
+	return out
 }
 
 // SetTokens guarda el par de tokens y cuando expira el access token.

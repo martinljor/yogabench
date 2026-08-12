@@ -158,6 +158,14 @@
   .sigs { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
   .sig { font-size:12px; color:var(--muted); cursor:help; }
   .sig.on { color:#7ede6f; }
+
+  /* Histograma de carga por hora (ventana de backup) */
+  .hbars { display:flex; align-items:flex-end; gap:3px; height:64px; margin-top:6px; }
+  .hbar { flex:1; height:100%; display:flex; align-items:flex-end; background:rgba(255,255,255,.035); border-radius:2px; cursor:help; }
+  .hbar-fill { width:100%; display:block; background:var(--blue); border-radius:2px; }
+  .hbar.peak .hbar-fill { background:var(--amber); }
+  .hlabels { display:flex; gap:3px; margin-top:3px; }
+  .hlabels span { flex:1; text-align:center; font-size:10px; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -447,8 +455,8 @@ const I18N = {
     'flow.empty':'Sin datos todavía',
     'flow.dom.prefix':'🔎 Cuello dominante del período:','flow.dom.inview':'— resaltado en <span style="color:#e07070;">rojo</span> abajo.','flow.dom.outview':'— no es un nodo de esta vista (por eso no se pinta ninguno).',
     'stage.source':'origen — lectura del almacenamiento de producción','stage.proxy':'proxy','stage.network':'red','stage.target':'destino — disco del repositorio',
-    'an.title':'Análisis de rendimiento — por repositorio y proxy',
-    'an.desc':'Estadística de los jobs ya ejecutados en el VBR, agrupada por <b>repositorio</b> y por <b>proxy</b> — <b>sin correr nada</b> (compatible con appliances). Elegí la ventana de tiempo, tocá Analizar, y expandí cada fila para ver los jobs por debajo.',
+    'an.title':'Análisis de rendimiento — veredicto por job y del entorno',
+    'an.desc':'Analiza lo que el VBR <b>ya ejecutó</b> — <b>sin correr nada</b> (compatible con appliances) — y <b>dictamina</b>: qué topa, por qué y qué hacer primero. <b>Un job</b> = drill-down, con modo deep a los logs del VBR. <b>Global</b> = veredicto del entorno: cuánto sostiene la infra, el cuello recurrente <b>ponderado por dato movido</b> y la ventana de backup.',
     'an.days':'Días a considerar','an.analyze':'Analizar','an.pick':'Elegí los días y tocá Analizar.',
     'an.range':'Info disponible: {n} día(s) ({from} → {to})','an.nohistory':'Sin datos de jobs en el historial.',
     'an.invalid':'Ingresá una cantidad de días válida (ej: 7).','an.analyzing':'Analizando…','an.failed':'No se pudo analizar: {msg}',
@@ -518,7 +526,24 @@ const I18N = {
     'vd.sig.resOn':'Recursos: CPU/RAM del host conocidos, el consejo de concurrencia es firme.',
     'vd.sig.resOff':'Recursos: CPU/RAM del host desconocidos, el consejo de concurrencia no puede ser firme.',
     'vd.sig.measOff':'Techo medido: todavía sin fio/iperf. Medilo para comparar lo que hace el job contra lo que puede el hardware.',
-    'deep.comp':'compresión','deep.block':'bloque'
+    'deep.comp':'compresión','deep.block':'bloque',
+    // Veredicto del entorno (v0.6).
+    'an.period':'Resumen del periodo','env.sustained':'Capacidad sostenida','env.moved':'Dato movido','env.peakwin':'Ventana pico',
+    'env.nopeak':'sin corridas con datos','env.hours':'Carga por hora del dia (promedio)','env.hotspots':'Recursos que topan',
+    'env.resource':'Recurso','env.kind':'Tipo','env.share':'% del dato','env.data':'Dato','env.kind.repository':'repositorio','env.kind.proxy':'proxy',
+    'env.weighted':'Ponderado por DATO MOVIDO, no por cantidad de corridas: un incremental vacio no pesa igual que un full.',
+    'env.vscount':'Este resumen cuenta CORRIDAS (como Veeam ONE): 20 incrementales vacios pesan igual que un full. El veredicto de arriba pondera por DATO MOVIDO — por eso puede senalar otro cuello.',
+    'env.sub.jobs':'{jobs} jobs · {runs} corridas · {days} dias','env.sub.peak':'{mbps} MB/s sostenidos · pico {at}',
+    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato','env.sub.win':'{jobs} jobs distintos · {pct}% del dato',
+    'env.hourtip':'{h}:00 — {bytes}/dia · {runs} corridas · {jobs} jobs distintos',
+    'vd.env.bound':'La infra sostuvo {mbps} MB/s en el pico; el cuello recurrente es {stage} ({pct}% del dato movido)',
+    'vd.env.spread':'La infra sostuvo {mbps} MB/s en el pico; ningun stage domina el cuello',
+    'vd.env.nodata':'Ninguna corrida de la ventana movio datos: no se puede dictaminar la infraestructura',
+    'vd.act.envRepo':'<b>{name}</b> es el cuello del {pct}% del dato ({mbps} MB/s observados en {runs} corrida(s)): medilo con fio y revisa sus task slots antes de sumarle mas jobs.',
+    'vd.act.envProxy':'<b>{name}</b> es el cuello del {pct}% del dato (stage {stage}, {mbps} MB/s observados): validá su enlace con iperf y su CPU/task slots.',
+    'vd.act.envStagger':'{jobs} jobs distintos arrancan a las {hour}:00 y concentran {pct}% del dato: escalonarlos reparte el pico sin comprar nada.',
+    'vd.act.envNoData':'{n} job(s) solo corrieron incrementales casi vacios en estos {days} dias: ampliá la ventana o incluí un Active Full para poder medir la infra.',
+    'vd.act.envMeasure':'Medir el techo del repositorio mas cargado (fio) y del enlace proxy↔repositorio (iperf): eso convierte \"lo que hicieron los jobs\" en \"lo que puede el hardware\".'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -536,8 +561,8 @@ const I18N = {
     'flow.empty':'No data yet',
     'flow.dom.prefix':'🔎 Dominant bottleneck for the period:','flow.dom.inview':'— highlighted in <span style="color:#e07070;">red</span> below.','flow.dom.outview':'— not a node in this view (that is why none is highlighted).',
     'stage.source':'source — reading production storage','stage.proxy':'proxy','stage.network':'network','stage.target':'target — repository disk',
-    'an.title':'Performance analysis — by repository and proxy',
-    'an.desc':'Statistics of jobs already run in VBR, grouped by <b>repository</b> and by <b>proxy</b> — <b>without running anything</b> (appliance-friendly). Pick the time window, click Analyze, and expand each row to see the jobs underneath.',
+    'an.title':'Performance analysis — per-job and environment verdict',
+    'an.desc':'Analyzes what VBR <b>already ran</b> — <b>without running anything</b> (appliance-friendly) — and <b>gives a verdict</b>: what is the ceiling, why, and what to do first. <b>Single job</b> = drill-down, with deep mode into the VBR logs. <b>Global</b> = environment verdict: what the infrastructure sustains, the recurring bottleneck <b>weighted by data moved</b>, and the backup window.',
     'an.days':'Days to consider','an.analyze':'Analyze','an.pick':'Pick the days and click Analyze.',
     'an.range':'Data available: {n} day(s) ({from} → {to})','an.nohistory':'No job history available.',
     'an.invalid':'Enter a valid number of days (e.g. 7).','an.analyzing':'Analyzing…','an.failed':'Could not analyze: {msg}',
@@ -607,7 +632,24 @@ const I18N = {
     'vd.sig.resOn':'Resources: host CPU/RAM known, concurrency advice is firm.',
     'vd.sig.resOff':'Resources: host CPU/RAM unknown, concurrency advice cannot be firm.',
     'vd.sig.measOff':'Measured ceiling: no fio/iperf run yet. Measure it to compare what the job does against what the hardware can do.',
-    'deep.comp':'compression','deep.block':'block'
+    'deep.comp':'compression','deep.block':'block',
+    // Environment verdict (v0.6).
+    'an.period':'Period summary','env.sustained':'Sustained capacity','env.moved':'Data moved','env.peakwin':'Peak window',
+    'env.nopeak':'no runs with data','env.hours':'Load per hour of day (average)','env.hotspots':'Bottleneck resources',
+    'env.resource':'Resource','env.kind':'Kind','env.share':'% of data','env.data':'Data','env.kind.repository':'repository','env.kind.proxy':'proxy',
+    'env.weighted':'Weighted by DATA MOVED, not by run count: an empty incremental does not weigh the same as a full.',
+    'env.vscount':'This summary counts RUNS (like Veeam ONE): 20 empty incrementals weigh the same as a full. The verdict above weights by DATA MOVED — that is why it can point at a different bottleneck.',
+    'env.sub.jobs':'{jobs} jobs · {runs} runs · {days} days','env.sub.peak':'{mbps} MB/s sustained · peak {at}',
+    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data','env.sub.win':'{jobs} distinct jobs · {pct}% of the data',
+    'env.hourtip':'{h}:00 — {bytes}/day · {runs} runs · {jobs} distinct jobs',
+    'vd.env.bound':'The infrastructure sustained {mbps} MB/s at peak; {stage} is the recurring bottleneck ({pct}% of the data moved)',
+    'vd.env.spread':'The infrastructure sustained {mbps} MB/s at peak; no single stage dominates the bottleneck',
+    'vd.env.nodata':'No run in the window moved data: the infrastructure cannot be assessed',
+    'vd.act.envRepo':'<b>{name}</b> is the bottleneck for {pct}% of the data ({mbps} MB/s observed over {runs} run(s)): measure it with fio and check its task slots before adding more jobs to it.',
+    'vd.act.envProxy':'<b>{name}</b> is the bottleneck for {pct}% of the data ({stage} stage, {mbps} MB/s observed): validate its link with iperf and its CPU/task slots.',
+    'vd.act.envStagger':'{jobs} different jobs start at {hour}:00 and concentrate {pct}% of the data: staggering them spreads the peak without buying anything.',
+    'vd.act.envNoData':'{n} job(s) only ran near-empty incrementals in these {days} day(s): widen the window or include an Active Full to measure the infrastructure.',
+    'vd.act.envMeasure':'Measure the ceiling of the busiest repository (fio) and of the proxy\u2194repository link (iperf): that turns \"what the jobs did\" into \"what the hardware can do\".'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -625,8 +667,8 @@ const I18N = {
     'flow.empty':'Sem dados ainda',
     'flow.dom.prefix':'🔎 Gargalo dominante do período:','flow.dom.inview':'— destacado em <span style="color:#e07070;">vermelho</span> abaixo.','flow.dom.outview':'— não é um nó desta vista (por isso nenhum é destacado).',
     'stage.source':'origem — leitura do armazenamento de produção','stage.proxy':'proxy','stage.network':'rede','stage.target':'destino — disco do repositório',
-    'an.title':'Análise de desempenho — por repositório e proxy',
-    'an.desc':'Estatística dos jobs já executados no VBR, agrupada por <b>repositório</b> e por <b>proxy</b> — <b>sem rodar nada</b> (compatível com appliances). Escolha a janela de tempo, clique Analisar e expanda cada linha para ver os jobs.',
+    'an.title':'Análise de desempenho — veredito por job e do ambiente',
+    'an.desc':'Analisa o que o VBR <b>já executou</b> — <b>sem rodar nada</b> (compatível com appliances) — e <b>dá um veredito</b>: o que trava, por quê e o que fazer primeiro. <b>Um job</b> = drill-down, com modo deep nos logs do VBR. <b>Global</b> = veredito do ambiente: quanto a infra sustenta, o gargalo recorrente <b>ponderado por dado movido</b> e a janela de backup.',
     'an.days':'Dias a considerar','an.analyze':'Analisar','an.pick':'Escolha os dias e clique Analisar.',
     'an.range':'Dados disponíveis: {n} dia(s) ({from} → {to})','an.nohistory':'Sem histórico de jobs.',
     'an.invalid':'Informe um número de dias válido (ex: 7).','an.analyzing':'Analisando…','an.failed':'Não foi possível analisar: {msg}',
@@ -696,7 +738,24 @@ const I18N = {
     'vd.sig.resOn':'Recursos: CPU/RAM do host conhecidos, o conselho de concorrência é firme.',
     'vd.sig.resOff':'Recursos: CPU/RAM do host desconhecidos, o conselho de concorrência não pode ser firme.',
     'vd.sig.measOff':'Teto medido: ainda sem fio/iperf. Meça para comparar o que o job faz contra o que o hardware pode.',
-    'deep.comp':'compressão','deep.block':'bloco'
+    'deep.comp':'compressão','deep.block':'bloco',
+    // Veredito do ambiente (v0.6).
+    'an.period':'Resumo do periodo','env.sustained':'Capacidade sustentada','env.moved':'Dado movido','env.peakwin':'Janela de pico',
+    'env.nopeak':'sem execucoes com dados','env.hours':'Carga por hora do dia (media)','env.hotspots':'Recursos que travam',
+    'env.resource':'Recurso','env.kind':'Tipo','env.share':'% do dado','env.data':'Dado','env.kind.repository':'repositorio','env.kind.proxy':'proxy',
+    'env.weighted':'Ponderado por DADO MOVIDO, nao por quantidade de execucoes: um incremental vazio nao pesa igual a um full.',
+    'env.vscount':'Este resumo conta EXECUCOES (como o Veeam ONE): 20 incrementais vazios pesam igual a um full. O veredito acima pondera por DADO MOVIDO — por isso pode apontar outro gargalo.',
+    'env.sub.jobs':'{jobs} jobs · {runs} execucoes · {days} dias','env.sub.peak':'{mbps} MB/s sustentados · pico {at}',
+    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado','env.sub.win':'{jobs} jobs distintos · {pct}% do dado',
+    'env.hourtip':'{h}:00 — {bytes}/dia · {runs} execucoes · {jobs} jobs distintos',
+    'vd.env.bound':'A infra sustentou {mbps} MB/s no pico; o gargalo recorrente e {stage} ({pct}% do dado movido)',
+    'vd.env.spread':'A infra sustentou {mbps} MB/s no pico; nenhum stage domina o gargalo',
+    'vd.env.nodata':'Nenhuma execucao da janela moveu dados: nao e possivel avaliar a infraestrutura',
+    'vd.act.envRepo':'<b>{name}</b> e o gargalo de {pct}% do dado ({mbps} MB/s observados em {runs} execucao(oes)): meca com fio e revise seus task slots antes de somar mais jobs.',
+    'vd.act.envProxy':'<b>{name}</b> e o gargalo de {pct}% do dado (stage {stage}, {mbps} MB/s observados): valide o enlace com iperf e a CPU/task slots.',
+    'vd.act.envStagger':'{jobs} jobs distintos comecam as {hour}:00 e concentram {pct}% do dado: escalonar reparte o pico sem comprar nada.',
+    'vd.act.envNoData':'{n} job(s) rodaram apenas incrementais quase vazios nestes {days} dias: amplie a janela ou inclua um Active Full para medir a infra.',
+    'vd.act.envMeasure':'Medir o teto do repositorio mais carregado (fio) e do enlace proxy\u2194repositorio (iperf): isso transforma \"o que os jobs fizeram\" em \"o que o hardware pode\".'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1468,6 +1527,7 @@ function fmtDur(sec) {
 }
 function fmtBytes(n) {
   n = n || 0;
+  if (n >= 1024 ** 4) return (n / 1024 ** 4).toFixed(1) + ' TiB';
   if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(1) + ' GiB';
   if (n >= 1024 ** 2) return (n / 1024 ** 2).toFixed(1) + ' MiB';
   if (n >= 1024) return (n / 1024).toFixed(0) + ' KiB';
@@ -1726,18 +1786,78 @@ async function runAnalysis() {
   }
 }
 
+// hourChart: carga por hora del dia. Deja ver la ventana de backup y si se pisa
+// (la hora pico va en ambar). El detalle de cada barra, en el tooltip.
+function hourChart(hours, busiest) {
+  const max = Math.max(1, ...hours.map(h => h.bytes));
+  const bars = hours.map(h => {
+    const pc = Math.round(h.bytes / max * 100);
+    const tip = tp('env.hourtip', { h: String(h.hour).padStart(2, '0'), bytes: fmtBytes(h.bytes), runs: h.runs, jobs: h.jobStarts });
+    return `<span class="hbar ${h.hour === busiest ? 'peak' : ''}" title="${attrTxt(tip)}"><span class="hbar-fill" style="height:${h.bytes ? Math.max(pc, 2) : 0}%;"></span></span>`;
+  }).join('');
+  const labels = hours.map(h => `<span>${h.hour % 3 === 0 ? String(h.hour).padStart(2, '0') : ''}</span>`).join('');
+  return `<div class="hbars">${bars}</div><div class="hlabels">${labels}</div>`;
+}
+
+// renderAssessment: el VEREDICTO DEL ENTORNO — cuanto sostiene la infra, donde
+// esta el cuello recurrente (ponderado por DATO, no por cantidad de corridas) y
+// que conviene hacer primero. Ver internal/analysis/assessment.go.
+function renderAssessment(a) {
+  if (!a) return '';
+  const badgeCls = { critical: 'low', warn: 'warn', ok: 'ok' }[a.severity] || '';
+  const badge = a.topStage && a.severity !== 'unknown'
+    ? `<span class="verdict ${badgeCls}">${t('vd.badge.stage')}: ${a.topStage} · ${a.topStagePct}%</span>`
+    : `<span class="verdict ${a.severity === 'unknown' ? 'low' : 'ok'}">${t(a.severity === 'unknown' ? 'vd.badge.nodata' : 'vd.badge.balanced')}</span>`;
+  const hero = `<div class="vd ${a.severity}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        ${badge}<span class="muted" style="font-size:12px;">${tp('env.sub.jobs', { jobs: a.jobs, runs: a.runs, days: a.days })}</span>
+      </div>
+      <div class="vd-hl">${vt(a.headlineCode, a.headlineParams, a.headline)}</div>
+    </div>`;
+
+  let tiles = kpi(t('env.sustained'), a.peakBytesPerHour ? fmtBytes(a.peakBytesPerHour) + '/h' : '—',
+    a.peakBytesPerHour ? tp('env.sub.peak', { mbps: a.peakMBps, at: a.peakAt }) : t('env.nopeak'));
+  tiles += kpi(t('env.moved'), fmtBytes(a.totalBytes), tp('env.sub.days', { days: a.days }));
+  tiles += kpi(t('cap.bneck'), a.topStage || '—', a.topStage ? tp('env.sub.share', { pct: a.topStagePct }) : '', 'bad');
+  if (a.busiestHour >= 0) {
+    tiles += kpi(t('env.peakwin'), String(a.busiestHour).padStart(2, '0') + ':00',
+      tp('env.sub.win', { jobs: a.busiestJobs, pct: a.busiestPct }));
+  }
+
+  const hs = (a.hotspots || []).map(h => `<tr><td>${h.name}</td><td>${t('env.kind.' + h.kind)}</td><td>${h.stage}</td>`
+    + `<td>${h.sharePct}%</td><td>${fmtBytes(h.bytes)}</td><td>${h.runs}</td><td>${h.throuMBps || '—'}</td></tr>`).join('');
+  const hsTable = hs
+    ? `<table><tr><th>${t('env.resource')}</th><th>${t('env.kind')}</th><th>${t('cap.bneck')}</th><th>${t('env.share')}</th><th>${t('env.data')}</th><th>${t('cap.runs')}</th><th>MB/s</th></tr>${hs}</table>`
+      + `<p class="muted" style="font-size:11px;margin-top:6px;">ℹ️ ${t('env.weighted')}</p>`
+    : `<p class="muted">—</p>`;
+
+  return hero
+    + `<div class="kpi-grid">${tiles}</div>`
+    + actionsList({ actions: a.actions })
+    + `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('env.hours')}</div>`
+    + hourChart(a.hours || [], a.busiestHour)
+    + `<div style="margin-top:12px;">
+        <details class="exp"><summary>${t('env.hotspots')} <span class="muted">${(a.hotspots || []).length}</span></summary>
+          <div class="exp-body">${hsTable}</div></details>
+      </div>`;
+}
+
 function renderAnalysis(d) {
   const el = document.getElementById('analysisContent');
   const repo = (d && d.byRepository) || [];
   const prx = (d && d.byProxy) || [];
-  if (!repo.length && !prx.length) {
+  const asmt = d && d.assessment;
+  if (!repo.length && !prx.length && !asmt) {
     el.innerHTML = `<p class="muted">${t('an.nodata')}</p>`;
     return;
   }
   el.innerHTML =
-    globalTiles(d && d.summary) +
-    `<div style="margin-top:8px;">
-      <details class="exp" open><summary>${t('an.byproxy')} <span class="muted">${prx.length}</span></summary>
+    `<div class="subcard">${renderAssessment(asmt)}</div>` +
+    `<div style="margin-top:14px;">
+      <details class="exp"><summary>${t('an.period')} <span class="muted">${(d.summary || {}).runs || 0}</span></summary>
+        <div class="exp-body">${globalTiles(d && d.summary)}
+          <p class="muted" style="font-size:11px;margin:2px 0 0;">ℹ️ ${t('env.vscount')}</p></div></details>
+      <details class="exp"><summary>${t('an.byproxy')} <span class="muted">${prx.length}</span></summary>
         <div class="exp-body">${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : `<p class="muted">${t('an.noproxy')}</p>`}</div></details>
       <details class="exp"><summary>${t('an.byrepo')} <span class="muted">${repo.length}</span></summary>
         <div class="exp-body">${repo.length ? repo.map(g => groupCard(g, 'repo')).join('') : `<p class="muted">${t('an.nodata')}</p>`}</div></details>

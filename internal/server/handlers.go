@@ -276,6 +276,15 @@ func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	if a := res.Assessment; a != nil {
+		sess.SetAnalyzed("assessment", a) // queda para el diagnostico
+		top := "-"
+		if len(a.Actions) > 0 {
+			top = a.Actions[0].Code
+		}
+		log.Printf("assessment: %d job(s)/%d run(s) in %dd · peak=%.0fMB/s at %s · bottleneck=%s(%d%%) · busiest=%02dh(%d jobs, %d%%) · top=%s | %s",
+			a.Jobs, a.Runs, a.Days, a.PeakMBps, a.PeakAt, a.TopStage, a.TopStagePct, a.BusiestHour, a.BusiestJobs, a.BusiestPct, top, a.Headline)
+	}
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -326,6 +335,7 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 	log.Printf("analysis job %s: session=%s primary=%s conf=%s read=%.0fMB/s write=%.0fMB/s proj=%s",
 		jobID, res.SessionID, res.Primary, res.Confidence, res.ReadMBps, res.WriteMBps, proj)
 	logVerdict(jobID, res.Verdict)
+	sess.SetAnalyzed("job:"+jobID, res) // queda para el diagnostico
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -410,6 +420,7 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 		v := analysis.BuildVerdict(capRes, &res)
 		out["verdict"], out["capacity"] = v, capRes
 		logVerdict(in.JobID, v)
+		sess.SetAnalyzed("job:"+in.JobID, out) // el deep reemplaza al REST-only
 	} else {
 		log.Printf("deep analysis: no capacity context for job %s: %v", in.JobID, err)
 	}
@@ -563,7 +574,14 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	log.Printf("diagnostics generated: %d proxies, %d repos", len(proxies), len(repos))
+	// Lo que el usuario YA analizo en esta sesion, con su veredicto calculado: con
+	// esto se reproduce offline lo que vio en pantalla (calibrar reglas) sin gastar
+	// mas llamadas REST. Vacio si solo genero el diagnostico.
+	analyzed := sess.AnalyzedAll()
+	if len(analyzed) > 0 {
+		report["analyzed"] = analyzed
+	}
+	log.Printf("diagnostics generated: %d proxies, %d repos, %d analyzed", len(proxies), len(repos), len(analyzed))
 	writeJSON(w, http.StatusOK, report)
 }
 
