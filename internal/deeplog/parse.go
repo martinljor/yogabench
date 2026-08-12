@@ -37,6 +37,7 @@ type VMDeep struct {
 }
 
 type Result struct {
+	JobName       string    `json:"jobName"`
 	Transport     string    `json:"transport"`     // nbd | hotadd | san | mixed | ""
 	TransportNote string    `json:"transportNote"` // por que (ej: hotadd no disponible)
 	Aggregate     *Stage4   `json:"aggregate"`     // Load: agregado del job

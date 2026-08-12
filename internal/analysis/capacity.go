@@ -105,6 +105,30 @@ func JobList(ctx context.Context, s *vbr.Session) []JobItem {
 	return out
 }
 
+// JobDeepTarget: nombre del job + OS del VBR (donde viven los Job/Task logs),
+// para el modo deep. osKind = "windows" | "linux".
+func JobDeepTarget(ctx context.Context, s *vbr.Session, jobID string) (name, osKind string, err error) {
+	for _, j := range getItems(ctx, s, "v1/jobs?limit=1000") {
+		if str(j["id"]) == jobID {
+			name = str(j["name"])
+			break
+		}
+	}
+	if name == "" {
+		return "", "", fmt.Errorf("job not found")
+	}
+	osKind = "windows"
+	for _, m := range getItems(ctx, s, "v1/backupInfrastructure/managedServers?limit=1000") {
+		if boolOf(m["isBackupServer"]) {
+			if boolOf(m["isVBRLinuxAppliance"]) {
+				osKind = "linux"
+			}
+			break
+		}
+	}
+	return name, osKind, nil
+}
+
 // JobCapacity: modelo de capacidad para un job, sobre su ultima corrida con datos.
 func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacityResult, error) {
 	// Sesiones recientes del job (data jobs, no Failed).

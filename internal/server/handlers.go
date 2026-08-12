@@ -12,6 +12,7 @@ import (
 
 	"yogabench/internal/analysis"
 	"yogabench/internal/benchmark"
+	"yogabench/internal/deeplog"
 	"yogabench/internal/topology"
 	"yogabench/internal/vbr"
 )
@@ -316,6 +317,59 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("analysis job %s: session=%s primary=%s conf=%s read=%.0fMB/s write=%.0fMB/s proj=%s",
 		jobID, res.SessionID, res.Primary, res.Confidence, res.ReadMBps, res.WriteMBps, proj)
+	writeJSON(w, http.StatusOK, res)
+}
+
+type deepInput struct {
+	JobID    string `json:"jobId"`
+	Host     string `json:"host"`
+	Username string `json:"username"`
+	Password string `json:"password"` // no password
+	Domain   string `json:"domain"`
+}
+
+// analysisJobDeep: "doble-click" — entra al OS del VBR (Windows: SMB2 a C$) con las
+// credenciales del usuario, baja Job/Task logs del job y devuelve el analisis deep
+// (transporte+motivo, 4-stage por VM, duraciones, opciones). Read-only; sin secretos al log.
+func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	if sess.Demo {
+		writeJSON(w, http.StatusOK, map[string]string{"detail": "Deep mode does not run in demo (needs host access to the VBR)."})
+		return
+	}
+	var in deepInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
+		return
+	}
+	if in.JobID == "" || strings.TrimSpace(in.Username) == "" || in.Password == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "jobId, username and password are required"})
+		return
+	}
+	name, osKind, err := analysis.JobDeepTarget(r.Context(), sess, in.JobID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
+		return
+	}
+	host := strings.TrimSpace(in.Host)
+	if host == "" {
+		host = sess.Host
+	}
+	if osKind == "linux" {
+		writeJSON(w, http.StatusOK, map[string]string{"detail": "Deep mode for a Linux appliance needs SSH, which the hardened v13 appliance does not allow. It is supported on a Windows VBR (SMB to C$)."})
+		return
+	}
+	jobLog, taskLogs, err := deeplog.FetchWindows(host, in.Username, in.Password, in.Domain, name)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
+		return
+	}
+	res := deeplog.Parse(jobLog, taskLogs)
+	res.JobName = name
+	log.Printf("deep analysis: job=%q host=%s transport=%s vms=%d", name, host, res.Transport, len(res.VMs)) // no password
 	writeJSON(w, http.StatusOK, res)
 }
 
