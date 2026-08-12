@@ -57,6 +57,7 @@ func (s *Server) routes(web fs.FS) {
 	m.HandleFunc("GET /api/{session}/analysis-range", s.analysisRange)
 	m.HandleFunc("GET /api/{session}/analysis/jobs", s.analysisJobs)
 	m.HandleFunc("GET /api/{session}/analysis/job", s.analysisJob)
+	m.HandleFunc("POST /api/{session}/host-resources", s.hostResources)
 
 	// Benchmark (Objetivo 2): baselines, opciones, ciclo de conexion y jobs.
 	m.HandleFunc("GET /api/baselines", s.baselines)

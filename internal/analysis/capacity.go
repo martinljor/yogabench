@@ -39,10 +39,15 @@ type StageInfo struct {
 }
 
 type ResourceInfo struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Kind         string `json:"kind"` // proxy | repository
-	MaxTaskCount int    `json:"maxTaskCount"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Kind         string   `json:"kind"` // proxy | repository
+	HostID       string   `json:"hostId"`
+	MaxTaskCount int      `json:"maxTaskCount"`
+	Cores        int      `json:"cores,omitempty"`      // manual (0 = desconocido)
+	RamGB        int      `json:"ramGB,omitempty"`      // manual
+	CapacityGB   *float64 `json:"capacityGB,omitempty"` // repos (de /repositories/states)
+	FreeGB       *float64 `json:"freeGB,omitempty"`
 }
 
 type Reco struct {
@@ -285,17 +290,39 @@ func projectTime(stages []StageInfo, durSec float64, hasData bool) *Projection {
 	}
 }
 
-// recommend: sugerencias atadas al/los stage(s) que topan, resource-gated. En
-// prod (solo maxTaskCount) las recomendaciones de recursos son CONDICIONALES.
+// recommend: sugerencias atadas al/los stage(s) que topan. Con cores/RAM del host
+// (ingresados por el usuario) la recomendacion es FIRME y aplica el gate de
+// viabilidad; sin ellos, queda CONDICIONAL (rule of thumb ~1 task/core + 2GB/task).
 func recommend(r *JobCapacityResult) []Reco {
 	var recs []Reco
-	slots := func(kind string) string {
-		for _, res := range r.Resources {
-			if res.Kind == kind {
-				return fmt.Sprintf("%s has %d task slot(s)", res.Name, res.MaxTaskCount)
+	// advice: consejo resource-gated para un stage que "posee" un host (proxy/repo).
+	advice := func(kind, scaleOut string) (string, string) {
+		var res *ResourceInfo
+		for i := range r.Resources {
+			if r.Resources[i].Kind == kind {
+				res = &r.Resources[i]
+				break
 			}
 		}
-		return ""
+		if res == nil {
+			return "", "estimate"
+		}
+		if res.Cores <= 0 { // sin datos de hardware -> condicional
+			return fmt.Sprintf("%s has %d task slot(s). Enter its CPU cores/RAM (Resources) for a firm recommendation (~1 task/core + 2GB/task).", res.Name, res.MaxTaskCount), "estimate"
+		}
+		viable := res.Cores
+		if res.RamGB > 0 && res.RamGB/2 < viable {
+			viable = res.RamGB / 2
+		}
+		base := fmt.Sprintf("%s: %d cores / %d GB -> ~%d viable task(s), %d configured. ", res.Name, res.Cores, res.RamGB, viable, res.MaxTaskCount)
+		switch {
+		case viable <= 2: // gate de viabilidad
+			return base + "Low-resource host: raising concurrency won't help — " + scaleOut + ".", "firm"
+		case res.MaxTaskCount < viable:
+			return base + fmt.Sprintf("Raise task slots to %d (free win, no new hardware).", viable), "firm"
+		default:
+			return base + "Already at capacity — " + scaleOut + ".", "firm"
+		}
 	}
 	for _, st := range r.Stages {
 		if !st.Binding {
@@ -303,13 +330,15 @@ func recommend(r *JobCapacityResult) []Reco {
 		}
 		switch st.Name {
 		case "Source":
-			recs = append(recs, Reco{st.Name, "warn", "Source (VMware read) is the ceiling: check the datastore/storage read speed, CBT health and snapshot handling. Adding proxy concurrency only helps if the source can serve more.", "estimate"})
+			recs = append(recs, Reco{st.Name, "warn", "Source (VMware read) is the ceiling: check datastore/storage read speed, CBT health and the transport mode (nbd vs hotadd/SAN). The deep-log mode reports the actual transport and why.", "estimate"})
 		case "Proxy":
-			recs = append(recs, Reco{st.Name, "high", "Proxy processing is the ceiling. " + slots("proxy") + ". If the proxy host has more CPU cores/RAM than task slots (~1 task/core + 2GB), raise the task slots (free win); otherwise add CPU/RAM or another proxy.", "estimate"})
+			txt, conf := advice("proxy", "add CPU/RAM or another proxy")
+			recs = append(recs, Reco{st.Name, "high", "Proxy processing is the ceiling. " + txt, conf})
 		case "Network":
-			recs = append(recs, Reco{st.Name, "high", "The proxy↔repository network is the ceiling. Validate the real link with the iperf test (Benchmark › Network); consider co-locating proxy and repository or a faster link.", "estimate"})
+			recs = append(recs, Reco{st.Name, "high", "The proxy<->repository network is the ceiling. Validate the real link with iperf (Benchmark > Network); consider co-locating proxy and repository or a faster link.", "estimate"})
 		case "Target":
-			recs = append(recs, Reco{st.Name, "high", "Repository write is the ceiling. " + slots("repository") + ". Raise repo task slots if the host has spare cores; otherwise use a faster repo / add SOBR extents. Measure the disk with fio (Benchmark › Disk).", "estimate"})
+			txt, conf := advice("repository", "use a faster repo / add SOBR extents")
+			recs = append(recs, Reco{st.Name, "high", "Repository write is the ceiling. " + txt + " Measure the disk with fio (Benchmark > Disk).", conf})
 		}
 	}
 	if r.Projection != nil {
@@ -325,39 +354,111 @@ func recommend(r *JobCapacityResult) []Reco {
 	return recs
 }
 
-// jobResources: proxies del job + repos usados, con su maxTaskCount (REST).
+// jobResources: proxies del job + repos usados, con maxTaskCount (REST), cores/RAM
+// manuales (de la sesion) y capacidad/free del repo (de /repositories/states).
 func jobResources(ctx context.Context, s *vbr.Session, jobID string, repoIDs []string) []ResourceInfo {
+	hostRes := s.HostResAll()
 	var out []ResourceInfo
+
 	// Proxies del job.
-	proxyMax := map[string]int{}
-	proxyName := map[string]string{}
+	proxyMax, proxyName, proxyHost := map[string]int{}, map[string]string{}, map[string]string{}
 	for _, p := range getItems(ctx, s, "v1/backupInfrastructure/proxies?limit=1000") {
 		id := str(p["id"])
 		proxyName[id] = str(p["name"])
 		if srv, ok := p["server"].(map[string]any); ok {
 			proxyMax[id] = toInt(srv["maxTaskCount"])
+			proxyHost[id] = str(srv["hostId"])
 		}
 	}
 	for _, pid := range cleanIDs(jobProxyMap(ctx, s)[jobID]) {
-		out = append(out, ResourceInfo{ID: pid, Name: proxyName[pid], Kind: "proxy", MaxTaskCount: proxyMax[pid]})
+		r := ResourceInfo{ID: pid, Name: proxyName[pid], Kind: "proxy", HostID: proxyHost[pid], MaxTaskCount: proxyMax[pid]}
+		if hr, ok := hostRes[proxyHost[pid]]; ok {
+			r.Cores, r.RamGB = hr.Cores, hr.RamGB
+		}
+		out = append(out, r)
 	}
+
 	// Repos usados por las tareas.
-	repoMax := map[string]int{}
-	repoName := map[string]string{}
+	repoMax, repoName, repoHost := map[string]int{}, map[string]string{}, map[string]string{}
 	for _, rp := range allRepositories(ctx, s) {
 		id := str(rp["id"])
 		repoName[id] = str(rp["name"])
+		repoHost[id] = str(rp["hostId"])
 		if inner, ok := rp["repository"].(map[string]any); ok {
 			repoMax[id] = toInt(inner["maxTaskCount"])
 		}
 	}
+	// Capacidad/free por repo (endpoint states; nombres de campo defensivos).
+	capGB, freeGB := map[string]float64{}, map[string]float64{}
+	for _, stt := range getItems(ctx, s, "v1/backupInfrastructure/repositories/states") {
+		id := firstNonEmpty(str(stt["id"]), str(stt["repositoryId"]))
+		if id == "" {
+			continue
+		}
+		capGB[id] = gbOf(stt, "capacityGB", "capacity")
+		freeGB[id] = gbOf(stt, "freeGB", "freeSpace", "free")
+	}
 	for _, rid := range repoIDs {
-		out = append(out, ResourceInfo{ID: rid, Name: repoName[rid], Kind: "repository", MaxTaskCount: repoMax[rid]})
+		r := ResourceInfo{ID: rid, Name: repoName[rid], Kind: "repository", HostID: repoHost[rid], MaxTaskCount: repoMax[rid]}
+		if hr, ok := hostRes[repoHost[rid]]; ok {
+			r.Cores, r.RamGB = hr.Cores, hr.RamGB
+		}
+		if v := capGB[rid]; v > 0 {
+			r.CapacityGB = &v
+		}
+		if v := freeGB[rid]; v > 0 {
+			r.FreeGB = &v
+		}
+		out = append(out, r)
 	}
 	return out
+}
+
+// gbOf lee el primer campo presente y lo normaliza a GB: los "*GB" se toman como
+// GB; si el campo trae bytes crudos (valor grande), se convierte a GB.
+func gbOf(m map[string]any, keys ...string) float64 {
+	for _, k := range keys {
+		v, ok := m[k]
+		if !ok {
+			continue
+		}
+		f := toFloat(v)
+		if f <= 0 {
+			continue
+		}
+		if strings.Contains(k, "GB") {
+			return round1(f)
+		}
+		if f > 1e9 { // bytes -> GB
+			return round1(f / 1e9)
+		}
+		return round1(f)
+	}
+	return 0
 }
 
 func boolOf(v any) bool {
 	b, _ := v.(bool)
 	return b
+}
+
+func toFloat(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case int64:
+		return float64(x)
+	case int:
+		return float64(x)
+	}
+	return 0
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

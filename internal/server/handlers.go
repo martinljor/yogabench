@@ -319,6 +319,33 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+type hostResInput struct {
+	HostID string `json:"hostId"`
+	Cores  int    `json:"cores"`
+	RamGB  int    `json:"ramGB"`
+}
+
+// hostResources guarda (en la sesion) los cores/RAM de un host, para que el
+// modelo de capacidad de recomendaciones firmes. cores=ram=0 borra el override.
+func (s *Server) hostResources(w http.ResponseWriter, r *http.Request) {
+	sess, ok := s.session(w, r)
+	if !ok {
+		return
+	}
+	var in hostResInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "invalid body"})
+		return
+	}
+	if strings.TrimSpace(in.HostID) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "hostId required"})
+		return
+	}
+	sess.SetHostRes(in.HostID, vbr.HostRes{Cores: in.Cores, RamGB: in.RamGB})
+	log.Printf("host resources set: host=%s cores=%d ramGB=%d", in.HostID, in.Cores, in.RamGB)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 // sessions: passthrough de las ultimas sesiones de jobs (util para explorar).
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	s.proxy(w, r, "v1/sessions?limit=50&orderColumn=CreationTime&orderAsc=false")

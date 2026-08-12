@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+// HostRes: recursos de performance de un host (ingresados manualmente por el
+// usuario en prod, donde la REST no los expone). 0 = desconocido.
+type HostRes struct {
+	Cores int `json:"cores"`
+	RamGB int `json:"ramGB"`
+}
+
 // Session es una conexion viva a un VBR (o una sesion demo).
 type Session struct {
 	Demo         bool
@@ -18,6 +25,34 @@ type Session struct {
 	AccessToken  string
 	RefreshToken string
 	CreatedAt    time.Time
+
+	mu      sync.Mutex
+	hostRes map[string]HostRes // hostId -> cores/ram (manual, opcional)
+}
+
+// SetHostRes guarda (o borra si cores y ram son 0) los recursos de un host.
+func (s *Session) SetHostRes(hostID string, r HostRes) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.hostRes == nil {
+		s.hostRes = map[string]HostRes{}
+	}
+	if r.Cores == 0 && r.RamGB == 0 {
+		delete(s.hostRes, hostID)
+		return
+	}
+	s.hostRes[hostID] = r
+}
+
+// HostResAll devuelve una copia del mapa de recursos manuales.
+func (s *Session) HostResAll() map[string]HostRes {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]HostRes, len(s.hostRes))
+	for k, v := range s.hostRes {
+		out[k] = v
+	}
+	return out
 }
 
 // Store guarda las sesiones en memoria (como el prototipo Python). En una
