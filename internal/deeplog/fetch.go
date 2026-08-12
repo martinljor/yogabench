@@ -91,22 +91,24 @@ func findJobFolder(share *smb2.Share, jobName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot list %s (is this the VBR server?) - %v", winLogBase, err)
 	}
-	want := strings.ToLower(strings.TrimSpace(jobName))
-	sanitized := strings.ToLower(sanitize(jobName))
+	// Normalizamos AMBOS lados por el mismo saneo (espacios/chars -> "_") para que
+	// "AWS SOBR" matchee la carpeta "AWS_SOBR".
+	norm := func(x string) string { return strings.ToLower(sanitize(strings.TrimSpace(x))) }
+	want := norm(jobName)
 	var contains string
 	for _, n := range names {
-		ln := strings.ToLower(n)
-		if ln == want || ln == sanitized {
+		nn := norm(n)
+		if nn == want {
 			return n, nil
 		}
-		if contains == "" && (strings.Contains(ln, want) || strings.Contains(ln, sanitized)) {
+		if contains == "" && (strings.Contains(nn, want) || strings.Contains(want, nn)) {
 			contains = n
 		}
 	}
 	if contains != "" {
 		return contains, nil
 	}
-	return "", fmt.Errorf("job folder for %q not found under C:\\%s", jobName, strings.ReplaceAll(winLogBase, "/", "\\"))
+	return "", fmt.Errorf("job folder for %q (looked for %q) not found under C:\\%s", jobName, want, strings.ReplaceAll(winLogBase, "/", "\\"))
 }
 
 func listDir(share *smb2.Share, dir string) ([]string, error) {
@@ -151,8 +153,10 @@ func vmFromTaskName(name string) string {
 	return b
 }
 
-// sanitize replica (aprox) el saneo de nombres de carpeta de Veeam.
+// sanitize replica el saneo de nombres de carpeta de Veeam: espacios y los chars
+// invalidos de path (/ \ : * ? " < > |) se reemplazan por "_". Ej: "AWS SOBR" ->
+// "AWS_SOBR"; "Hyper-V - Windows/Linux" -> "Hyper-V_-_Windows_Linux".
 func sanitize(s string) string {
-	r := strings.NewReplacer("/", "_", "\\", "_", ":", "_", "*", "_", "?", "_", "\"", "_", "<", "_", ">", "_", "|", "_")
+	r := strings.NewReplacer(" ", "_", "/", "_", "\\", "_", ":", "_", "*", "_", "?", "_", "\"", "_", "<", "_", ">", "_", "|", "_")
 	return r.Replace(s)
 }
