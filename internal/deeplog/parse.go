@@ -1,0 +1,180 @@
+// Package deeplog parsea los logs en disco del VBR (Job.<name>.log + Task.<vm>.log)
+// para enriquecer el analisis por job con lo que la REST NO expone: 4-stage POR VM,
+// modo de transporte (nbd/hotadd/san) y POR QUE, duraciones/concurrencia precisas,
+// y opciones del job. Es un parser de texto puro (sin acceso a red): quien obtiene
+// los archivos (SSH/SMB) le pasa el contenido. Ver internal/deeplog/fetch.go.
+package deeplog
+
+import (
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// --- tipos de salida --------------------------------------------------------
+
+type Stage4 struct {
+	Source  int `json:"source"`
+	Proxy   int `json:"proxy"`
+	Network int `json:"network"`
+	Target  int `json:"target"`
+}
+
+type DiskInfo struct {
+	Label      string  `json:"label"`
+	Path       string  `json:"path"`
+	CapacityGB int     `json:"capacityGB"`
+	Thin       bool    `json:"thin"`
+}
+
+type VMDeep struct {
+	Name        string     `json:"name"`
+	Busy        *Stage4    `json:"busy"` // 4-stage POR VM (del Task log)
+	Primary     string     `json:"primary"`
+	DurationSec float64    `json:"durationSec"`
+	Disks       []DiskInfo `json:"disks"`
+}
+
+type Result struct {
+	Transport     string    `json:"transport"`     // nbd | hotadd | san | mixed | ""
+	TransportNote string    `json:"transportNote"` // por que (ej: hotadd no disponible)
+	Aggregate     *Stage4   `json:"aggregate"`     // Load: agregado del job
+	Primary       string    `json:"primary"`
+	VMs           []VMDeep  `json:"vms"`
+	Dedup         *bool     `json:"dedup,omitempty"`
+	Compression   *int      `json:"compression,omitempty"`
+	BlockSizeKB   *int      `json:"blockSizeKB,omitempty"`
+	Notes         []string  `json:"notes"`
+
+	jobDurations map[string]float64 // interno: duracion por thread de VM (del Job log)
+}
+
+// --- regex ------------------------------------------------------------------
+
+var (
+	loadRe   = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
+	primRe   = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
+	modeRe   = regexp.MustCompile(`Detected mode \[(\w+)\]`)
+	durRe    = regexp.MustCompile(`Completed: THREAD: ([^\s(]+) \(CancellableThread\.Create: \d+\) in\s+(\d+):(\d+):(\d+)`)
+	diskRe   = regexp.MustCompile(`Disk: label "([^"]+)", path "([^"]+)", capacity (\d+) GB.*?thinProvisioned "(\w+)"`)
+	dedupRe  = regexp.MustCompile(`<EnableDeduplication>(\w+)</EnableDeduplication>`)
+	compRe   = regexp.MustCompile(`<CompressionLevel>(\d+)</CompressionLevel>`)
+	blockRe  = regexp.MustCompile(`<StgBlockSize>KbBlockSize(\d+)</StgBlockSize>`)
+	hotaddNo = regexp.MustCompile(`(?i)not on suitable ESX|No disks can be processed through hotadd`)
+)
+
+// --- API --------------------------------------------------------------------
+
+// Parse arma el resultado deep desde el contenido del Job log y los Task logs
+// (mapa nombreVM -> contenido). taskLogs puede estar vacio (solo Job log).
+func Parse(jobLog string, taskLogs map[string]string) Result {
+	r := Result{Notes: []string{}, jobDurations: map[string]float64{}}
+	parseJob(jobLog, &r)
+	for vm, content := range taskLogs {
+		r.VMs = append(r.VMs, parseTask(vm, content))
+	}
+	r.applyDurations()
+	sort.SliceStable(r.VMs, func(i, j int) bool { return r.VMs[i].DurationSec > r.VMs[j].DurationSec })
+	return r
+}
+
+func parseJob(s string, r *Result) {
+	// Transporte (puede haber varias; nos quedamos con el conjunto).
+	modes := map[string]bool{}
+	for _, m := range modeRe.FindAllStringSubmatch(s, -1) {
+		modes[strings.ToLower(m[1])] = true
+	}
+	r.Transport = joinModes(modes)
+	if modes["nbd"] && hotaddNo.MatchString(s) {
+		r.TransportNote = "hotadd unavailable (proxy is not a VM on a suitable ESX) -> failover to network (nbd). Deploy a hotadd-capable proxy for faster source reads."
+	}
+	// Load agregado + primary.
+	if m := loadRe.FindStringSubmatch(s); m != nil {
+		r.Aggregate = &Stage4{atoi(m[1]), atoi(m[2]), atoi(m[3]), atoi(m[4])}
+	}
+	if m := primRe.FindStringSubmatch(s); m != nil {
+		r.Primary = m[1]
+	}
+	// Duraciones por VM (threads de VM, no los internos "VBR.*").
+	durs := map[string]float64{}
+	for _, m := range durRe.FindAllStringSubmatch(s, -1) {
+		name := m[1]
+		if strings.HasPrefix(name, "VBR.") || strings.Contains(name, "Pipeline") {
+			continue
+		}
+		durs[name] = float64(atoi(m[2])*3600 + atoi(m[3])*60 + atoi(m[4]))
+	}
+	r.jobDurations = durs
+	// Opciones.
+	if m := dedupRe.FindStringSubmatch(s); m != nil {
+		v := strings.EqualFold(m[1], "true")
+		r.Dedup = &v
+	}
+	if m := compRe.FindStringSubmatch(s); m != nil {
+		v := atoi(m[1])
+		r.Compression = &v
+	}
+	if m := blockRe.FindStringSubmatch(s); m != nil {
+		v := atoi(m[1])
+		r.BlockSizeKB = &v
+	}
+}
+
+func parseTask(vm, s string) VMDeep {
+	d := VMDeep{Name: vm}
+	if m := loadRe.FindStringSubmatch(s); m != nil {
+		d.Busy = &Stage4{atoi(m[1]), atoi(m[2]), atoi(m[3]), atoi(m[4])}
+	}
+	if m := primRe.FindStringSubmatch(s); m != nil {
+		d.Primary = m[1]
+	}
+	seen := map[string]bool{}
+	for _, m := range diskRe.FindAllStringSubmatch(s, -1) {
+		key := m[1] + m[2]
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		d.Disks = append(d.Disks, DiskInfo{Label: m[1], Path: m[2], CapacityGB: atoi(m[3]), Thin: strings.EqualFold(m[4], "true")})
+	}
+	return d
+}
+
+// jobDurations se comparte entre parseJob y Parse via el struct (campo no exportado).
+// Lo aplicamos a las VMs por nombre (match exacto o por prefijo del hostname).
+func (r *Result) applyDurations() {
+	for i := range r.VMs {
+		name := r.VMs[i].Name
+		if d, ok := r.jobDurations[name]; ok {
+			r.VMs[i].DurationSec = d
+			continue
+		}
+		// match por prefijo (Task usa "dc01" y el thread "dc01.hackshack.local")
+		for tn, d := range r.jobDurations {
+			if strings.HasPrefix(tn, name+".") || strings.HasPrefix(name, tn+".") {
+				r.VMs[i].DurationSec = d
+				break
+			}
+		}
+	}
+}
+
+// --- helpers ----------------------------------------------------------------
+
+func joinModes(m map[string]bool) string {
+	var ks []string
+	for k := range m {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	if len(ks) == 0 {
+		return ""
+	}
+	if len(ks) == 1 {
+		return ks[0]
+	}
+	return "mixed (" + strings.Join(ks, ", ") + ")"
+}
+
+func atoi(s string) int { n, _ := strconv.Atoi(strings.TrimSpace(s)); return n }
