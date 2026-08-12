@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	scanSessions   = 8            // cuantas sesiones recientes del job miramos para elegir la de mas datos
+	scanSessions   = 12           // cuantas sesiones recientes del job miramos para elegir la de mas datos
 	satBytes       = int64(256) << 20 // 256 MiB movidos (max leido/transferido) = corrida "observed" (rate firme)
+	lowFloor       = int64(16) << 20  // <16 MiB movidos = no-op -> insufficient (evita rates 0/0 y reduccion absurda)
 	bindThreshold  = 85         // util% a partir del cual un stage se considera "topando"
 	coLimitSpread  = 6          // stages dentro de este spread del maximo tambien co-limitan
 )
@@ -199,7 +200,9 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 		DurationSec: durSec, ProcessedSize: processed, ReadSize: read, TransferredSize: transferred,
 		Tasks: chosenTasks, Notes: []string{},
 	}
-	if transferred > 0 {
+	// Reduccion (procesado/transferido) SOLO si se almaceno data real: con un
+	// incremental que casi no escribio (transferido ~KB) el ratio da absurdo.
+	if transferred >= satBytes {
 		v := round1(float64(processed) / float64(transferred))
 		out.Reduction = &v
 	}
@@ -215,17 +218,17 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacit
 	if read > maxData {
 		maxData = read
 	}
-	hasData := maxData > 0
+	hasData := maxData >= lowFloor
 	out.Saturated = maxData >= satBytes
 	switch {
 	case out.Saturated:
 		out.Confidence = "observed"
 	case hasData:
 		out.Confidence = "low"
-		out.Notes = append(out.Notes, "Small sample (this run moved little data): rates are indicative, not the hardware ceiling. Run an Active Full for a firm number.")
+		out.Notes = append(out.Notes, "Small sample: rates are indicative, not the hardware ceiling. Run an Active Full for a firm number.")
 	default:
 		out.Confidence = "insufficient"
-		out.Notes = append(out.Notes, "This run moved no data (incremental no-op): the bottleneck stage is valid (relative), but MB/s and time projection are not meaningful. Run an Active Full.")
+		out.Notes = append(out.Notes, "This run moved little/no data (incremental no-op): the bottleneck stage is valid (relative), but MB/s, reduction and time projection are not meaningful. Run an Active Full.")
 	}
 
 	// Stages desde la linea Load: (nivel job). Si no hay, usar el bottleneck por tarea.

@@ -1383,7 +1383,7 @@ function renderJobCapacity(d) {
     const cap = r.capacityGB ? ` · ${r.freeGB != null ? Math.round(r.freeGB) + '/' : ''}${Math.round(r.capacityGB)} GB` : '';
     return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0;">
       <span class="pill">${icon} ${r.name}</span>
-      <span class="muted" style="font-size:12px;">${r.maxTaskCount} ${t('cap.slots')}${cap}</span>
+      <span class="muted" style="font-size:12px;">${r.maxTaskCount > 0 ? r.maxTaskCount + ' ' + t('cap.slots') : '— ' + t('cap.slots')}${cap}</span>
       <span style="font-size:12px;">${t('cap.cores')}: <input type="number" min="0" value="${r.cores || ''}" data-host="${r.hostId}" class="resCores" style="width:54px;"></span>
       <span style="font-size:12px;">RAM: <input type="number" min="0" value="${r.ramGB || ''}" data-host="${r.hostId}" class="resRam" style="width:54px;"> GB</span>
     </div>`;

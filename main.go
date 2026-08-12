@@ -23,7 +23,7 @@ import (
 )
 
 // version del binario (se muestra en el banner de arranque y se etiqueta en el release).
-const version = "0.4.4-alpha"
+const version = "0.4.5-alpha"
 
 func main() {
 	port := flag.String("port", "8000", "puerto HTTP")
