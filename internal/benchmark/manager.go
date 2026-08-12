@@ -44,13 +44,52 @@ type Conn struct {
 // Manager: estado en memoria de jobs y conexiones (por sesion). Todo el acceso
 // se serializa con mu (los jobs se mutan desde goroutines de fondo).
 type Manager struct {
-	mu    sync.Mutex
-	jobs  map[string]*Job
-	conns map[string]*Conn // clave: sessionID (una conexion activa por sesion)
+	mu     sync.Mutex
+	jobs   map[string]*Job
+	conns  map[string]*Conn        // clave: sessionID (una conexion activa por sesion)
+	iperfs map[string]*IperfResult // ultimo iperf por sesion (senal "medido" del analisis)
 }
 
 func NewManager() *Manager {
-	return &Manager{jobs: map[string]*Job{}, conns: map[string]*Conn{}}
+	return &Manager{jobs: map[string]*Job{}, conns: map[string]*Conn{}, iperfs: map[string]*IperfResult{}}
+}
+
+// SetIperf guarda el ultimo iperf de la sesion, para que el analisis pueda
+// comparar lo que hace el job contra el techo REAL del enlace.
+func (m *Manager) SetIperf(sessionID string, r IperfResult) {
+	if r.Error != "" || (r.SendMbps == 0 && r.RecvMbps == 0) {
+		return // una medicion fallida no es una senal
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.iperfs[sessionID] = &r
+}
+
+// Iperf: ultimo iperf medido en la sesion (nil si no se corrio).
+func (m *Manager) Iperf(sessionID string) *IperfResult {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.iperfs[sessionID]
+}
+
+// DiskWriteMBps: mejor escritura secuencial medida con fio/diskspd sobre un
+// repositorio de la sesion (0 = no medido). Es el TECHO del disco: comparado con
+// lo que escribe el job dice si el disco es el limite o si lo estamos matando de
+// hambre.
+func (m *Manager) DiskWriteMBps(sessionID, repoID string) (mbps float64, tool, label string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, j := range m.jobs {
+		if j.SessionID != sessionID || j.RepositoryID != repoID || j.Status != "completed" {
+			continue
+		}
+		for _, row := range j.Results.Disk {
+			if row.Name == "seqwrite" && row.BwMbps > mbps {
+				mbps, tool, label = row.BwMbps, j.Tool, j.RepositoryLabel
+			}
+		}
+	}
+	return mbps, tool, label
 }
 
 // --- entradas (decodificadas del JSON del frontend) -------------------------
@@ -285,6 +324,7 @@ func (m *Manager) ClearSession(sessionID string) {
 		}
 	}
 	delete(m.conns, sessionID)
+	delete(m.iperfs, sessionID)
 }
 
 // set aplica una mutacion sobre un job bajo el lock del manager.

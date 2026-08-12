@@ -241,6 +241,7 @@ func (s *Server) iperf(w http.ResponseWriter, r *http.Request) {
 	res := benchmark.RunIperf(in.ServerHost, in.ServerUser, in.ServerPass, in.ClientHost, in.ClientUser, in.ClientPass, in.LinkSpeed, in.Port, in.Duration)
 	log.Printf("iperf %s -> %s: send=%.0fMbps recv=%.0fMbps link=%s expected=%.0fMbps pct=%d%% verdict=%s err=%q",
 		in.ClientHost, in.ServerHost, res.SendMbps, res.RecvMbps, in.LinkSpeed, res.ExpectedMbps, res.Pct, res.Status, res.Error)
+	s.bench.SetIperf(r.PathValue("session"), res) // queda como senal MEDIDA del analisis
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -328,6 +329,11 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
 		return
 	}
+	// Si ya medimos el techo real (fio/iperf) del repo/enlace de este job, el
+	// veredicto se rehace con esa senal: cambia el consejo de raiz.
+	if m := s.measuredFor(r.PathValue("session"), repoIDsOf(res)); m != nil {
+		res.Verdict = analysis.BuildVerdict(res, nil, m)
+	}
 	proj := "-"
 	if res.Projection != nil {
 		proj = fmt.Sprintf("%s ~%d%%", res.Projection.NextStage, res.Projection.ImprovementPct)
@@ -337,6 +343,44 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 	logVerdict(jobID, res.Verdict)
 	sess.SetAnalyzed("job:"+jobID, res) // queda para el diagnostico
 	writeJSON(w, http.StatusOK, res)
+}
+
+// measuredFor arma la senal MEDIDA del job: el techo real que ya medimos con
+// fio (disco del repo) y con iperf (enlace) en esta sesion. Sin esto, un
+// "Target 98%" no distingue "el disco no da mas" de "el disco esta ocioso y el
+// job no lo alimenta". Devuelve nil si no se midio nada.
+// repoIDs: los repos que usa el job (de las tareas de la corrida representativa).
+func (s *Server) measuredFor(sessionID string, repoIDs []string) *analysis.Measured {
+	m := &analysis.Measured{}
+	for _, id := range repoIDs {
+		if mbps, tool, label := s.bench.DiskWriteMBps(sessionID, id); mbps > m.RepoWriteMBps {
+			m.RepoWriteMBps, m.RepoTool, m.RepoName = mbps, tool, label
+		}
+	}
+	if ip := s.bench.Iperf(sessionID); ip != nil {
+		m.LinkMbps = ip.SendMbps // el sentido que importa: proxy -> repo
+		if ip.RecvMbps > m.LinkMbps {
+			m.LinkMbps = ip.RecvMbps
+		}
+		m.LinkExpected, m.LinkLabel = ip.ExpectedMbps, ip.ExpectedLabel
+	}
+	if m.RepoWriteMBps == 0 && m.LinkMbps == 0 {
+		return nil
+	}
+	return m
+}
+
+// repoIDsOf: repos que toco el job (de la corrida representativa).
+func repoIDsOf(res *analysis.JobCapacityResult) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, x := range res.Resources {
+		if x.Kind == "repository" && x.ID != "" && !seen[x.ID] {
+			seen[x.ID] = true
+			out = append(out, x.ID)
+		}
+	}
+	return out
 }
 
 // logVerdict deja el veredicto en el log (en ingles) para poder calibrar el
@@ -406,7 +450,8 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 	}
 	res := deeplog.Parse(jobLog, taskLogs)
 	res.JobName = name
-	log.Printf("deep analysis: job=%q host=%s transport=%s vms=%d", name, host, res.Transport, len(res.VMs)) // no password
+	log.Printf("deep analysis: job=%q host=%s runAt=%q transport=%s vms=%d disks=%d load=%v notes=%d",
+		name, host, res.RunAt, res.Transport, len(res.VMs), deepDiskCount(res), res.Aggregate != nil, len(res.Notes)) // no password
 
 	// Con los logs en mano recalculamos el VEREDICTO: ahora la causa se confirma
 	// (transporte, 4-stage por VM, opciones). Si la capacidad falla, igual
@@ -417,7 +462,7 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 		days = 7
 	}
 	if capRes, err := analysis.JobCapacity(r.Context(), sess, in.JobID, days); err == nil {
-		v := analysis.BuildVerdict(capRes, &res)
+		v := analysis.BuildVerdict(capRes, &res, s.measuredFor(r.PathValue("session"), repoIDsOf(capRes)))
 		out["verdict"], out["capacity"] = v, capRes
 		logVerdict(in.JobID, v)
 		sess.SetAnalyzed("job:"+in.JobID, out) // el deep reemplaza al REST-only
@@ -425,6 +470,16 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 		log.Printf("deep analysis: no capacity context for job %s: %v", in.JobID, err)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// deepDiskCount: discos totales que se pudieron leer de los Task logs (para
+// verificar en el log que el parseo realmente saco datos).
+func deepDiskCount(r deeplog.Result) int {
+	n := 0
+	for _, vm := range r.VMs {
+		n += len(vm.Disks)
+	}
+	return n
 }
 
 type hostResInput struct {

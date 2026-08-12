@@ -162,9 +162,35 @@ El motor emite **código + params** (`vd.<code>`) **y** el texto en inglés como
 ## Por qué NO un LLM (decisión)
 El núcleo es **determinista**: mismo input = mismo veredicto, auditable, **offline** y sin que ningún dato del cliente salga del sitio (nuestro diferencial). Un LLM queda como **narrador opcional** más adelante (opt-in, con modelo **local**), nunca como el motor.
 
+## Señal #4 — MEDIDO (v0.6.1)
+La señal que le falta a Veeam ONE. Un `Target 96%` de la REST **no distingue** dos situaciones que llevan a decisiones **opuestas**:
+
+| Medido (fio) | Job escribe | Veredicto | Acción |
+|---|---|---|---|
+| 800 MB/s | 100 MB/s (**13%**) | `cause.starvedTarget` — **el disco NO es el límite** | subir streams/slots + **"no compres storage"** |
+| 120 MB/s | 110 MB/s (**92%**) | `cause.maxedTarget` — **el disco SÍ es el límite** | storage más rápido / más extents |
+
+Umbrales: `starvedPct=60` · `maxedPct=80`. Idem para **Network** con iperf (`cause.starvedNet` / `cause.maxedNet`, el write del job pasado a Mbps). Cuando hay medición **no se vuelve a pedir** fio/iperf, y la causa medida es **final** (`causeFinal`): no la pisa una causa deducida como `cause.slots`.
+
+De dónde sale: `Manager.DiskWriteMBps(sessionID, repoID)` (mejor `seqwrite` completado de ese repo) y `Manager.Iperf(sessionID)` (último iperf, guardado con `SetIperf`). El **server** arma `analysis.Measured` (`measuredFor`) y rehace el veredicto — el paquete `analysis` no depende de `benchmark`.
+
 ## Pendiente
-- Wire de **fio/iperf** como señal #4 (comparar lo que hace el job vs el techo medido).
 - Derivar cores/RAM de la utilización en vez del input manual.
+- Jobs que no lista `v1/jobs` (AHV/Proxmox/Morpheus/NAS/Object Storage/Solaris).
+
+---
+
+# v0.6.1 · El deep analiza la corrida CORRECTA
+
+Los Job/Task logs de Veeam **acumulan varias corridas en el mismo archivo**. El parser usaba `FindStringSubmatch` (primera coincidencia = corrida **más vieja**) para el `Load:`/`Busy:`/transporte/opciones, pero las duraciones salían de un mapa donde la última gana → **el veredicto podía mezclar dos corridas distintas**.
+
+Fix (`internal/deeplog/parse.go`):
+- `lastRunSegment(s)` — la línea `Load:`/`Busy:` cierra cada corrida, así que todo lo que viene después de la **penúltima** pertenece a la última. Es la única frontera confiable sin depender de marcas internas de Veeam (que cambian entre versiones).
+- `lastSubmatch(re, s)` — última coincidencia, no la primera, para Load/primary/transporte/dedup/compresión/bloque.
+- `RunAt` — timestamp de la corrida analizada, **tal como lo escribió el log** (no se parsea la fecha: el formato depende del locale del VBR). Se muestra como pill en el deep para que el usuario **verifique** de qué corrida se está hablando.
+- Notas explícitas cuando **no hay `Task.*.log`** (agentes/plugins) o **no hay línea `Load:`**, en vez de mostrar una tabla vacía sin explicación.
+
+Tests: `parse_multirun_test.go` (log sintético de 2 corridas con formato calcado del real) fija que todo — Load, primary, transporte+motivo, opciones, duración, Busy por VM y discos sin duplicar — sale de la corrida más reciente.
 
 ---
 

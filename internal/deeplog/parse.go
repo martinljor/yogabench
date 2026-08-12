@@ -22,10 +22,10 @@ type Stage4 struct {
 }
 
 type DiskInfo struct {
-	Label      string  `json:"label"`
-	Path       string  `json:"path"`
-	CapacityGB int     `json:"capacityGB"`
-	Thin       bool    `json:"thin"`
+	Label      string `json:"label"`
+	Path       string `json:"path"`
+	CapacityGB int    `json:"capacityGB"`
+	Thin       bool   `json:"thin"`
 }
 
 type VMDeep struct {
@@ -39,16 +39,17 @@ type VMDeep struct {
 }
 
 type Result struct {
-	JobName       string    `json:"jobName"`
-	Transport     string    `json:"transport"`     // nbd | hotadd | san | mixed | ""
-	TransportNote string    `json:"transportNote"` // por que (ej: hotadd no disponible)
-	Aggregate     *Stage4   `json:"aggregate"`     // Load: agregado del job
-	Primary       string    `json:"primary"`
-	VMs           []VMDeep  `json:"vms"`
-	Dedup         *bool     `json:"dedup,omitempty"`
-	Compression   *int      `json:"compression,omitempty"`
-	BlockSizeKB   *int      `json:"blockSizeKB,omitempty"`
-	Notes         []string  `json:"notes"`
+	JobName       string   `json:"jobName"`
+	RunAt         string   `json:"runAt"`         // corrida analizada (timestamp tal cual lo escribe el log)
+	Transport     string   `json:"transport"`     // nbd | hotadd | san | mixed | ""
+	TransportNote string   `json:"transportNote"` // por que (ej: hotadd no disponible)
+	Aggregate     *Stage4  `json:"aggregate"`     // Load: agregado del job
+	Primary       string   `json:"primary"`
+	VMs           []VMDeep `json:"vms"`
+	Dedup         *bool    `json:"dedup,omitempty"`
+	Compression   *int     `json:"compression,omitempty"`
+	BlockSizeKB   *int     `json:"blockSizeKB,omitempty"`
+	Notes         []string `json:"notes"`
 
 	jobDurations map[string]float64 // interno: duracion por thread de VM (del Job log)
 }
@@ -56,20 +57,61 @@ type Result struct {
 // --- regex ------------------------------------------------------------------
 
 var (
-	loadRe   = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
-	primRe   = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
-	modeRe   = regexp.MustCompile(`Detected mode \[(\w+)\]`)
-	durRe    = regexp.MustCompile(`Completed: THREAD: ([^\s(]+) \(CancellableThread\.Create: \d+\) in\s+(\d+):(\d+):(\d+)`)
-	diskRe   = regexp.MustCompile(`Disk: label "([^"]+)", path "([^"]+)", capacity (\d+) GB.*?thinProvisioned "(\w+)"`)
+	loadRe = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
+	primRe = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
+	modeRe = regexp.MustCompile(`Detected mode \[(\w+)\]`)
+	durRe  = regexp.MustCompile(`Completed: THREAD: ([^\s(]+) \(CancellableThread\.Create: \d+\) in\s+(\d+):(\d+):(\d+)`)
+	diskRe = regexp.MustCompile(`Disk: label "([^"]+)", path "([^"]+)", capacity (\d+) GB.*?thinProvisioned "(\w+)"`)
 	// Fallback cuando no hay linea "Disk: label ..." (Hyper-V, agentes): contamos
 	// los discos virtuales nombrados en el log. Los .avhdx son checkpoints
 	// (delta), no discos del guest, y quedan afuera a proposito.
-	vdiskRe = regexp.MustCompile(`(?i)['"\[]((?:[A-Za-z]:\\|\\\\)[^'"\]\r\n]+?\.(?:vhdx|vhd|vmdk))['"\]]`)
+	vdiskRe  = regexp.MustCompile(`(?i)['"\[]((?:[A-Za-z]:\\|\\\\)[^'"\]\r\n]+?\.(?:vhdx|vhd|vmdk))['"\]]`)
 	dedupRe  = regexp.MustCompile(`<EnableDeduplication>(\w+)</EnableDeduplication>`)
 	compRe   = regexp.MustCompile(`<CompressionLevel>(\d+)</CompressionLevel>`)
 	blockRe  = regexp.MustCompile(`<StgBlockSize>KbBlockSize(\d+)</StgBlockSize>`)
 	hotaddNo = regexp.MustCompile(`(?i)not on suitable ESX|No disks can be processed through hotadd`)
+	// Prefijo de fecha de la linea de log (`[05.08.2026 02:03:40] ...`). NO lo
+	// parseamos: lo mostramos tal cual, asi no dependemos del formato de fecha,
+	// que cambia con el locale del VBR.
+	tsRe = regexp.MustCompile(`\[([^\]\r\n]{6,40})\]`)
 )
+
+// lastRunSegment: tramo del log de la corrida MAS RECIENTE. Los Job/Task logs de
+// Veeam acumulan varias corridas en el mismo archivo, y la linea "Load:"/"Busy:"
+// aparece al cerrar cada una: todo lo que viene despues de la PENULTIMA pertenece
+// a la ultima. Es la unica frontera confiable sin depender de marcas internas de
+// Veeam (que cambian entre versiones).
+func lastRunSegment(s string) string {
+	locs := loadRe.FindAllStringIndex(s, -1)
+	if len(locs) < 2 {
+		return s
+	}
+	return s[locs[len(locs)-2][1]:]
+}
+
+// lastSubmatch: la ULTIMA coincidencia (la mas reciente del log), no la primera.
+func lastSubmatch(re *regexp.Regexp, s string) []string {
+	all := re.FindAllStringSubmatch(s, -1)
+	if len(all) == 0 {
+		return nil
+	}
+	return all[len(all)-1]
+}
+
+// runAtOf: el timestamp de la linea donde cierra la corrida (la del "Load:"),
+// para poder decirle al usuario QUE corrida se analizo.
+func runAtOf(s string) string {
+	locs := loadRe.FindAllStringIndex(s, -1)
+	if len(locs) == 0 {
+		return ""
+	}
+	at := locs[len(locs)-1][0]
+	start := strings.LastIndexByte(s[:at], '\n') + 1
+	if m := tsRe.FindStringSubmatch(s[start:at]); m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
+}
 
 // --- API --------------------------------------------------------------------
 
@@ -89,6 +131,12 @@ func Parse(jobLog string, taskLogs map[string]string) Result {
 			break
 		}
 	}
+	if len(taskLogs) == 0 {
+		r.Notes = append(r.Notes, "No Task.*.log found for this job: per-VM stages and durations are not available (only the job-level view). Agent/plugin jobs do not write per-VM task logs.")
+	}
+	if r.Aggregate == nil {
+		r.Notes = append(r.Notes, "No \"Load:\" line in the job log: the log may belong to a run that did not complete, or the job type does not report it.")
+	}
 	return r
 }
 
@@ -101,8 +149,13 @@ func pathBase(p string) string {
 	return p
 }
 
-func parseJob(s string, r *Result) {
-	// Transporte (puede haber varias; nos quedamos con el conjunto).
+// parseJob analiza SOLO la corrida mas reciente del Job log (ver lastRunSegment):
+// mezclar corridas daria un veredicto sobre datos que no existieron juntos.
+func parseJob(full string, r *Result) {
+	r.RunAt = runAtOf(full)
+	s := lastRunSegment(full)
+
+	// Transporte de esta corrida (puede haber varios modos; nos quedamos con el conjunto).
 	modes := map[string]bool{}
 	for _, m := range modeRe.FindAllStringSubmatch(s, -1) {
 		modes[strings.ToLower(m[1])] = true
@@ -111,11 +164,11 @@ func parseJob(s string, r *Result) {
 	if modes["nbd"] && hotaddNo.MatchString(s) {
 		r.TransportNote = "hotadd unavailable (proxy is not a VM on a suitable ESX) -> failover to network (nbd). Deploy a hotadd-capable proxy for faster source reads."
 	}
-	// Load agregado + primary.
-	if m := loadRe.FindStringSubmatch(s); m != nil {
+	// Load agregado + primary (los ultimos: los de esta corrida).
+	if m := lastSubmatch(loadRe, s); m != nil {
 		r.Aggregate = &Stage4{atoi(m[1]), atoi(m[2]), atoi(m[3]), atoi(m[4])}
 	}
-	if m := primRe.FindStringSubmatch(s); m != nil {
+	if m := lastSubmatch(primRe, s); m != nil {
 		r.Primary = m[1]
 	}
 	// Duraciones por VM (threads de VM, no los internos "VBR.*").
@@ -128,27 +181,29 @@ func parseJob(s string, r *Result) {
 		durs[name] = float64(atoi(m[2])*3600 + atoi(m[3])*60 + atoi(m[4]))
 	}
 	r.jobDurations = durs
-	// Opciones.
-	if m := dedupRe.FindStringSubmatch(s); m != nil {
+	// Opciones vigentes en esta corrida.
+	if m := lastSubmatch(dedupRe, s); m != nil {
 		v := strings.EqualFold(m[1], "true")
 		r.Dedup = &v
 	}
-	if m := compRe.FindStringSubmatch(s); m != nil {
+	if m := lastSubmatch(compRe, s); m != nil {
 		v := atoi(m[1])
 		r.Compression = &v
 	}
-	if m := blockRe.FindStringSubmatch(s); m != nil {
+	if m := lastSubmatch(blockRe, s); m != nil {
 		v := atoi(m[1])
 		r.BlockSizeKB = &v
 	}
 }
 
-func parseTask(vm, s string) VMDeep {
+// parseTask: idem, la corrida mas reciente del Task log de esa VM.
+func parseTask(vm, full string) VMDeep {
 	d := VMDeep{Name: vm}
-	if m := loadRe.FindStringSubmatch(s); m != nil {
+	s := lastRunSegment(full)
+	if m := lastSubmatch(loadRe, s); m != nil {
 		d.Busy = &Stage4{atoi(m[1]), atoi(m[2]), atoi(m[3]), atoi(m[4])}
 	}
-	if m := primRe.FindStringSubmatch(s); m != nil {
+	if m := lastSubmatch(primRe, s); m != nil {
 		d.Primary = m[1]
 	}
 	seen := map[string]bool{}

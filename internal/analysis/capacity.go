@@ -145,6 +145,8 @@ func JobDeepTarget(ctx context.Context, s *vbr.Session, jobID string) (name, osK
 
 // JobCapacity: modelo de capacidad de un job AGREGADO sobre una ventana de N dias
 // (promedios en los KPIs, estilo Veeam ONE). days<=0 = todo el historico reciente.
+// El veredicto sale sin deep ni medicion; quien las tenga (el server) rehace el
+// veredicto con BuildVerdict — es computo puro, no cuesta REST.
 func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*JobCapacityResult, error) {
 	all := getItems(ctx, s, "v1/sessions?limit=500&orderColumn=CreationTime&orderAsc=false")
 	var cutoff time.Time
@@ -299,7 +301,7 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*
 	}
 
 	out.Projection = projectTime(out.Stages, out.DurationSec, out.RunsWithData > 0)
-	out.Verdict = BuildVerdict(out, nil) // sin deep: la causa queda por confirmar
+	out.Verdict = BuildVerdict(out, nil, nil) // sin deep ni medicion (ver arriba)
 	return out, nil
 }
 

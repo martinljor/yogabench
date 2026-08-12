@@ -9,7 +9,9 @@ package analysis
 //   1. Observado  (REST)      : stage que topa, % de corridas, rates, duracion.
 //   2. Causa      (deep logs) : transporte y por que, 4-stage por VM, opciones.
 //   3. Recursos               : task slots vs cores/RAM, capacidad/free del repo.
-//   4. Medido     (fio/iperf) : techo real del hardware (pendiente de wire).
+//   4. Medido     (fio/iperf) : techo REAL del hardware. Distingue "el disco no
+//      da mas" de "el disco esta ocioso y el job no lo alimenta" — dos cosas que
+//      la REST muestra igual ("Target 98%") y que llevan a decisiones opuestas.
 //
 // Los textos salen como codigo i18n + params (el WebUI traduce) y ademas como
 // texto en ingles (fallback, logs y diagnostico).
@@ -25,6 +27,29 @@ import (
 // maxCredibleGain: el modelo lineal (T_new ≈ T_now × U_next/U_binding) deja de
 // ser creible mas alla de esto; preferimos subestimar antes que prometer.
 const maxCredibleGain = 75
+
+// Umbrales de la senal MEDIDA: que fraccion del techo real alcanza el job.
+const (
+	starvedPct = 60 // por debajo: el hardware no es el limite, lo alimentamos mal
+	maxedPct   = 80 // por encima: el hardware SI es el techo
+)
+
+// Measured: el techo REAL del hardware, medido por nosotros (fio/iperf). Es la
+// senal que le falta a Veeam ONE: sin ella "Target 98%" se confunde con "el disco
+// no da mas", cuando muchas veces el disco esta ocioso y el job no lo alimenta.
+// 0 = no medido.
+type Measured struct {
+	RepoWriteMBps float64 `json:"repoWriteMBps"` // fio: escritura secuencial del repo
+	RepoName      string  `json:"repoName"`
+	RepoTool      string  `json:"repoTool"` // fio | diskspd
+	LinkMbps      float64 `json:"linkMbps"` // iperf: throughput real del enlace
+	LinkExpected  float64 `json:"linkExpectedMbps"`
+	LinkLabel     string  `json:"linkLabel"` // ej: "10 GbE"
+}
+
+func (m *Measured) any() bool {
+	return m != nil && (m.RepoWriteMBps > 0 || m.LinkMbps > 0)
+}
 
 // Action: una accion concreta, rankeada por impacto y con ganancia estimada.
 type Action struct {
@@ -70,9 +95,10 @@ type Verdict struct {
 	CurrentSec float64 `json:"currentSec"`
 	TargetSec  float64 `json:"targetSec"`
 
-	Actions []Action `json:"actions"`
-	Signals []Signal `json:"signals"`
-	HasDeep bool     `json:"hasDeep"`
+	Actions  []Action  `json:"actions"`
+	Signals  []Signal  `json:"signals"`
+	HasDeep  bool      `json:"hasDeep"`
+	Measured *Measured `json:"measured,omitempty"` // techo real (fio/iperf), si se midio
 }
 
 var impactOrder = map[string]int{"high": 0, "hygiene": 1, "medium": 2, "verify": 3, "info": 4}
@@ -80,11 +106,13 @@ var impactOrder = map[string]int{"high": 0, "hygiene": 1, "medium": 2, "verify":
 // --- builder ----------------------------------------------------------------
 
 type vbuild struct {
-	v    *Verdict
-	r    *JobCapacityResult
-	d    *deeplog.Result
-	gain *int // ganancia a atribuir a la accion que libera el cuello
-	acts []Action
+	v           *Verdict
+	r           *JobCapacityResult
+	d           *deeplog.Result
+	m           *Measured
+	gain        *int // ganancia a atribuir a la accion que libera el cuello
+	acts        []Action
+	causeLocked bool // la causa ya es la definitiva (ver causeFinal)
 }
 
 func (b *vbuild) add(impact, stage, source, code, text string, params map[string]any) {
@@ -108,7 +136,18 @@ func (b *vbuild) headline(code, text string, params map[string]any) {
 }
 
 func (b *vbuild) cause(known bool, code, text string, params map[string]any) {
+	if b.causeLocked { // una causa MEDIDA no se pisa con una generica
+		return
+	}
 	b.v.CauseKnown, b.v.CauseCode, b.v.Cause, b.v.CauseParams = known, code, text, params
+}
+
+// causeFinal: causa que no admite refinamiento posterior. La usan las reglas de
+// la senal medida: "el disco mide X y el job usa Y%" le gana a cualquier causa
+// deducida (slots, escritura del repo, etc).
+func (b *vbuild) causeFinal(code, text string, params map[string]any) {
+	b.cause(true, code, text, params)
+	b.causeLocked = true
 }
 
 // res: primer recurso del tipo pedido (proxy | repository).
@@ -124,13 +163,14 @@ func (b *vbuild) res(kind string) *ResourceInfo {
 // --- API --------------------------------------------------------------------
 
 // BuildVerdict sintetiza el veredicto del job. d puede ser nil (sin modo deep):
-// en ese caso la causa queda por confirmar y se sugiere correr el deep.
-func BuildVerdict(r *JobCapacityResult, d *deeplog.Result) *Verdict {
+// la causa queda por confirmar y se sugiere correr el deep. m puede ser nil (sin
+// fio/iperf): no se puede decir si el hardware es el techo o si esta ocioso.
+func BuildVerdict(r *JobCapacityResult, d *deeplog.Result, m *Measured) *Verdict {
 	if r == nil {
 		return nil
 	}
-	v := &Verdict{Confidence: r.Confidence, CurrentSec: r.DurationSec, HasDeep: d != nil}
-	b := &vbuild{v: v, r: r, d: d}
+	v := &Verdict{Confidence: r.Confidence, CurrentSec: r.DurationSec, HasDeep: d != nil, Measured: m}
+	b := &vbuild{v: v, r: r, d: d, m: m}
 
 	// Sin datos reales movidos no hay veredicto de performance posible.
 	if r.Confidence == "insufficient" {
@@ -209,6 +249,9 @@ func (b *vbuild) stageRules(stage string, util int) {
 		}
 		b.slotsRules("proxy", "Proxy", "add CPU/RAM to the proxy or deploy another one")
 	case "Network":
+		if b.networkMeasuredRules() { // con iperf medido el consejo cambia de raiz
+			return
+		}
 		if !b.v.CauseKnown {
 			b.cause(true, "cause.netlink", "The proxy<->repository link sets the pace: the data does not fit in the wire fast enough.", nil)
 		}
@@ -220,11 +263,88 @@ func (b *vbuild) stageRules(stage string, util int) {
 		if !b.v.CauseKnown {
 			b.cause(true, "cause.repowrite", "Writing into the repository sets the pace.", nil)
 		}
+		if b.targetMeasuredRules() { // con techo medido el consejo cambia de raiz
+			return
+		}
 		b.slotsRules("repository", "Target", "move to a faster repository or add SOBR extents")
 		b.add("verify", "Target", "model", "act.fio",
 			"Measure the repository disk with fio (Benchmark > Disk) to know its real ceiling and how far the job is from it.", nil)
 		b.compressionRule()
 	}
+}
+
+// targetMeasuredRules: con el techo del disco MEDIDO (fio) se puede distinguir
+// las dos situaciones que la REST confunde bajo "Target 98%":
+//   - el job escribe MUY por debajo del techo -> el disco esta ocioso y lo
+//     alimentamos mal: hay que subir concurrencia, NO comprar storage.
+//   - el job escribe cerca del techo -> el disco SI es el limite: storage mas
+//     rapido o mas extents.
+//
+// Devuelve true si opino (ya no hacen falta las reglas genericas).
+func (b *vbuild) targetMeasuredRules() bool {
+	if b.m == nil || b.m.RepoWriteMBps <= 0 || b.r.WriteMBps <= 0 {
+		return false
+	}
+	ceil, got := b.m.RepoWriteMBps, b.r.WriteMBps
+	used := int(got/ceil*100 + 0.5)
+	name := firstNonEmpty(b.m.RepoName, "the repository")
+	p := map[string]any{"name": name, "ceil": ceil, "got": got, "used": used, "tool": firstNonEmpty(b.m.RepoTool, "fio")}
+
+	switch {
+	case used < starvedPct:
+		b.causeFinal("cause.starvedTarget",
+			fmt.Sprintf("%s measures %.0f MB/s with %s but the job only writes %.0f MB/s (%d%% of the ceiling): the disk is NOT the limit, the job is not feeding it.", name, ceil, p["tool"], got, used), p)
+		b.v.Severity = "warn"
+		// La palanca es concurrencia, no hardware.
+		res := b.res("repository")
+		if res != nil && res.Cores > 0 {
+			b.slotsRules("repository", "Target", "raise the job concurrency (more parallel tasks/streams)")
+		} else {
+			b.addGain("high", "Target", "measured", "act.feedTarget",
+				fmt.Sprintf("Raise the parallel streams into %s (job task slots, more VMs at once): the measured ceiling is %.0f MB/s and only %.0f MB/s are being used. Buying faster storage would change nothing.", name, ceil, got), p)
+		}
+		b.add("info", "Target", "measured", "act.noBuyStorage",
+			fmt.Sprintf("Do not buy storage for this: %s already delivers %.0f MB/s (measured).", name, ceil), p)
+	case used >= maxedPct:
+		b.causeFinal("cause.maxedTarget",
+			fmt.Sprintf("%s measures %.0f MB/s with %s and the job already writes %.0f MB/s (%d%% of the ceiling): the disk IS the limit.", name, ceil, p["tool"], got, used), p)
+		b.v.Severity = "critical"
+		b.addGain("high", "Target", "measured", "act.fasterTarget",
+			fmt.Sprintf("%s is at its measured ceiling (%.0f MB/s): faster storage, more SOBR extents or splitting the load across repositories is the only way up.", name, ceil), p)
+	default:
+		b.causeFinal("cause.partialTarget",
+			fmt.Sprintf("%s measures %.0f MB/s and the job writes %.0f MB/s (%d%% of the ceiling): there is headroom, but not a lot.", name, ceil, got, used), p)
+		b.slotsRules("repository", "Target", "move to a faster repository or add SOBR extents")
+		b.add("medium", "Target", "measured", "act.feedTarget",
+			fmt.Sprintf("Raise the parallel streams into %s to use the %.0f MB/s the disk measures.", name, ceil), p)
+	}
+	b.compressionRule()
+	return true
+}
+
+// networkMeasuredRules: idem para el enlace, con el iperf medido. El write del job
+// se pasa a Mbps para comparar contra el enlace.
+func (b *vbuild) networkMeasuredRules() bool {
+	if b.m == nil || b.m.LinkMbps <= 0 || b.r.WriteMBps <= 0 {
+		return false
+	}
+	ceil, got := b.m.LinkMbps, b.r.WriteMBps*8
+	used := int(got/ceil*100 + 0.5)
+	p := map[string]any{"ceil": ceil, "got": round1(got), "used": used, "link": firstNonEmpty(b.m.LinkLabel, "the link")}
+	if used < starvedPct {
+		b.causeFinal("cause.starvedNet",
+			fmt.Sprintf("iperf measures %.0f Mbps on the link but the job only pushes %.0f Mbps (%d%%): the wire is NOT the limit, the pipeline is not filling it.", ceil, got, used), p)
+		b.v.Severity = "warn"
+		b.addGain("high", "Network", "measured", "act.feedNet",
+			fmt.Sprintf("Raise the parallel streams (proxy task slots / more VMs at once): the link measures %.0f Mbps and only %.0f Mbps are in use. A faster link would change nothing.", ceil, got), p)
+		return true
+	}
+	b.causeFinal("cause.maxedNet",
+		fmt.Sprintf("iperf measures %.0f Mbps and the job already pushes %.0f Mbps (%d%%): the link IS the limit.", ceil, got, used), p)
+	b.v.Severity = "critical"
+	b.addGain("high", "Network", "measured", "act.netUpgrade",
+		"Co-locate the proxy with the repository (or move to a faster link) so the transfer stops being the limit.", nil)
+	return true
 }
 
 // sourceRules: el origen topa. Con el deep sabemos el transporte (la causa mas
@@ -420,8 +540,23 @@ func (b *vbuild) finish() {
 	} else {
 		sig = append(sig, Signal{Name: "resources", OK: false, Code: "sig.resOff", Text: "Resources: host CPU/RAM unknown, concurrency advice cannot be firm."})
 	}
-	sig = append(sig, Signal{Name: "measured", OK: false, Code: "sig.measOff",
-		Text: "Measured ceiling: no fio/iperf run yet. Measure it to compare what the job does against what the hardware can do."})
+	if b.m.any() {
+		var parts []string
+		p := map[string]any{}
+		if b.m.RepoWriteMBps > 0 {
+			parts = append(parts, fmt.Sprintf("%s writes %.0f MB/s (%s)", firstNonEmpty(b.m.RepoName, "repo"), b.m.RepoWriteMBps, firstNonEmpty(b.m.RepoTool, "fio")))
+			p["repo"], p["repoMBps"] = firstNonEmpty(b.m.RepoName, "repo"), b.m.RepoWriteMBps
+		}
+		if b.m.LinkMbps > 0 {
+			parts = append(parts, fmt.Sprintf("link does %.0f Mbps (iperf)", b.m.LinkMbps))
+			p["linkMbps"] = b.m.LinkMbps
+		}
+		sig = append(sig, Signal{Name: "measured", OK: true, Code: "sig.measOn", Params: p,
+			Text: "Measured ceiling: " + strings.Join(parts, ", ") + "."})
+	} else {
+		sig = append(sig, Signal{Name: "measured", OK: false, Code: "sig.measOff",
+			Text: "Measured ceiling: no fio/iperf run yet. Measure it to compare what the job does against what the hardware can do."})
+	}
 	b.v.Signals = sig
 }
 

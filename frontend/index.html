@@ -487,7 +487,7 @@ const I18N = {
     'vd.nogain':'a medir','vd.alt':'alternativa:','vd.badge.stage':'Cuello','vd.badge.balanced':'Balanceado','vd.badge.nodata':'Sin datos',
     'vd.gainhint':'Estimado con el modelo de capacidad (tiempo × utilización del próximo límite / utilización del cuello), acotado al {max}%. Validar en la próxima corrida.',
     'vd.imp.high':'alto','vd.imp.medium':'medio','vd.imp.hygiene':'higiene','vd.imp.verify':'verificar','vd.imp.info':'info',
-    'vd.src.observed':'observado (REST)','vd.src.deep':'logs del VBR','vd.src.resources':'recursos','vd.src.model':'modelo',
+    'vd.src.observed':'observado (REST)','vd.src.deep':'logs del VBR','vd.src.resources':'recursos','vd.src.model':'modelo','vd.src.measured':'medido (fio/iperf)',
     'vd.hl.bound':'El job está limitado por {stage} ({util}% ocupado)',
     'vd.hl.bound2':'El job está limitado por {stage} y {stage2} juntos ({util}% / {util2}%)',
     'vd.hl.boundnopct':'El job está limitado por {stage} (dominante en {pct}% de las corridas)',
@@ -543,7 +543,19 @@ const I18N = {
     'vd.act.envProxy':'<b>{name}</b> es el cuello del {pct}% del dato (stage {stage}, {mbps} MB/s observados): validá su enlace con iperf y su CPU/task slots.',
     'vd.act.envStagger':'{jobs} jobs distintos arrancan a las {hour}:00 y concentran {pct}% del dato: escalonarlos reparte el pico sin comprar nada.',
     'vd.act.envNoData':'{n} job(s) solo corrieron incrementales casi vacios en estos {days} dias: ampliá la ventana o incluí un Active Full para poder medir la infra.',
-    'vd.act.envMeasure':'Medir el techo del repositorio mas cargado (fio) y del enlace proxy↔repositorio (iperf): eso convierte \"lo que hicieron los jobs\" en \"lo que puede el hardware\".'
+    'vd.act.envMeasure':'Medir el techo del repositorio mas cargado (fio) y del enlace proxy↔repositorio (iperf): eso convierte \"lo que hicieron los jobs\" en \"lo que puede el hardware\".',
+    // Senal MEDIDA (fio/iperf) — v0.6.1
+    'vd.cause.starvedTarget':'<b>{name}</b> mide <b>{ceil} MB/s</b> con {tool}, pero el job escribe sólo <b>{got} MB/s</b> ({used}% del techo): el disco <b>NO</b> es el límite — el job no lo alimenta.',
+    'vd.cause.maxedTarget':'<b>{name}</b> mide <b>{ceil} MB/s</b> con {tool} y el job ya escribe <b>{got} MB/s</b> ({used}% del techo): el disco <b>SÍ</b> es el límite.',
+    'vd.cause.partialTarget':'<b>{name}</b> mide {ceil} MB/s y el job escribe {got} MB/s ({used}% del techo): hay margen, pero no mucho.',
+    'vd.cause.starvedNet':'iperf mide <b>{ceil} Mbps</b> en el enlace, pero el job empuja sólo <b>{got} Mbps</b> ({used}%): el cable <b>NO</b> es el límite — el pipeline no lo llena.',
+    'vd.cause.maxedNet':'iperf mide <b>{ceil} Mbps</b> y el job ya empuja <b>{got} Mbps</b> ({used}%): el enlace <b>SÍ</b> es el límite.',
+    'vd.act.feedTarget':'Subir los streams en paralelo hacia <b>{name}</b> (task slots del job, más VMs a la vez): el techo medido es {ceil} MB/s y se usan sólo {got}. Comprar storage más rápido no cambiaría nada.',
+    'vd.act.noBuyStorage':'<b>No compres storage por esto</b>: {name} ya entrega {ceil} MB/s (medido).',
+    'vd.act.fasterTarget':'<b>{name}</b> está en su techo medido ({ceil} MB/s): storage más rápido, más extents del SOBR o repartir la carga entre repositorios es la única salida.',
+    'vd.act.feedNet':'Subir los streams en paralelo (task slots del proxy / más VMs a la vez): el enlace mide {ceil} Mbps y se usan sólo {got}. Un enlace más rápido no cambiaría nada.',
+    'vd.sig.measOn':'Techo medido: {repo} escribe {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
+    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -593,7 +605,7 @@ const I18N = {
     'vd.nogain':'to measure','vd.alt':'alternative:','vd.badge.stage':'Bottleneck','vd.badge.balanced':'Balanced','vd.badge.nodata':'No data',
     'vd.gainhint':'Estimated with the capacity model (time × next-limit utilization / bottleneck utilization), capped at {max}%. Validate on the next run.',
     'vd.imp.high':'high','vd.imp.medium':'medium','vd.imp.hygiene':'hygiene','vd.imp.verify':'verify','vd.imp.info':'info',
-    'vd.src.observed':'observed (REST)','vd.src.deep':'VBR logs','vd.src.resources':'resources','vd.src.model':'model',
+    'vd.src.observed':'observed (REST)','vd.src.deep':'VBR logs','vd.src.resources':'resources','vd.src.model':'model','vd.src.measured':'measured (fio/iperf)',
     'vd.hl.bound':'The job is limited by {stage} ({util}% busy)',
     'vd.hl.bound2':'The job is limited by {stage} and {stage2} together ({util}% / {util2}%)',
     'vd.hl.boundnopct':'The job is limited by {stage} (dominant in {pct}% of the runs)',
@@ -649,7 +661,19 @@ const I18N = {
     'vd.act.envProxy':'<b>{name}</b> is the bottleneck for {pct}% of the data ({stage} stage, {mbps} MB/s observed): validate its link with iperf and its CPU/task slots.',
     'vd.act.envStagger':'{jobs} different jobs start at {hour}:00 and concentrate {pct}% of the data: staggering them spreads the peak without buying anything.',
     'vd.act.envNoData':'{n} job(s) only ran near-empty incrementals in these {days} day(s): widen the window or include an Active Full to measure the infrastructure.',
-    'vd.act.envMeasure':'Measure the ceiling of the busiest repository (fio) and of the proxy\u2194repository link (iperf): that turns \"what the jobs did\" into \"what the hardware can do\".'
+    'vd.act.envMeasure':'Measure the ceiling of the busiest repository (fio) and of the proxy\u2194repository link (iperf): that turns \"what the jobs did\" into \"what the hardware can do\".',
+    // MEASURED signal (fio/iperf) — v0.6.1
+    'vd.cause.starvedTarget':'<b>{name}</b> measures <b>{ceil} MB/s</b> with {tool}, but the job only writes <b>{got} MB/s</b> ({used}% of the ceiling): the disk is <b>NOT</b> the limit — the job is not feeding it.',
+    'vd.cause.maxedTarget':'<b>{name}</b> measures <b>{ceil} MB/s</b> with {tool} and the job already writes <b>{got} MB/s</b> ({used}% of the ceiling): the disk <b>IS</b> the limit.',
+    'vd.cause.partialTarget':'<b>{name}</b> measures {ceil} MB/s and the job writes {got} MB/s ({used}% of the ceiling): there is headroom, but not a lot.',
+    'vd.cause.starvedNet':'iperf measures <b>{ceil} Mbps</b> on the link, but the job only pushes <b>{got} Mbps</b> ({used}%): the wire is <b>NOT</b> the limit — the pipeline is not filling it.',
+    'vd.cause.maxedNet':'iperf measures <b>{ceil} Mbps</b> and the job already pushes <b>{got} Mbps</b> ({used}%): the link <b>IS</b> the limit.',
+    'vd.act.feedTarget':'Raise the parallel streams into <b>{name}</b> (job task slots, more VMs at once): the measured ceiling is {ceil} MB/s and only {got} are in use. Buying faster storage would change nothing.',
+    'vd.act.noBuyStorage':'<b>Do not buy storage for this</b>: {name} already delivers {ceil} MB/s (measured).',
+    'vd.act.fasterTarget':'<b>{name}</b> is at its measured ceiling ({ceil} MB/s): faster storage, more SOBR extents or splitting the load across repositories is the only way up.',
+    'vd.act.feedNet':'Raise the parallel streams (proxy task slots / more VMs at once): the link measures {ceil} Mbps and only {got} are in use. A faster link would change nothing.',
+    'vd.sig.measOn':'Measured ceiling: {repo} writes {repoMBps} MB/s (fio) · link {linkMbps} Mbps (iperf).',
+    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -699,7 +723,7 @@ const I18N = {
     'vd.nogain':'a medir','vd.alt':'alternativa:','vd.badge.stage':'Gargalo','vd.badge.balanced':'Balanceado','vd.badge.nodata':'Sem dados',
     'vd.gainhint':'Estimado com o modelo de capacidade (tempo × utilização do próximo limite / utilização do gargalo), limitado a {max}%. Validar na próxima execução.',
     'vd.imp.high':'alto','vd.imp.medium':'médio','vd.imp.hygiene':'higiene','vd.imp.verify':'verificar','vd.imp.info':'info',
-    'vd.src.observed':'observado (REST)','vd.src.deep':'logs do VBR','vd.src.resources':'recursos','vd.src.model':'modelo',
+    'vd.src.observed':'observado (REST)','vd.src.deep':'logs do VBR','vd.src.resources':'recursos','vd.src.model':'modelo','vd.src.measured':'medido (fio/iperf)',
     'vd.hl.bound':'O job está limitado por {stage} ({util}% ocupado)',
     'vd.hl.bound2':'O job está limitado por {stage} e {stage2} juntos ({util}% / {util2}%)',
     'vd.hl.boundnopct':'O job está limitado por {stage} (dominante em {pct}% das execuções)',
@@ -755,7 +779,19 @@ const I18N = {
     'vd.act.envProxy':'<b>{name}</b> e o gargalo de {pct}% do dado (stage {stage}, {mbps} MB/s observados): valide o enlace com iperf e a CPU/task slots.',
     'vd.act.envStagger':'{jobs} jobs distintos comecam as {hour}:00 e concentram {pct}% do dado: escalonar reparte o pico sem comprar nada.',
     'vd.act.envNoData':'{n} job(s) rodaram apenas incrementais quase vazios nestes {days} dias: amplie a janela ou inclua um Active Full para medir a infra.',
-    'vd.act.envMeasure':'Medir o teto do repositorio mais carregado (fio) e do enlace proxy\u2194repositorio (iperf): isso transforma \"o que os jobs fizeram\" em \"o que o hardware pode\".'
+    'vd.act.envMeasure':'Medir o teto do repositorio mais carregado (fio) e do enlace proxy\u2194repositorio (iperf): isso transforma \"o que os jobs fizeram\" em \"o que o hardware pode\".',
+    // Sinal MEDIDO (fio/iperf) — v0.6.1
+    'vd.cause.starvedTarget':'<b>{name}</b> mede <b>{ceil} MB/s</b> com {tool}, mas o job escreve só <b>{got} MB/s</b> ({used}% do teto): o disco <b>NÃO</b> é o limite — o job não o alimenta.',
+    'vd.cause.maxedTarget':'<b>{name}</b> mede <b>{ceil} MB/s</b> com {tool} e o job já escreve <b>{got} MB/s</b> ({used}% do teto): o disco <b>É</b> o limite.',
+    'vd.cause.partialTarget':'<b>{name}</b> mede {ceil} MB/s e o job escreve {got} MB/s ({used}% do teto): há margem, mas não muita.',
+    'vd.cause.starvedNet':'iperf mede <b>{ceil} Mbps</b> no enlace, mas o job empurra só <b>{got} Mbps</b> ({used}%): o cabo <b>NÃO</b> é o limite — o pipeline não o preenche.',
+    'vd.cause.maxedNet':'iperf mede <b>{ceil} Mbps</b> e o job já empurra <b>{got} Mbps</b> ({used}%): o enlace <b>É</b> o limite.',
+    'vd.act.feedTarget':'Subir os streams em paralelo para <b>{name}</b> (task slots do job, mais VMs por vez): o teto medido é {ceil} MB/s e usam-se só {got}. Comprar storage mais rápido não mudaria nada.',
+    'vd.act.noBuyStorage':'<b>Não compre storage por isso</b>: {name} já entrega {ceil} MB/s (medido).',
+    'vd.act.fasterTarget':'<b>{name}</b> está no seu teto medido ({ceil} MB/s): storage mais rápido, mais extents do SOBR ou repartir a carga entre repositórios é a única saída.',
+    'vd.act.feedNet':'Subir os streams em paralelo (task slots do proxy / mais VMs por vez): o enlace mede {ceil} Mbps e usam-se só {got}. Um enlace mais rápido não mudaria nada.',
+    'vd.sig.measOn':'Teto medido: {repo} escreve {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
+    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1760,6 +1796,7 @@ function renderDeep(payload) {
     ${v ? `<div class="subcard">${verdictHero(v)}<div class="kpi-grid">${gainTile(v)}</div>${actionsList(v)}${signalsRow(v)}</div>` : ''}
     <div class="subcard">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${d.runAt ? `<span class="pill" title="${attrTxt(t('deep.runat_exp'))}">${t('deep.runat')}: <b>${d.runAt}</b></span>` : ''}
         ${transportBadge}
         ${d.aggregate ? `<span class="pill">Load ${stg(d.aggregate)} · ${d.primary || ''}</span>` : ''}
         ${opts.length ? `<span class="muted" style="font-size:12px;">${opts.join(' · ')}</span>` : ''}
