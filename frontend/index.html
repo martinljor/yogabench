@@ -118,6 +118,20 @@
   .about-row { margin:8px 0; font-size:14px; }
   .modal a { color:var(--green); text-decoration:none; }
   .modal a:hover { text-decoration:underline; }
+  .kpi-grid { display:flex; gap:10px; flex-wrap:wrap; margin:2px 0 14px; }
+  .kpi { flex:1; min-width:112px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .kpi .k-lbl { font-size:12px; color:var(--muted); }
+  .kpi .k-val { font-size:22px; font-weight:600; margin-top:2px; line-height:1.15; }
+  .kpi .k-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+  .kpi .k-val.good { color:#7ede6f; } .kpi .k-val.bad { color:#f08b8b; }
+  .kpi .k-sub.good { color:#7ede6f; } .kpi .k-sub.bad { color:#f08b8b; }
+  details.exp { border-bottom:1px solid var(--border); }
+  details.exp > summary { cursor:pointer; padding:10px 2px; font-size:14px; list-style:none; display:flex; justify-content:space-between; align-items:center; color:var(--text); }
+  details.exp > summary::-webkit-details-marker { display:none; }
+  details.exp > summary::before { content:'▸'; color:var(--muted); margin-right:8px; transition:transform .15s; display:inline-block; }
+  details.exp[open] > summary::before { transform:rotate(90deg); }
+  details.exp > summary:hover { color:#fff; }
+  details.exp .exp-body { padding:2px 2px 12px; }
 </style>
 </head>
 <body>
@@ -312,11 +326,30 @@
 
   <!-- Modo: un job (capacidad + headroom + tiempo) -->
   <div id="anJobMode">
-    <div class="row" style="align-items:flex-end;">
-      <div><label data-i18n="an.job">Job</label><select id="anJobSel" style="width:340px;"></select></div>
-      <div><button onclick="runJobCapacity()" id="anJobBtn" data-i18n="an.analyze">Analizar</button></div>
+    <div id="anJobMain">
+      <div class="row" style="align-items:flex-end;">
+        <div><label data-i18n="an.job">Job</label><select id="anJobSel" style="width:340px;"></select></div>
+        <div><button onclick="runJobCapacity()" id="anJobBtn" data-i18n="an.analyze">Analizar</button></div>
+      </div>
+      <div id="anJobContent" style="margin-top:14px;"><p class="muted" data-i18n="an.pickjob">Elegí un job y tocá Analizar.</p></div>
     </div>
-    <div id="anJobContent" style="margin-top:14px;"><p class="muted" data-i18n="an.pickjob">Elegí un job y tocá Analizar.</p></div>
+
+    <!-- Vista deep separada (se abre desde el card con "Explorar en detalle") -->
+    <div id="anDeepView" style="display:none;">
+      <button class="ghost mini" onclick="closeDeep()" style="margin-bottom:10px;">← <span data-i18n="deep.back">Volver</span></button>
+      <h3 style="margin:0 0 4px;"><span data-i18n="deep.title">Detalle profundo</span> — <span id="deepJobName" class="muted"></span></h3>
+      <div class="subcard" id="deepForm">
+        <p class="muted" style="font-size:12px;" data-i18n="deep.hint"></p>
+        <div class="row" style="align-items:flex-end;">
+          <div><label data-i18n="deep.host">Host del VBR</label><input id="deepHost" placeholder="host / IP del VBR" style="width:190px;"></div>
+          <div><label data-i18n="deep.user">Usuario (admin)</label><input id="deepUser" placeholder="Administrator" style="width:150px;"></div>
+          <div><label data-i18n="form.pass">Password</label><input id="deepPass" type="password" style="width:150px;"></div>
+          <div><label data-i18n="deep.domain">Dominio</label><input id="deepDomain" placeholder="(opcional)" style="width:120px;"></div>
+          <div><button onclick="runDeep()" id="deepRunBtn" data-i18n="deep.run">Analizar deep</button></div>
+        </div>
+      </div>
+      <div id="deepResult" style="margin-top:12px;"></div>
+    </div>
   </div>
 
   <!-- Modo: global (por repositorio y proxy) -->
@@ -413,7 +446,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio no disponible','bench.ready':'listo para correr.','bench.deploying':'Desplegando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sin resultados.','bench.host':'host','bench.startfail':'No se pudo iniciar el benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latencia (ms)','tbl.expected':'Esperado','tbl.pct':'% del esperado','tbl.verdict':'Veredicto',
-    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','an.mode.job':'Un job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Elegí un job y tocá Analizar.','an.disabled':'deshabilitado','an.nojobs':'No hay jobs','cap.binding':'cuello','cap.faster':'más rápido','cap.nextlimit':'próximo límite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Cuello','cap.read':'Lectura','cap.write':'Escritura','cap.norate':'Corrida sin datos suficientes: veredicto relativo (sin MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sin datos','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Ingresá cores/RAM del host para recomendaciones firmes','deep.explore':'Explorar en detalle (deep)','deep.hint':'Accede al VBR (Windows: SMB al share C$) con credenciales de admin para leer los logs del job. Solo lectura; no se guardan.','deep.host':'Host del VBR','deep.user':'Usuario (admin)','deep.domain':'Dominio','deep.run':'Analizar deep','deep.running':'Accediendo y parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalle por VM','cap.stages':'Cuellos por etapa','cap.time':'Tiempo','cap.resources':'Recursos','cap.reco':'Recomendaciones','cap.pervm':'Por VM','nav.net':'Red','net.title':'Red — puertos y conectividad','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'Prueba solo los puertos del propósito elegido, por SSH desde el origen. El test de ancho de banda (iperf) está en la solapa Benchmark.','net.send':'Envío','net.recv':'Recepción','net.scenario':'Propósito','net.port':'Puerto','net.srcuser':'Usuario (origen)','net.serveruser':'Usuario (servidor)','net.clientuser':'Usuario (cliente)'
+    'bench.desthint':'Repositorios en','bench.other':'Otro (host / IP manual)…','bench.nofilter':'No pude filtrar por host — mostrando todos (elegí el de este servidor).','bench.defpath':'(ruta por defecto del host)','common.generating':'Generando…','diag.fail':'No se pudo generar el diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Herramienta de diagnóstico y benchmark de disco para Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositorio','about.exp':'Proyecto experimental — no es un producto oficial de Veeam. Cada persona es responsable de su uso.','flow.busy':'⚠ En ámbar (muchas conexiones — posible punto de contención):','an.summary':'Resumen del período','an.bystage':'Cuello por run (% del total)','an.byresult':'Resultado de los runs','reco.title':'Recomendaciones — asignación de proxies (VMware)','reco.none':'Sin recomendaciones: las asignaciones se ven equilibradas.','reco.intro':'Sugerencias para balancear los proxies de VMware (aplicalas en la config del job):','an.reduction':'Reducción','an.mode.job':'Un job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Elegí un job y tocá Analizar.','an.disabled':'deshabilitado','an.nojobs':'No hay jobs','cap.binding':'cuello','cap.faster':'más rápido','cap.nextlimit':'próximo límite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Cuello','cap.read':'Lectura','cap.write':'Escritura','cap.norate':'Corrida sin datos suficientes: veredicto relativo (sin MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sin datos','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Ingresá cores/RAM del host para recomendaciones firmes','deep.explore':'Explorar en detalle (deep)','deep.hint':'Accede al VBR (Windows: SMB al share C$) con credenciales de admin para leer los logs del job. Solo lectura; no se guardan.','deep.host':'Host del VBR','deep.user':'Usuario (admin)','deep.domain':'Dominio','deep.run':'Analizar deep','deep.running':'Accediendo y parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalle por VM','cap.rates':'Rendimiento','cap.projected':'Proyectado','cap.rwhint':'lectura / escritura MB/s','deep.back':'Volver','deep.title':'Detalle profundo','an.tjobs':'Jobs','an.tsuccess':'Éxito','an.ofruns':'de los runs','cap.stages':'Cuellos por etapa','cap.time':'Tiempo','cap.resources':'Recursos','cap.reco':'Recomendaciones','cap.pervm':'Por VM','nav.net':'Red','net.title':'Red — puertos y conectividad','net.portsref':'Puertos requeridos entre componentes (referencia)','net.check':'Test de conectividad (SSH desde el origen)','net.iperf':'Ancho de banda entre hosts (iperf3)','net.src':'Origen','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Probar puertos','net.runiperf':'Correr iperf','net.use':'Uso','net.testing':'Probando…','net.running':'Corriendo iperf…','net.note':'Prueba solo los puertos del propósito elegido, por SSH desde el origen. El test de ancho de banda (iperf) está en la solapa Benchmark.','net.send':'Envío','net.recv':'Recepción','net.scenario':'Propósito','net.port':'Puerto','net.srcuser':'Usuario (origen)','net.serveruser':'Usuario (servidor)','net.clientuser':'Usuario (cliente)'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -457,7 +490,7 @@ const I18N = {
     'bench.checking':'Checking fio…','bench.fionotfound':'fio not available','bench.ready':'ready to run.','bench.deploying':'Deploying fio…',
     'bench.results':'Disk results','bench.nores':'No results.','bench.host':'host','bench.startfail':'Could not start the benchmark.',
     'tbl.test':'Test','tbl.mode':'Mode','tbl.iops':'IOPS','tbl.lat':'Latency (ms)','tbl.expected':'Expected','tbl.pct':'% of expected','tbl.verdict':'Verdict',
-    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','an.mode.job':'Single job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Pick a job and click Analyze.','an.disabled':'disabled','an.nojobs':'No jobs','cap.binding':'bottleneck','cap.faster':'faster','cap.nextlimit':'next limit','cap.slots':'task slots','cap.algo':'Mode','cap.bneck':'Bottleneck','cap.read':'Read','cap.write':'Write','cap.norate':'Run moved little/no data: relative verdict only (no absolute MB/s).','cap.indicative':'indicative','cap.insufficient':'insufficient data','cap.cores':'Cores','cap.apply':'Apply resources','cap.coreshint':'Enter host cores/RAM for firm recommendations','deep.explore':'Explore in detail (deep)','deep.hint':'Accesses the VBR (Windows: SMB to the C$ share) with admin credentials to read the job logs. Read-only; not stored.','deep.host':'VBR host','deep.user':'User (admin)','deep.domain':'Domain','deep.run':'Run deep','deep.running':'Accessing and parsing logs…','deep.transport':'Transport','deep.busy':'Per-VM busy','deep.disks':'Disks','deep.pervm':'Per-VM detail','cap.stages':'Per-stage bottleneck','cap.time':'Time','cap.resources':'Resources','cap.reco':'Recommendations','cap.pervm':'Per VM','nav.net':'Network','net.title':'Network — ports & connectivity','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'Probes only the ports for the chosen purpose, via SSH from the source. The bandwidth test (iperf) lives in the Benchmark tab.','net.send':'Send','net.recv':'Receive','net.scenario':'Purpose','net.port':'Port','net.srcuser':'Source user','net.serveruser':'Server user','net.clientuser':'Client user'
+    'bench.desthint':'Repositories on','bench.other':'Other (manual host / IP)…','bench.nofilter':'Could not filter by host — showing all (pick the one on this server).','bench.defpath':'(host default path)','common.generating':'Generating…','diag.fail':'Could not generate the diagnostics: ','common.repo':'repo','an.primaryval':'—','about.desc':'Diagnostics and disk benchmark tool for Veeam Backup & Replication.','about.author':'Author','about.repo':'Repository','about.exp':'Experimental project — not an official Veeam product. Each person is responsible for its use.','flow.busy':'⚠ In amber (many connections — possible contention point):','an.summary':'Period summary','an.bystage':'Bottleneck per run (% of total)','an.byresult':'Runs by result','reco.title':'Recommendations — proxy assignment (VMware)','reco.none':'No recommendations: assignments look balanced.','reco.intro':'Suggestions to balance the VMware proxies (apply them in the job config):','an.reduction':'Reduction','an.mode.job':'Single job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Pick a job and click Analyze.','an.disabled':'disabled','an.nojobs':'No jobs','cap.binding':'bottleneck','cap.faster':'faster','cap.nextlimit':'next limit','cap.slots':'task slots','cap.algo':'Mode','cap.bneck':'Bottleneck','cap.read':'Read','cap.write':'Write','cap.norate':'Run moved little/no data: relative verdict only (no absolute MB/s).','cap.indicative':'indicative','cap.insufficient':'insufficient data','cap.cores':'Cores','cap.apply':'Apply resources','cap.coreshint':'Enter host cores/RAM for firm recommendations','deep.explore':'Explore in detail (deep)','deep.hint':'Accesses the VBR (Windows: SMB to the C$ share) with admin credentials to read the job logs. Read-only; not stored.','deep.host':'VBR host','deep.user':'User (admin)','deep.domain':'Domain','deep.run':'Run deep','deep.running':'Accessing and parsing logs…','deep.transport':'Transport','deep.busy':'Per-VM busy','deep.disks':'Disks','deep.pervm':'Per-VM detail','cap.rates':'Throughput','cap.projected':'Projected','cap.rwhint':'read / write MB/s','deep.back':'Back','deep.title':'Deep detail','an.tjobs':'Jobs','an.tsuccess':'Success','an.ofruns':'of runs','cap.stages':'Per-stage bottleneck','cap.time':'Time','cap.resources':'Resources','cap.reco':'Recommendations','cap.pervm':'Per VM','nav.net':'Network','net.title':'Network — ports & connectivity','net.portsref':'Required ports between components (reference)','net.check':'Connectivity test (SSH from source)','net.iperf':'Bandwidth between hosts (iperf3)','net.src':'Source','net.target':'Target','net.server':'Server (iperf -s)','net.client':'Client (iperf -c)','net.runports':'Test ports','net.runiperf':'Run iperf','net.use':'Use','net.testing':'Testing…','net.running':'Running iperf…','net.note':'Probes only the ports for the chosen purpose, via SSH from the source. The bandwidth test (iperf) lives in the Benchmark tab.','net.send':'Send','net.recv':'Receive','net.scenario':'Purpose','net.port':'Port','net.srcuser':'Source user','net.serveruser':'Server user','net.clientuser':'Client user'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -501,7 +534,7 @@ const I18N = {
     'bench.checking':'Verificando fio…','bench.fionotfound':'fio não disponível','bench.ready':'pronto para rodar.','bench.deploying':'Instalando fio…',
     'bench.results':'Resultados de disco','bench.nores':'Sem resultados.','bench.host':'host','bench.startfail':'Não foi possível iniciar o benchmark.',
     'tbl.test':'Test','tbl.mode':'Modo','tbl.iops':'IOPS','tbl.lat':'Latência (ms)','tbl.expected':'Esperado','tbl.pct':'% do esperado','tbl.verdict':'Veredito',
-    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','an.mode.job':'Um job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Escolha um job e clique em Analisar.','an.disabled':'desabilitado','an.nojobs':'Sem jobs','cap.binding':'gargalo','cap.faster':'mais rápido','cap.nextlimit':'próximo limite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Gargalo','cap.read':'Leitura','cap.write':'Escrita','cap.norate':'Corrida sem dados suficientes: veredito relativo (sem MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sem dados','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Informe cores/RAM do host para recomendações firmes','deep.explore':'Explorar em detalhe (deep)','deep.hint':'Acessa o VBR (Windows: SMB ao share C$) com credenciais de admin para ler os logs do job. Somente leitura; não são salvas.','deep.host':'Host do VBR','deep.user':'Usuário (admin)','deep.domain':'Domínio','deep.run':'Analisar deep','deep.running':'Acessando e parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalhe por VM','cap.stages':'Gargalo por etapa','cap.time':'Tempo','cap.resources':'Recursos','cap.reco':'Recomendações','cap.pervm':'Por VM','nav.net':'Rede','net.title':'Rede — portas e conectividade','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'Prova apenas as portas do propósito escolhido, por SSH desde a origem. O teste de largura de banda (iperf) está na aba Benchmark.','net.send':'Envio','net.recv':'Recepção','net.scenario':'Propósito','net.port':'Porta','net.srcuser':'Usuário (origem)','net.serveruser':'Usuário (servidor)','net.clientuser':'Usuário (cliente)'
+    'bench.desthint':'Repositórios em','bench.other':'Outro (host / IP manual)…','bench.nofilter':'Não consegui filtrar por host — mostrando todos (escolha o deste servidor).','bench.defpath':'(caminho padrão do host)','common.generating':'Gerando…','diag.fail':'Não foi possível gerar o diagnóstico: ','common.repo':'repo','an.primaryval':'—','about.desc':'Ferramenta de diagnóstico e benchmark de disco para o Veeam Backup & Replication.','about.author':'Autor','about.repo':'Repositório','about.exp':'Projeto experimental — não é um produto oficial da Veeam. Cada pessoa é responsável pelo seu uso.','flow.busy':'⚠ Em âmbar (muitas conexões — possível ponto de contenção):','an.summary':'Resumo do período','an.bystage':'Gargalo por run (% do total)','an.byresult':'Runs por resultado','reco.title':'Recomendações — atribuição de proxies (VMware)','reco.none':'Sem recomendações: as atribuições parecem equilibradas.','reco.intro':'Sugestões para balancear os proxies VMware (aplique na config do job):','an.reduction':'Redução','an.mode.job':'Um job','an.mode.global':'Global','an.job':'Job','an.pickjob':'Escolha um job e clique em Analisar.','an.disabled':'desabilitado','an.nojobs':'Sem jobs','cap.binding':'gargalo','cap.faster':'mais rápido','cap.nextlimit':'próximo limite','cap.slots':'task slots','cap.algo':'Modo','cap.bneck':'Gargalo','cap.read':'Leitura','cap.write':'Escrita','cap.norate':'Corrida sem dados suficientes: veredito relativo (sem MB/s absoluto).','cap.indicative':'indicativo','cap.insufficient':'sem dados','cap.cores':'Cores','cap.apply':'Aplicar recursos','cap.coreshint':'Informe cores/RAM do host para recomendações firmes','deep.explore':'Explorar em detalhe (deep)','deep.hint':'Acessa o VBR (Windows: SMB ao share C$) com credenciais de admin para ler os logs do job. Somente leitura; não são salvas.','deep.host':'Host do VBR','deep.user':'Usuário (admin)','deep.domain':'Domínio','deep.run':'Analisar deep','deep.running':'Acessando e parseando logs…','deep.transport':'Transporte','deep.busy':'Busy por VM','deep.disks':'Discos','deep.pervm':'Detalhe por VM','cap.rates':'Desempenho','cap.projected':'Projetado','cap.rwhint':'leitura / escrita MB/s','deep.back':'Voltar','deep.title':'Detalhe profundo','an.tjobs':'Jobs','an.tsuccess':'Sucesso','an.ofruns':'dos runs','cap.stages':'Gargalo por etapa','cap.time':'Tempo','cap.resources':'Recursos','cap.reco':'Recomendações','cap.pervm':'Por VM','nav.net':'Rede','net.title':'Rede — portas e conectividade','net.portsref':'Portas necessárias entre componentes (referência)','net.check':'Teste de conectividade (SSH desde a origem)','net.iperf':'Largura de banda entre hosts (iperf3)','net.src':'Origem','net.target':'Destino','net.server':'Servidor (iperf -s)','net.client':'Cliente (iperf -c)','net.runports':'Testar portas','net.runiperf':'Rodar iperf','net.use':'Uso','net.testing':'Testando…','net.running':'Rodando iperf…','net.note':'Prova apenas as portas do propósito escolhido, por SSH desde a origem. O teste de largura de banda (iperf) está na aba Benchmark.','net.send':'Envio','net.recv':'Recepção','net.scenario':'Propósito','net.port':'Porta','net.srcuser':'Usuário (origem)','net.serveruser':'Usuário (servidor)','net.clientuser':'Usuário (cliente)'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1257,6 +1290,7 @@ async function loadAnalysis() {
 }
 
 function setAnMode(m) {
+  closeDeep();
   document.getElementById('anJobMode').style.display = m === 'job' ? 'block' : 'none';
   document.getElementById('anGlobalMode').style.display = m === 'global' ? 'block' : 'none';
   document.getElementById('anModeJobBtn').classList.toggle('active', m === 'job');
@@ -1277,6 +1311,7 @@ function fmtBytes(n) {
 }
 
 async function runJobCapacity() {
+  closeDeep();
   const el = document.getElementById('anJobContent');
   const jobId = document.getElementById('anJobSel').value;
   if (!jobId) { el.innerHTML = `<p class="error">${t('an.pickjob')}</p>`; return; }
@@ -1303,30 +1338,46 @@ async function applyResources() {
   runJobCapacity();
 }
 
+// kpi: tarjeta de KPI (numero grande + label + sub). cls/subcls: '', 'good', 'bad'.
+function kpi(lbl, val, sub, cls, subcls) {
+  return `<div class="kpi"><div class="k-lbl">${lbl}</div><div class="k-val ${cls || ''}">${val}</div>${sub ? `<div class="k-sub ${subcls || ''}">${sub}</div>` : ''}</div>`;
+}
+
+// renderJobCapacity: card prolijo — titulares en tarjetas + cuello + detalle
+// colapsable. El deep abre una vista aparte (openDeep).
 function renderJobCapacity(d) {
   const el = document.getElementById('anJobContent');
+  window._anJob = d; // para openDeep
   const conf = d.confidence === 'observed'
     ? `<span class="verdict ok">observed</span>`
     : d.confidence === 'low'
       ? `<span class="verdict warn">${t('cap.indicative')}</span>`
       : `<span class="verdict low">${t('cap.insufficient')}</span>`;
-  // Barras por stage.
+
+  const prim = (d.stages || []).find(s => s.name === d.primary) || null;
+  const hasRate = d.confidence !== 'insufficient';
+  // Tarjetas KPI.
+  let tiles = kpi(t('cap.time'), fmtDur(d.durationSec));
+  if (d.projection) {
+    tiles += kpi(t('cap.projected'), fmtDur(d.projection.newDurationSec),
+      `▼ ${d.projection.improvementPct}% · ${t('cap.nextlimit')}: ${d.projection.nextStage}`, 'good', 'good');
+  }
+  tiles += kpi(t('cap.bneck'), d.primary || '—', prim ? prim.util + '% busy' : '', 'bad');
+  tiles += kpi(t('cap.rates'), hasRate ? `${d.readMBps}<span class="muted" style="font-size:13px;">/</span>${d.writeMBps}` : '—',
+    hasRate ? t('cap.rwhint') : t('cap.norate'));
+  tiles += kpi(t('an.reduction'), d.reduction ? d.reduction + '×' : '—');
+
+  // Barras por stage (compactas).
   let stages = '';
   for (const s of (d.stages || [])) {
-    const col = s.binding ? '#e5533c' : '#3d7eff';
-    stages += `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;">
-      <span style="width:66px;font-size:12px;">${s.name}</span>
-      <span style="display:inline-block;width:200px;height:10px;background:#2a2f3a;border-radius:5px;overflow:hidden;">
-        <span style="display:block;height:100%;width:${s.util}%;background:${col};"></span></span>
-      <span style="font-size:12px;">${s.util}%${s.binding ? ' · <b>' + t('cap.binding') + '</b>' : ''}</span></div>`;
+    const col = s.binding ? 'var(--red)' : 'var(--blue)';
+    stages += `<div class="bnk-row" style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+      <span class="lbl" style="width:64px;color:var(--muted);font-size:12px;">${s.name}</span>
+      <span class="bnk-track" style="flex:1;"><span class="bnk-fill" style="width:${s.util}%;background:${col};"></span></span>
+      <span style="width:44px;text-align:right;font-size:12px;">${s.util}%</span></div>`;
   }
-  // Tiempo + proyeccion.
-  let timeHtml = `<b>${fmtDur(d.durationSec)}</b>`;
-  if (d.projection) {
-    timeHtml += ` → <b style="color:#3fb950;">${fmtDur(d.projection.newDurationSec)}</b> `
-      + `(~${d.projection.improvementPct}% ${t('cap.faster')} · ${t('cap.nextlimit')}: ${d.projection.nextStage})`;
-  }
-  // Recursos: slots + capacidad/free (repo) + cores/RAM editables (para recos firmes).
+
+  // Recursos (editables).
   const resRows = (d.resources || []).map(r => {
     const icon = r.kind === 'proxy' ? '🔀' : '🗄';
     const cap = r.capacityGB ? ` · ${r.freeGB != null ? Math.round(r.freeGB) + '/' : ''}${Math.round(r.capacityGB)} GB` : '';
@@ -1337,11 +1388,11 @@ function renderJobCapacity(d) {
       <span style="font-size:12px;">RAM: <input type="number" min="0" value="${r.ramGB || ''}" data-host="${r.hostId}" class="resRam" style="width:54px;"> GB</span>
     </div>`;
   }).join('') || '<span class="muted">—</span>';
-  // Recomendaciones.
-  const sevCol = { high: '#e5533c', warn: '#d29922', info: '#3d7eff' };
+
+  const sevCol = { high: 'var(--red)', warn: 'var(--amber)', info: 'var(--blue)' };
   const recos = (d.recommendations || []).map(r =>
-    `<li style="margin:4px 0;"><span style="color:${sevCol[r.severity] || '#8b949e'};">●</span> ${r.text} <span class="muted" style="font-size:11px;">(${r.confidence})</span></li>`).join('');
-  // Tabla por VM.
+    `<li style="margin:5px 0;"><span style="color:${sevCol[r.severity] || 'var(--muted)'};">●</span> ${r.text} <span class="muted" style="font-size:11px;">(${r.confidence})</span></li>`).join('');
+
   let vms = `<table><tr><th>VM</th><th>${t('cap.algo')}</th><th>${t('cap.bneck')}</th><th>Proc</th><th>Read</th><th>Xfer</th><th>${t('an.reduction')}</th><th>Dur</th></tr>`;
   for (const tk of (d.tasks || [])) {
     vms += `<tr><td>${tk.name}</td><td>${tk.algorithm || '—'}</td><td>${tk.bottleneck || '—'}</td>`
@@ -1350,48 +1401,39 @@ function renderJobCapacity(d) {
   }
   vms += '</table>';
   const notes = (d.notes || []).map(n => `<p class="muted" style="font-size:12px;">ℹ️ ${n}</p>`).join('');
-  const rateLine = d.confidence !== 'insufficient'
-    ? `${t('cap.read')}: <b>${d.readMBps} MB/s</b> · ${t('cap.write')}: <b>${d.writeMBps} MB/s</b> · ${t('an.reduction')}: <b>${d.reduction ? d.reduction + '×' : '—'}</b>`
-    : `<span class="muted">${t('cap.norate')}</span>`;
 
   el.innerHTML = `
     <div class="subcard">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <div><b>${d.jobName}</b> · <span class="muted">${d.result} · ${(d.creationTime || '').slice(0, 16).replace('T', ' ')}</span></div>
-        <div>${conf}</div>
+        <div style="display:flex;gap:8px;align-items:center;">${conf}<button class="ghost mini" onclick="openDeep()">🔬 ${t('deep.explore')}</button></div>
       </div>
-      <h4 style="margin:12px 0 4px;">${t('cap.stages')}</h4>
+      <div class="kpi-grid">${tiles}</div>
+      <div style="font-size:13px;font-weight:600;margin:4px 0 4px;">${t('cap.stages')}</div>
       ${stages || '<span class="muted">—</span>'}
-      <p style="margin:10px 0 2px;">${rateLine}</p>
-      <p style="margin:8px 0 2px;"><b>${t('cap.time')}:</b> ${timeHtml}</p>
-      <div style="margin:10px 0 2px;"><b>${t('cap.resources')}</b> <span class="muted" style="font-size:12px;">— ${t('cap.coreshint')}</span></div>
-      ${resRows}
-      <div style="margin:6px 0 2px;"><button class="ghost mini" onclick="applyResources()">${t('cap.apply')}</button></div>
-      <h4 style="margin:12px 0 4px;">${t('cap.reco')}</h4>
-      <ul style="margin:0;padding-left:6px;list-style:none;">${recos || '<li class="muted">—</li>'}</ul>
-      <h4 style="margin:12px 0 4px;">${t('cap.pervm')}</h4>
-      ${vms}
-      ${notes}
-      <div style="margin-top:12px;border-top:1px solid var(--border,#2a2f3a);padding-top:10px;">
-        <button class="ghost mini" onclick="toggleDeep()" id="deepBtn">🔬 ${t('deep.explore')}</button>
-        <div id="deepForm" style="display:none;margin-top:8px;">
-          <p class="muted" style="font-size:12px;">${t('deep.hint')}</p>
-          <div class="row" style="align-items:flex-end;">
-            <div><label>${t('deep.host')}</label><input id="deepHost" placeholder="host / IP del VBR" style="width:190px;"></div>
-            <div><label>${t('deep.user')}</label><input id="deepUser" placeholder="Administrator" style="width:150px;"></div>
-            <div><label>${t('form.pass')}</label><input id="deepPass" type="password" style="width:150px;"></div>
-            <div><label>${t('deep.domain')}</label><input id="deepDomain" placeholder="(opcional)" style="width:120px;"></div>
-            <div><button onclick="runDeep()" id="deepRunBtn">${t('deep.run')}</button></div>
-          </div>
-        </div>
-        <div id="deepResult" style="margin-top:10px;"></div>
+      <div style="margin-top:12px;">
+        <details class="exp"><summary>${t('cap.reco')} <span class="muted">${(d.recommendations || []).length}</span></summary>
+          <div class="exp-body"><ul style="margin:0;padding-left:6px;list-style:none;">${recos || '<li class="muted">—</li>'}</ul></div></details>
+        <details class="exp"><summary>${t('cap.resources')} <span class="muted">${(d.resources || []).length}</span></summary>
+          <div class="exp-body"><p class="muted" style="font-size:12px;margin:0 0 6px;">${t('cap.coreshint')}</p>${resRows}
+            <div style="margin-top:6px;"><button class="ghost mini" onclick="applyResources()">${t('cap.apply')}</button></div></div></details>
+        <details class="exp"><summary>${t('cap.pervm')} <span class="muted">${(d.tasks || []).length}</span></summary>
+          <div class="exp-body">${vms}${notes}</div></details>
       </div>
     </div>`;
 }
 
-function toggleDeep() {
-  const f = document.getElementById('deepForm');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+// openDeep / closeDeep: el detalle profundo va a una vista aparte.
+function openDeep() {
+  const sel = document.getElementById('anJobSel');
+  document.getElementById('deepJobName').textContent = (window._anJob && window._anJob.jobName) || (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '');
+  document.getElementById('deepResult').innerHTML = '';
+  document.getElementById('anJobMain').style.display = 'none';
+  document.getElementById('anDeepView').style.display = 'block';
+}
+function closeDeep() {
+  document.getElementById('anDeepView').style.display = 'none';
+  document.getElementById('anJobMain').style.display = 'block';
 }
 
 async function runDeep() {
@@ -1467,11 +1509,27 @@ function renderAnalysis(d) {
     return;
   }
   el.innerHTML =
-    summaryBlock(d && d.summary) +
-    `<h3 style="margin-top:8px;">${t('an.byproxy')}</h3>
-     ${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : `<p class="muted">${t('an.noproxy')}</p>`}
-     <h3 style="margin-top:18px;">${t('an.byrepo')}</h3>
-     ${repo.map(g => groupCard(g, 'repo')).join('')}`;
+    globalTiles(d && d.summary) +
+    `<div style="margin-top:8px;">
+      <details class="exp" open><summary>${t('an.byproxy')} <span class="muted">${prx.length}</span></summary>
+        <div class="exp-body">${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : `<p class="muted">${t('an.noproxy')}</p>`}</div></details>
+      <details class="exp"><summary>${t('an.byrepo')} <span class="muted">${repo.length}</span></summary>
+        <div class="exp-body">${repo.length ? repo.map(g => groupCard(g, 'repo')).join('') : `<p class="muted">${t('an.nodata')}</p>`}</div></details>
+    </div>`;
+}
+
+// globalTiles: fila de KPIs del período (overview). El detalle va colapsado abajo.
+function globalTiles(sm) {
+  if (!sm || !sm.runs) return '';
+  const total = sm.runs, prim = sm.primary || {};
+  let topStage = '—', topN = 0;
+  for (const s of ['Source', 'Proxy', 'Network', 'Target']) { if ((prim[s] || 0) > topN) { topN = prim[s]; topStage = s; } }
+  const succ = Math.round(((sm.results || {}).Success || 0) / total * 100);
+  return `<div class="kpi-grid">
+    ${kpi(t('an.tjobs'), total, '')}
+    ${kpi(t('cap.bneck'), topStage, topN ? Math.round(topN / total * 100) + '% ' + t('an.ofruns') : '', 'bad')}
+    ${kpi(t('an.tsuccess'), succ + '%', '')}
+  </div>`;
 }
 
 // summaryBlock: subitem con el % de runs por stage dominante y por resultado
