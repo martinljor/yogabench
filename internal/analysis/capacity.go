@@ -10,12 +10,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"yogabench/internal/vbr"
 )
 
 const (
-	scanSessions   = 12           // cuantas sesiones recientes del job miramos para elegir la de mas datos
+	maxWindowRuns  = 40           // cap de corridas a agregar en la ventana (N+1 acotado)
 	satBytes       = int64(256) << 20 // 256 MiB movidos (max leido/transferido) = corrida "observed" (rate firme)
 	lowFloor       = int64(16) << 20  // <16 MiB movidos = no-op -> insufficient (evita rates 0/0 y reduccion absurda)
 	bindThreshold  = 85         // util% a partir del cual un stage se considera "topando"
@@ -88,6 +89,24 @@ type JobCapacityResult struct {
 	Projection      *Projection    `json:"projection"`
 	Recommendations []Reco         `json:"recommendations"`
 	Notes           []string       `json:"notes"`
+	// Ventana (promedios estilo Veeam ONE).
+	Days         int          `json:"days"`
+	Runs         int          `json:"runs"`         // corridas analizadas en la ventana
+	RunsWithData int          `json:"runsWithData"` // cuantas movieron datos
+	PrimaryPct   int          `json:"primaryPct"`   // % de corridas con ese cuello dominante
+	RunList      []RunSummary `json:"runList"`      // resumen por corrida (detalle)
+}
+
+// RunSummary: una corrida del job dentro de la ventana (para el detalle).
+type RunSummary struct {
+	SessionID       string  `json:"sessionId"`
+	CreationTime    string  `json:"creationTime"`
+	Result          string  `json:"result"`
+	DurationSec     float64 `json:"durationSec"`
+	ReadMBps        float64 `json:"readMBps"`
+	WriteMBps       float64 `json:"writeMBps"`
+	Primary         string  `json:"primary"`
+	TransferredSize int64   `json:"transferredSize"`
 }
 
 // --- API publica ------------------------------------------------------------
@@ -130,126 +149,173 @@ func JobDeepTarget(ctx context.Context, s *vbr.Session, jobID string) (name, osK
 	return name, osKind, nil
 }
 
-// JobCapacity: modelo de capacidad para un job, sobre su ultima corrida con datos.
-func JobCapacity(ctx context.Context, s *vbr.Session, jobID string) (*JobCapacityResult, error) {
-	// Sesiones recientes del job (data jobs, no Failed).
-	all := getItems(ctx, s, "v1/sessions?limit=200&orderColumn=CreationTime&orderAsc=false")
+// JobCapacity: modelo de capacidad de un job AGREGADO sobre una ventana de N dias
+// (promedios en los KPIs, estilo Veeam ONE). days<=0 = todo el historico reciente.
+func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*JobCapacityResult, error) {
+	all := getItems(ctx, s, "v1/sessions?limit=500&orderColumn=CreationTime&orderAsc=false")
+	var cutoff time.Time
+	if days > 0 {
+		cutoff = time.Now().AddDate(0, 0, -days)
+	}
 	var cand []map[string]any
 	for _, x := range all {
 		if str(x["jobId"]) != jobID || !isDataJob(x) || resultOf(x) == "Failed" {
 			continue
 		}
+		if days > 0 {
+			if t, ok := parseDT(x["creationTime"]); ok && t.Before(cutoff) {
+				continue
+			}
+		}
 		cand = append(cand, x)
 	}
 	if len(cand) == 0 {
-		return nil, fmt.Errorf("no successful data sessions found for this job")
+		return nil, fmt.Errorf("no successful runs for this job in the last %d day(s)", days)
+	}
+	if len(cand) > maxWindowRuns {
+		cand = cand[:maxWindowRuns]
 	}
 
-	// Entre las corridas recientes elegimos la que MAS datos movio (max de
-	// leido/transferido) — asi mostramos la mas significativa, no un incremental
-	// no-op. Empate -> la mas reciente (cand ya viene ordenado desc).
-	var chosen map[string]any
-	var chosenTasks []Task
-	bestData := int64(-1)
-	scanned := 0
+	out := &JobCapacityResult{JobID: jobID, JobName: str(cand[0]["name"]), Days: days, Notes: []string{}}
+
+	var totProc, totRead, totXfer int64 // sobre corridas con datos
+	var sumDur, sumDataDur float64      // avg duracion (todas) / rate (con datos)
+	primaryCount := map[string]int{}
+	stageSum := [4]int{}
+	stageN := 0 // corridas con linea Load: (para promediar %)
+	var repTasks []Task
+	var repSess map[string]any
+	repData := int64(-1)
+
 	for _, x := range cand {
-		if scanned >= scanSessions {
-			break
+		sid := str(x["id"])
+		tasks := buildTasks(getItems(ctx, s, "v1/sessions/"+sid+"/taskSessions"))
+		logs := getItems(ctx, s, "v1/sessions/"+sid+"/logs")
+		var proc, read, xfer int64
+		for _, tk := range tasks {
+			proc += tk.ProcessedSize
+			read += tk.ReadSize
+			xfer += tk.TransferredSize
 		}
-		scanned++
-		tasks := buildTasks(getItems(ctx, s, "v1/sessions/"+str(x["id"])+"/taskSessions"))
-		var xfer, read int64
-		for _, t := range tasks {
-			xfer += t.TransferredSize
-			read += t.ReadSize
+		durSec := sessionDur(x)
+		sumDur += durSec
+		maxData := xfer
+		if read > maxData {
+			maxData = read
 		}
-		data := xfer
-		if read > data {
-			data = read
-		}
-		if data > bestData {
-			bestData, chosen, chosenTasks = data, x, tasks
-		}
-	}
 
-	sid := str(chosen["id"])
-	logs := getItems(ctx, s, "v1/sessions/"+sid+"/logs")
-	res, _ := chosen["result"].(map[string]any)
-
-	var processed, read, transferred int64
-	repoSet := map[string]bool{}
-	for _, t := range chosenTasks {
-		processed += t.ProcessedSize
-		read += t.ReadSize
-		transferred += t.TransferredSize
-		if t.RepositoryID != "" && t.RepositoryID != emptyGUID {
-			repoSet[t.RepositoryID] = true
+		bn := bottleneckFromLogs(logs)
+		if bn == nil {
+			if p := dominantTaskBottleneck(tasks); p != "" {
+				bn = map[string]any{"primary": p}
+			}
 		}
-	}
-
-	durSec := 0.0
-	if a, okA := parseDT(chosen["creationTime"]); okA {
-		if b, okB := parseDT(chosen["endTime"]); okB && b.After(a) {
-			durSec = b.Sub(a).Seconds()
+		if prim, _ := bn["primary"].(string); prim != "" {
+			primaryCount[prim]++
 		}
+		if _, ok := bn["source"]; ok {
+			stageSum[0] += toInt(bn["source"])
+			stageSum[1] += toInt(bn["proxy"])
+			stageSum[2] += toInt(bn["network"])
+			stageSum[3] += toInt(bn["target"])
+			stageN++
+		}
+		if maxData >= lowFloor {
+			out.RunsWithData++
+			totProc += proc
+			totRead += read
+			totXfer += xfer
+			sumDataDur += durSec
+		}
+		if maxData > repData { // representativa = la que mas datos movio (per-VM + deep)
+			repData, repTasks, repSess = maxData, tasks, x
+		}
+		rs := RunSummary{SessionID: sid, CreationTime: str(x["creationTime"]), Result: resultOf(x), DurationSec: round1(durSec), TransferredSize: xfer}
+		rs.Primary, _ = bn["primary"].(string)
+		if durSec > 0 {
+			rs.ReadMBps = round1(float64(read) / durSec / 1e6)
+			rs.WriteMBps = round1(float64(xfer) / durSec / 1e6)
+		}
+		out.RunList = append(out.RunList, rs)
 	}
+	out.Runs = len(cand)
 
-	out := &JobCapacityResult{
-		JobID: jobID, JobName: str(chosen["name"]), SessionID: sid, SessionName: str(chosen["name"]),
-		Result: str(res["result"]), CreationTime: str(chosen["creationTime"]), EndTime: str(chosen["endTime"]),
-		DurationSec: durSec, ProcessedSize: processed, ReadSize: read, TransferredSize: transferred,
-		Tasks: chosenTasks, Notes: []string{},
+	// KPIs: duracion promedio (todas las corridas); throughput/reduccion agregados
+	// (sobre las que movieron datos).
+	out.DurationSec = round1(sumDur / float64(out.Runs))
+	out.ProcessedSize, out.ReadSize, out.TransferredSize = totProc, totRead, totXfer
+	if sumDataDur > 0 {
+		out.ReadMBps = round1(float64(totRead) / sumDataDur / 1e6)
+		out.WriteMBps = round1(float64(totXfer) / sumDataDur / 1e6)
 	}
-	// Reduccion (procesado/transferido) SOLO si se almaceno data real: con un
-	// incremental que casi no escribio (transferido ~KB) el ratio da absurdo.
-	if transferred >= satBytes {
-		v := round1(float64(processed) / float64(transferred))
+	if totXfer >= satBytes {
+		v := round1(float64(totProc) / float64(totXfer))
 		out.Reduction = &v
 	}
-	if durSec > 0 {
-		out.ReadMBps = round1(float64(read) / durSec / 1e6)
-		out.WriteMBps = round1(float64(transferred) / durSec / 1e6)
+	aggMax := totXfer
+	if totRead > aggMax {
+		aggMax = totRead
 	}
-	// Confianza en 3 niveles segun cuanto movio (max de leido/transferido):
-	//   observed   >= satBytes  -> numero firme
-	//   low        >0           -> rates indicativos (muestra chica)
-	//   insufficient ~0         -> solo veredicto relativo (no-op)
-	maxData := transferred
-	if read > maxData {
-		maxData = read
-	}
-	hasData := maxData >= lowFloor
-	out.Saturated = maxData >= satBytes
+	out.Saturated = aggMax >= satBytes
 	switch {
 	case out.Saturated:
 		out.Confidence = "observed"
-	case hasData:
+	case out.RunsWithData > 0:
 		out.Confidence = "low"
-		out.Notes = append(out.Notes, "Small sample: rates are indicative, not the hardware ceiling. Run an Active Full for a firm number.")
+		out.Notes = append(out.Notes, "Runs moved little data: rates are indicative. Keep Active Fulls in the window for firm numbers.")
 	default:
 		out.Confidence = "insufficient"
-		out.Notes = append(out.Notes, "This run moved little/no data (incremental no-op): the bottleneck stage is valid (relative), but MB/s, reduction and time projection are not meaningful. Run an Active Full.")
+		out.Notes = append(out.Notes, "No run in the window moved meaningful data (no-op incrementals): the bottleneck is relative only.")
 	}
 
-	// Stages desde la linea Load: (nivel job). Si no hay, usar el bottleneck por tarea.
-	bneck := bottleneckFromLogs(logs)
-	if bneck == nil {
-		if p := dominantTaskBottleneck(chosenTasks); p != "" {
-			bneck = map[string]any{"primary": p}
-			out.Notes = append(out.Notes, "No 'Load:' line in logs; using the per-task dominant stage (no per-stage %).")
+	// Stages promedio + cuello dominante (% de corridas).
+	bneck := map[string]any{}
+	if stageN > 0 {
+		bneck = map[string]any{"source": stageSum[0] / stageN, "proxy": stageSum[1] / stageN, "network": stageSum[2] / stageN, "target": stageSum[3] / stageN}
+	}
+	top, topN := "", 0
+	for k, n := range primaryCount {
+		if n > topN {
+			top, topN = k, n
 		}
+	}
+	if top != "" {
+		bneck["primary"] = top
+		out.PrimaryPct = int(float64(topN)/float64(out.Runs)*100 + 0.5)
 	}
 	out.Primary, _ = bneck["primary"].(string)
 	out.Stages = buildStages(bneck)
+	if stageN == 0 && top != "" {
+		out.Notes = append(out.Notes, "No 'Load:' line in REST logs; showing the dominant per-task stage (no per-stage %). Use deep mode for per-VM stages.")
+	}
 
-	// Recursos (REST): proxies del job + repos usados, con su maxTaskCount provisto.
-	out.Resources = jobResources(ctx, s, jobID, keys(repoSet))
+	// Representativa: per-VM + datos de la sesion (para abrir el deep).
+	if repSess != nil {
+		out.SessionID, out.SessionName = str(repSess["id"]), str(repSess["name"])
+		out.Result, out.CreationTime, out.EndTime = resultOf(repSess), str(repSess["creationTime"]), str(repSess["endTime"])
+		out.Tasks = repTasks
+		repoSet := map[string]bool{}
+		for _, t := range repTasks {
+			if t.RepositoryID != "" && t.RepositoryID != emptyGUID {
+				repoSet[t.RepositoryID] = true
+			}
+		}
+		out.Resources = jobResources(ctx, s, jobID, keys(repoSet))
+	}
 
-	// Proyeccion de tiempo + recomendaciones (con cualquier corrida que movio datos).
-	out.Projection = projectTime(out.Stages, durSec, hasData)
+	out.Projection = projectTime(out.Stages, out.DurationSec, out.RunsWithData > 0)
 	out.Recommendations = recommend(out)
-
 	return out, nil
+}
+
+// sessionDur: duracion (creationTime -> endTime) en segundos.
+func sessionDur(x map[string]any) float64 {
+	if a, okA := parseDT(x["creationTime"]); okA {
+		if b, okB := parseDT(x["endTime"]); okB && b.After(a) {
+			return b.Sub(a).Seconds()
+		}
+	}
+	return 0
 }
 
 // --- helpers del modelo -----------------------------------------------------

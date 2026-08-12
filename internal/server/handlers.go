@@ -306,7 +306,13 @@ func (s *Server) analysisJob(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "jobId required"})
 		return
 	}
-	res, err := analysis.JobCapacity(r.Context(), sess, jobID)
+	days := 7
+	if q := r.URL.Query().Get("days"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n > 0 {
+			days = n
+		}
+	}
+	res, err := analysis.JobCapacity(r.Context(), sess, jobID, days)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
 		return
