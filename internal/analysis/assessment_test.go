@@ -1,7 +1,7 @@
 package analysis
 
 // Tests del veredicto del entorno. El mas importante es
-// TestAssessmentWeightsByDataNotRuns: es LA diferencia con Veeam ONE.
+// TestAssessmentWeightsByDataNotRuns: fija la ponderacion por dato movido.
 
 import (
 	"testing"
@@ -32,9 +32,9 @@ func rec(jobID, day, start, end string, xfer int64, primary string, repos, proxi
 
 var names = map[string]string{"r1": "repo01", "r2": "repo-slow", "p1": "proxy01"}
 
-// EL test que justifica el producto: Veeam ONE cuenta corridas, asi que 20
-// incrementales no-op le ganan a un full de 200 GiB. Nosotros ponderamos por
-// dato movido, asi que el cuello que reportamos es el que afecta a los bytes.
+// Contar corridas hace que 20 incrementales no-op le ganen a un full de 200 GiB.
+// Ponderamos por dato movido, asi que el cuello que reportamos es el que afecta a
+// los bytes reales.
 func TestAssessmentWeightsByDataNotRuns(t *testing.T) {
 	var recs []Record
 	for i := 0; i < 20; i++ { // 20 no-op "Source" (32 B cada uno): ruido

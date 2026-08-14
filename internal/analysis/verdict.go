@@ -34,10 +34,9 @@ const (
 	maxedPct   = 80 // por encima: el hardware SI es el techo
 )
 
-// Measured: el techo REAL del hardware, medido por nosotros (fio/iperf). Es la
-// senal que le falta a Veeam ONE: sin ella "Target 98%" se confunde con "el disco
-// no da mas", cuando muchas veces el disco esta ocioso y el job no lo alimenta.
-// 0 = no medido.
+// Measured: el techo REAL del hardware, medido por nosotros (fio/iperf). Sin esta
+// senal un "Target 98%" se confunde con "el disco no da mas", cuando muchas veces
+// el disco esta ocioso y el job no lo alimenta. 0 = no medido.
 type Measured struct {
 	RepoWriteMBps float64 `json:"repoWriteMBps"` // fio: escritura secuencial del repo
 	RepoName      string  `json:"repoName"`

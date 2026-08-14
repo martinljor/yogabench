@@ -14,7 +14,7 @@ import (
 // Source-bound leyendo por nbd. Formato calcado de los logs reales.
 const twoRunJobLog = `[04.08.2026 02:00:01] <01> Info     [JobSession] Starting job Domain Backups
 [04.08.2026 02:00:05] <01> Info     [ProxyDetector] Detected mode [san]
-[04.08.2026 02:01:00] <01> Info     Completed: THREAD: dc01.hackshack.local (CancellableThread.Create: 1) in 0:12:00
+[04.08.2026 02:01:00] <01> Info     Completed: THREAD: vm01.example.local (CancellableThread.Create: 1) in 0:12:00
 [04.08.2026 02:12:30] <01> Info     [JobSession] Load: Source 10% > Proxy 20% > Network 30% > Target 90%
 [04.08.2026 02:12:30] <01> Info     [JobSession] Primary bottleneck: Target
 [04.08.2026 02:12:31] <01> Info     <CompressionLevel>4</CompressionLevel>
@@ -23,7 +23,7 @@ const twoRunJobLog = `[04.08.2026 02:00:01] <01> Info     [JobSession] Starting 
 [05.08.2026 02:00:01] <01> Info     [JobSession] Starting job Domain Backups
 [05.08.2026 02:00:04] <01> Info     [ProxyDetector] Proxy VM is not on suitable ESX host, no hotadd
 [05.08.2026 02:00:05] <01> Info     [ProxyDetector] Detected mode [nbd]
-[05.08.2026 02:00:20] <01> Info     Completed: THREAD: dc01.hackshack.local (CancellableThread.Create: 1) in 0:03:20
+[05.08.2026 02:00:20] <01> Info     Completed: THREAD: vm01.example.local (CancellableThread.Create: 1) in 0:03:20
 [05.08.2026 02:03:40] <01> Info     [JobSession] Load: Source 99% > Proxy 9% > Network 19% > Target 12%
 [05.08.2026 02:03:40] <01> Info     [JobSession] Primary bottleneck: Source
 [05.08.2026 02:03:41] <01> Info     <CompressionLevel>5</CompressionLevel>

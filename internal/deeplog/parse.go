@@ -242,7 +242,7 @@ func (r *Result) applyDurations() {
 			r.VMs[i].DurationSec = d
 			continue
 		}
-		// match por prefijo (Task usa "dc01" y el thread "dc01.hackshack.local")
+		// match por prefijo (el Task usa el nombre corto y el thread el FQDN)
 		for tn, d := range r.jobDurations {
 			if strings.HasPrefix(tn, name+".") || strings.HasPrefix(name, tn+".") {
 				r.VMs[i].DurationSec = d

@@ -83,7 +83,7 @@ type JobCapacityResult struct {
 	Verdict         *Verdict       `json:"verdict"` // la conclusion accionable (ver verdict.go)
 	Notes           []string       `json:"notes"`
 	RepDurationSec  float64        `json:"repDurationSec"` // duracion de la corrida representativa
-	// Ventana (promedios estilo Veeam ONE).
+	// Ventana (promedios sobre las corridas del periodo).
 	Days         int          `json:"days"`
 	Runs         int          `json:"runs"`         // corridas analizadas en la ventana
 	RunsWithData int          `json:"runsWithData"` // cuantas movieron datos
@@ -144,7 +144,7 @@ func JobDeepTarget(ctx context.Context, s *vbr.Session, jobID string) (name, osK
 }
 
 // JobCapacity: modelo de capacidad de un job AGREGADO sobre una ventana de N dias
-// (promedios en los KPIs, estilo Veeam ONE). days<=0 = todo el historico reciente.
+// (promedios en los KPIs). days<=0 = todo el historico reciente.
 // El veredicto sale sin deep ni medicion; quien las tenga (el server) rehace el
 // veredicto con BuildVerdict — es computo puro, no cuesta REST.
 func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*JobCapacityResult, error) {

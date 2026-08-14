@@ -4,9 +4,9 @@ package analysis
 // arreglar en UN job; esto dice que arreglar en la INFRA: cuanto sostiene, donde
 // esta el cuello recurrente, quien lo causa y si la ventana de backup se pisa.
 //
-// Diferencia con Veeam ONE: vONE cuenta el bottleneck POR CORRIDA, asi que 20
-// incrementales no-op pesan lo mismo que un full de 2 TB. Aca todo se pondera
-// por DATO MOVIDO: el cuello que reportamos es el que afecta a los bytes reales.
+// Todo se pondera por DATO MOVIDO y no por cantidad de corridas: 20 incrementales
+// no-op no pueden pesar lo mismo que un full de 2 TB. El cuello que reportamos es
+// el que afecta a los bytes reales.
 //
 // Se calcula desde los Records que ya trajo el modo Global: CERO llamadas REST
 // extra (ver Build en analysis.go).

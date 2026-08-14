@@ -1,7 +1,7 @@
 # Yoga Benchmark — v0.4 · Capacity & Headroom Model (spec)
 
 ## Objetivo
-No "qué pasó" (eso ya lo hace Veeam ONE) sino **cuánto puede entregar la infra, dónde está el techo, y qué cambio la mejora — expresado en TIEMPO**.
+No "qué pasó" sino **cuánto puede entregar la infra, dónde está el techo, y qué cambio la mejora — expresado en TIEMPO**.
 
 Salida final por job (y agregada por repo/proxy/entorno):
 > "Hoy tarda **T** y entrega **R**; el cuello es **X**; si hacés **Y**, pasa a **~T′ (~Z% más rápido)**."
@@ -129,7 +129,7 @@ Fuera de v0.4 (después): probe SSH de recursos en lab (`nproc`/`free`), restore
 
 # v0.5 · Motor de VEREDICTO (autogestión)
 
-**El problema de v0.4:** mostrábamos **datos** (como Veeam ONE) — 4-stage, rates, recomendaciones genéricas escondidas en un colapsable. El SE tenía que interpretar.
+**El problema de v0.4:** mostrábamos **datos** — 4-stage, rates, recomendaciones genéricas escondidas en un colapsable. El SE tenía que interpretar.
 **v0.5:** el tool **razona y dictamina**. La salida principal ya no es una tabla, es **una conclusión accionable**.
 
 ## Las 4 señales que se sintetizan
@@ -148,7 +148,7 @@ Fuera de v0.4 (después): probe SSH de recursos en lab (`nproc`/`free`), restore
 - **Señales**: qué entró y qué falta (✓/○) — le dice al usuario **cómo hacer el veredicto más firme**.
 
 ## Reglas clave (deterministas, testeadas en `verdict_test.go`)
-- **Source + deep=nbd + hotadd no disponible** → causa confirmada, acción #1 `act.hotadd` con ganancia. *El caso estrella que vONE no da.*
+- **Source + deep=nbd + hotadd no disponible** → causa confirmada, acción #1 `act.hotadd` con ganancia.
 - **Proxy/Target + cores conocidos**: `slots < ~min(cores, RAM/2)` → `act.slots` **firme** con el número exacto; `viable<=2` → `act.scaleHost` (**subir concurrencia no ayuda**); ya al límite → `act.atCapacity`.
 - **Sin cores/RAM** → nunca se promete un número: `act.slotsUnknown` como *verify*.
 - **Serialización** (deep): con `S`=Σ duración por VM y `T`=duración de la corrida, `S/T ≈ 1` (y VMs parejas) → `act.serial`. `S << T` **no** es serialización sino overhead: no se opina.
@@ -163,7 +163,7 @@ El motor emite **código + params** (`vd.<code>`) **y** el texto en inglés como
 El núcleo es **determinista**: mismo input = mismo veredicto, auditable, **offline** y sin que ningún dato del cliente salga del sitio (nuestro diferencial). Un LLM queda como **narrador opcional** más adelante (opt-in, con modelo **local**), nunca como el motor.
 
 ## Señal #4 — MEDIDO (v0.6.1)
-La señal que le falta a Veeam ONE. Un `Target 96%` de la REST **no distingue** dos situaciones que llevan a decisiones **opuestas**:
+Un `Target 96%` de la REST **no distingue** dos situaciones que llevan a decisiones **opuestas**:
 
 | Medido (fio) | Job escribe | Veredicto | Acción |
 |---|---|---|---|
@@ -202,7 +202,7 @@ El veredicto por job dice qué arreglar en **un job**; esto dice qué arreglar e
 | Métrica | Cómo | Por qué así |
 |---|---|---|
 | **Capacidad sostenida** | bytes repartidos en las horas que abarca cada corrida (`spread`), se toma el **bucket máximo** | Una corrida de 02:00 a 06:00 **no** movió todo a las 02:00. Da "lo que la infra sostuvo de verdad", no un promedio aguado |
-| **Cuello recurrente** | distribución del `primary` **ponderada por bytes transferidos** | **La diferencia con vONE**: vONE cuenta corridas, así que 20 incrementales no-op le ganan a un full de 2 TB. Acá el cuello es el que afecta a los bytes reales |
+| **Cuello recurrente** | distribución del `primary` **ponderada por bytes transferidos** | Contar corridas hace que 20 incrementales no-op le ganen a un full de 2 TB. Así el cuello es el que afecta a los bytes reales |
 | **Hotspots** | repo/proxy que concentra el dato *binding*; rate = bytes / **unión de intervalos** | Sumar duraciones duplica el tiempo cuando dos jobs le pegan en paralelo y **subestima** el rate del recurso |
 | **Ventana de backup** | carga por hora del día (de los mismos buckets = actividad, no hora de arranque) + **jobs distintos** que arrancan en cada hora | Detecta el pico evitable: escalonar es **gratis**, no requiere hardware |
 
@@ -213,7 +213,7 @@ El veredicto por job dice qué arreglar en **un job**; esto dice qué arreglar e
 `hotspotShare=35%` del dato binding para nombrar un recurso · `envStageShare=40%` para declarar cuello de entorno · `staggerJobs=3` jobs distintos en la misma hora · `lowFloor=16 MiB` para que una corrida cuente como "movió datos".
 
 ## UI
-El modo **Global** ahora abre con el veredicto del entorno (headline + KPIs + acciones + histograma por hora); el agregado por proxy/repo y el resumen del período quedan colapsados. El resumen del período **cuenta corridas a propósito** (como vONE) con una nota que explica el contraste: es la demostración del diferencial.
+El modo **Global** ahora abre con el veredicto del entorno (headline + KPIs + acciones + histograma por hora); el agregado por proxy/repo y el resumen del período quedan colapsados. El resumen del período **cuenta corridas** y lleva una nota que explica el contraste con la ponderación por dato.
 
 ## Diagnóstico
 El JSON de diagnóstico ahora incluye `analyzed`: los veredictos por job y el assessment que el usuario **ya vio en pantalla** (cacheados en la sesión, cero REST extra) → se reproduce offline lo que vio y se calibran las reglas.

@@ -251,8 +251,8 @@ func TestVerdictActionRanking(t *testing.T) {
 }
 
 // --- senal MEDIDA (fio/iperf) -----------------------------------------------
-// Es la senal que le falta a Veeam ONE: sin ella un "Target 96%" se lee como
-// "el disco no da mas" y el cliente compra storage al vicio.
+// Sin esta senal un "Target 96%" se lee como "el disco no da mas" y se termina
+// escalando hardware que no era el limite.
 
 // El disco mide 800 MB/s y el job escribe 100: el disco NO es el limite, lo
 // estamos matando de hambre. El veredicto debe cambiar de raiz y decir
