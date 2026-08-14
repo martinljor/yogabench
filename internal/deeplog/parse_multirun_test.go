@@ -31,16 +31,16 @@ const twoRunJobLog = `[04.08.2026 02:00:01] <01> Info     [JobSession] Starting 
 [05.08.2026 02:03:41] <01> Info     <EnableDeduplication>True</EnableDeduplication>
 `
 
-const twoRunTaskLog = `[04.08.2026 02:00:10] <01> Info     [AP] (dc01) Disk: label "Hard disk 1", path "[ds1] dc01/dc01.vmdk", capacity 100 GB, thinProvisioned "True"
-[04.08.2026 02:12:29] <01> Info     [AP] (dc01) Busy: Source 12% > Proxy 22% > Network 33% > Target 88%
-[04.08.2026 02:12:29] <01> Info     [AP] (dc01) Primary bottleneck: Target
-[05.08.2026 02:00:10] <01> Info     [AP] (dc01) Disk: label "Hard disk 1", path "[ds1] dc01/dc01.vmdk", capacity 100 GB, thinProvisioned "True"
-[05.08.2026 02:03:39] <01> Info     [AP] (dc01) Busy: Source 94% > Proxy 15% > Network 32% > Target 23%
-[05.08.2026 02:03:39] <01> Info     [AP] (dc01) Primary bottleneck: Source
+const twoRunTaskLog = `[04.08.2026 02:00:10] <01> Info     [AP] (vm01) Disk: label "Hard disk 1", path "[ds1] vm01/vm01.vmdk", capacity 100 GB, thinProvisioned "True"
+[04.08.2026 02:12:29] <01> Info     [AP] (vm01) Busy: Source 12% > Proxy 22% > Network 33% > Target 88%
+[04.08.2026 02:12:29] <01> Info     [AP] (vm01) Primary bottleneck: Target
+[05.08.2026 02:00:10] <01> Info     [AP] (vm01) Disk: label "Hard disk 1", path "[ds1] vm01/vm01.vmdk", capacity 100 GB, thinProvisioned "True"
+[05.08.2026 02:03:39] <01> Info     [AP] (vm01) Busy: Source 94% > Proxy 15% > Network 32% > Target 23%
+[05.08.2026 02:03:39] <01> Info     [AP] (vm01) Primary bottleneck: Source
 `
 
 func TestParseUsesLatestRun(t *testing.T) {
-	r := Parse(twoRunJobLog, map[string]string{"dc01": twoRunTaskLog})
+	r := Parse(twoRunJobLog, map[string]string{"vm01": twoRunTaskLog})
 
 	// Job: todo tiene que ser de la corrida del 05, no del 04.
 	if r.Aggregate == nil {
