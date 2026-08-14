@@ -1889,7 +1889,7 @@ function renderAnalysis(d) {
     return;
   }
   el.innerHTML =
-    `<div class="subcard">${renderAssessment(asmt)}</div>` +
+    (asmt ? `<div class="subcard">${renderAssessment(asmt)}</div>` : '') +
     `<div style="margin-top:14px;">
       <details class="exp"><summary>${t('an.period')} <span class="muted">${(d.summary || {}).runs || 0}</span></summary>
         <div class="exp-body">${globalTiles(d && d.summary)}
