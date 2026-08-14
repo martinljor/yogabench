@@ -21,6 +21,14 @@ const (
 	hotspotShare  = 35 // % del dato binding para nombrar a un recurso como hotspot
 	staggerJobs   = 3  // jobs distintos arrancando en la misma hora = pico evitable
 	envStageShare = 40 // % del dato para declarar un cuello de entorno
+
+	// Confidence gate. Field case: a lab moved 166 MB in one single run over 92
+	// days and the assessment still declared "Source is the recurring bottleneck
+	// (100% of the data moved)". One run is not a recurrence, and 166 MB is not an
+	// infrastructure. Below these floors the environment is not judged.
+	envDataFloor    = int64(1) << 30 // 1 GiB moved in the window
+	envMinDataRuns  = 5              // runs with data for a firm verdict
+	envMinStageRuns = 3              // runs backing the dominant stage ("recurring")
 )
 
 // Hotspot: recurso (repo/proxy) que aparece como cuello, ponderado por dato.
@@ -70,11 +78,15 @@ type Assessment struct {
 	TotalBytes       int64   `json:"totalBytes"`
 
 	// Cuello del entorno, ponderado por dato movido.
-	StageBytes  map[string]int64 `json:"stageBytes"`
-	TopStage    string           `json:"topStage"`
-	TopStagePct int              `json:"topStagePct"`
-	DataRuns    int              `json:"dataRuns"` // corridas que movieron datos
-	NoDataJobs  int              `json:"noDataJobs"`
+	StageBytes   map[string]int64 `json:"stageBytes"`
+	TopStage     string           `json:"topStage"`
+	TopStagePct  int              `json:"topStagePct"`
+	TopStageRuns int              `json:"topStageRuns"` // corridas que respaldan ese cuello
+	DataRuns     int              `json:"dataRuns"`     // corridas que movieron datos
+	NoDataJobs   int              `json:"noDataJobs"`
+	// Confidence: observed | low | insufficient. Con insufficient NO se dictamina
+	// el entorno (ver el gate arriba).
+	Confidence string `json:"confidence"`
 
 	Hotspots []Hotspot  `json:"hotspots"`
 	Hours    []HourLoad `json:"hours"`
@@ -115,6 +127,7 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 	resRuns := map[string]int{}
 	resStage := map[string]string{}
 	resSpans := map[string][]span{} // para el rate: tiempo de PARED, no suma de duraciones
+	stageRuns := map[string]int{}   // corridas con datos por stage dominante
 	var bindingTotal int64
 
 	for _, r := range recs {
@@ -158,6 +171,7 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 			continue
 		}
 		a.StageBytes[prim] += r.TransferredSize
+		stageRuns[prim]++
 		bindingTotal += r.TransferredSize
 		// El recurso "dueño" del stage: Target -> repo, Proxy/Network -> proxy.
 		var ids []string
@@ -257,7 +271,9 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 	}
 	if bindingTotal > 0 && a.TopStage != "" {
 		a.TopStagePct = pct(a.StageBytes[a.TopStage], bindingTotal)
+		a.TopStageRuns = stageRuns[a.TopStage]
 	}
+	a.Confidence = envConfidence(a)
 
 	// Hotspots: recursos que concentran el dato binding.
 	for k, b := range resBytes {
@@ -288,6 +304,19 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 	return a
 }
 
+// envConfidence: how much the window supports an environment-wide claim. A single
+// run is not a recurrence, and a few hundred MB is not an infrastructure.
+func envConfidence(a *Assessment) string {
+	switch {
+	case a.DataRuns == 0 || a.TotalBytes < envDataFloor || a.DataRuns < 2:
+		return "insufficient"
+	case a.DataRuns < envMinDataRuns || a.TopStageRuns < envMinStageRuns:
+		return "low"
+	default:
+		return "observed"
+	}
+}
+
 // verdict: headline + acciones del entorno (mismo tipo Action que el veredicto
 // por job, asi el WebUI las pinta igual).
 func (a *Assessment) verdict() {
@@ -296,9 +325,19 @@ func (a *Assessment) verdict() {
 		acts = append(acts, Action{Impact: impact, Code: code, Text: text, Params: params, Source: "observed"})
 	}
 
-	if a.DataRuns == 0 {
+	// Not enough moved to judge the infrastructure: say so and stop. No recurring
+	// bottleneck, no staggering advice — both would be claims about a few hundred MB.
+	if a.Confidence == "insufficient" {
 		a.Severity = "unknown"
-		a.HeadlineCode, a.Headline = "env.nodata", "No run in the window moved meaningful data: the infrastructure cannot be assessed"
+		if a.DataRuns == 0 {
+			a.HeadlineCode = "env.nodata"
+			a.Headline = "No run in the window moved meaningful data: the infrastructure cannot be assessed"
+		} else {
+			a.HeadlineCode = "env.thin"
+			a.Headline = fmt.Sprintf("Only %s moved in %d run(s) over %d day(s): not enough to assess the infrastructure",
+				bytesHuman(a.TotalBytes), a.DataRuns, a.Days)
+			a.HeadlineParams = map[string]any{"bytes": a.TotalBytes, "runs": a.DataRuns, "days": a.Days}
+		}
 		add("verify", "act.envNoData",
 			fmt.Sprintf("%d job(s) only ran near-empty incrementals in these %d day(s): widen the window or include an Active Full to measure the infrastructure.", a.NoDataJobs, a.Days),
 			map[string]any{"n": a.NoDataJobs, "days": a.Days})
@@ -439,6 +478,21 @@ func rank(acts []Action) []Action {
 		acts[i].Rank = i + 1
 	}
 	return acts
+}
+
+// bytesHuman: short size for the English fallback text. The WebUI formats the raw
+// bytes itself (the params carry them).
+func bytesHuman(n int64) string {
+	switch {
+	case n >= 1<<40:
+		return fmt.Sprintf("%.1f TiB", float64(n)/(1<<40))
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.0f MiB", float64(n)/(1<<20))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
 
 func pct(part, total int64) int {

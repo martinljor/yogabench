@@ -4,6 +4,7 @@ package analysis
 // TestAssessmentWeightsByDataNotRuns: fija la ponderacion por dato movido.
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -163,8 +164,11 @@ func TestAssessmentProxyHotspot(t *testing.T) {
 
 // Siempre queda la accion de medir el techo (fio/iperf): es la pata que falta.
 func TestAssessmentAlwaysSuggestsMeasuring(t *testing.T) {
-	recs := []Record{rec("j1", "2026-08-10", "02:00", "03:00", 50*gib, "Target", []string{"r1"}, nil)}
-	a := BuildAssessment(recs, 1, names, names)
+	var recs []Record
+	for d := 5; d <= 10; d++ {
+		recs = append(recs, rec("j1", fmt.Sprintf("2026-08-%02d", d), "02:00", "03:00", 50*gib, "Target", []string{"r1"}, nil))
+	}
+	a := BuildAssessment(recs, 6, names, names)
 	if !hasEnvAction(a, "act.envMeasure") {
 		t.Errorf("esperaba act.envMeasure; acciones: %v", codes(a))
 	}
@@ -308,7 +312,10 @@ func TestAssessmentStaggerUsesStartHour(t *testing.T) {
 // A Source-bound environment has no owning resource, so it used to end up with
 // nothing but "go measure". It must name the read path.
 func TestAssessmentSourceBoundHasAction(t *testing.T) {
-	recs := []Record{rec("j1", "2026-08-05", "12:58", "13:03", 16*gib, "Source", []string{"r1"}, nil)}
+	var recs []Record
+	for d := 5; d <= 10; d++ { // 6 data runs: enough to talk about a recurrence
+		recs = append(recs, rec("j1", fmt.Sprintf("2026-08-%02d", d), "12:58", "13:30", 16*gib, "Source", []string{"r1"}, nil))
+	}
 	a := BuildAssessment(recs, 12, names, names)
 	if a.TopStage != "Source" {
 		t.Fatalf("top stage: got %s", a.TopStage)
@@ -333,6 +340,56 @@ func TestAssessmentNoOpRunsAreNotAPeak(t *testing.T) {
 	}
 	if a.Hours[9].Bytes != 0 {
 		t.Errorf("hour 09 moved 64 B: it must not paint the histogram, got %d", a.Hours[9].Bytes)
+	}
+}
+
+// Field case (lab 2, 2026-08-14): 166 MB moved in ONE run over 92 days, and the
+// assessment still declared "Source is the recurring bottleneck (100% of the data
+// moved)" and advised staggering 4 jobs. One run is not a recurrence.
+func TestAssessmentDoesNotJudgeOnThinData(t *testing.T) {
+	recs := []Record{
+		rec("j1", "2026-08-06", "12:00", "12:03", 165_903_562, "Source", []string{"r1"}, nil),
+	}
+	for i, day := range []string{"2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10"} {
+		recs = append(recs, rec(fmt.Sprintf("noop%d", i), day, "12:00", "12:02", 32, "Source", []string{"r1"}, nil))
+	}
+	a := BuildAssessment(recs, 92, names, names)
+	if a.Confidence != "insufficient" {
+		t.Fatalf("confidence: got %q, want insufficient (166 MB in 1 run)", a.Confidence)
+	}
+	if a.Severity != "unknown" || a.HeadlineCode != "env.thin" {
+		t.Fatalf("got %s/%s, want unknown/env.thin", a.Severity, a.HeadlineCode)
+	}
+	for _, x := range a.Actions {
+		if x.Code == "act.envStagger" || x.Code == "act.envSource" || x.Code == "act.envRepo" {
+			t.Errorf("must not claim %s on 166 MB", x.Code)
+		}
+	}
+	if len(a.Actions) != 1 || a.Actions[0].Code != "act.envNoData" {
+		t.Errorf("actions: %v", codes(a))
+	}
+}
+
+// Enough runs and enough data -> firm verdict.
+func TestAssessmentConfidenceTiers(t *testing.T) {
+	mk := func(n int, size int64) *Assessment {
+		var recs []Record
+		for i := 0; i < n; i++ {
+			recs = append(recs, rec("j1", fmt.Sprintf("2026-08-%02d", 5+i), "02:00", "03:00", size, "Target", []string{"r1"}, nil))
+		}
+		return BuildAssessment(recs, 10, names, names)
+	}
+	if got := mk(1, 50*gib).Confidence; got != "insufficient" {
+		t.Errorf("1 run: got %q, want insufficient", got)
+	}
+	if got := mk(3, 50*gib).Confidence; got != "low" {
+		t.Errorf("3 runs: got %q, want low", got)
+	}
+	if got := mk(6, 50*gib).Confidence; got != "observed" {
+		t.Errorf("6 runs: got %q, want observed", got)
+	}
+	if got := mk(6, 20*mib).Confidence; got != "insufficient" {
+		t.Errorf("6 tiny runs: got %q, want insufficient (under the data floor)", got)
 	}
 }
 

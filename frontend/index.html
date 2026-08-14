@@ -534,7 +534,7 @@ const I18N = {
     'env.weighted':'Ponderado por DATO MOVIDO, no por cantidad de corridas: un incremental vacio no pesa igual que un full.',
     'env.vscount':'Este resumen cuenta CORRIDAS: 20 incrementales vacios pesan igual que un full. El veredicto de arriba pondera por DATO MOVIDO — por eso puede senalar otro cuello.',
     'env.sub.jobs':'{jobs} jobs · {runs} corridas · {days} dias','env.sub.peak':'{bytes} en la hora pico · {busy} activo · {at}',
-    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato','env.sub.win':'{jobs} jobs en ejecucion · {pct}% del dato',
+    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato · {runs} corridas','env.sub.win':'{jobs} jobs en ejecucion · {pct}% del dato',
     'env.hourtip':'{h}:00 — {bytes}/dia · {runs} arranques · {jobs} jobs distintos',
     'vd.env.bound':'La infra sostuvo {mbps} MB/s en el pico; el cuello recurrente es {stage} ({pct}% del dato movido)',
     'vd.env.spread':'La infra sostuvo {mbps} MB/s en el pico; ningun stage domina el cuello',
@@ -556,7 +556,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está en su techo medido ({ceil} MB/s): storage más rápido, más extents del SOBR o repartir la carga entre repositorios es la única salida.',
     'vd.act.feedNet':'Subir los streams en paralelo (task slots del proxy / más VMs a la vez): el enlace mide {ceil} Mbps y se usan sólo {got}. Un enlace más rápido no cambiaría nada.',
     'vd.sig.measOn':'Techo medido: {repo} escribe {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.'
+    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -653,7 +653,7 @@ const I18N = {
     'env.weighted':'Weighted by DATA MOVED, not by run count: an empty incremental does not weigh the same as a full.',
     'env.vscount':'This summary counts RUNS: 20 empty incrementals weigh the same as a full. The verdict above weights by DATA MOVED — that is why it can point at a different bottleneck.',
     'env.sub.jobs':'{jobs} jobs · {runs} runs · {days} days','env.sub.peak':'{bytes} in the peak hour · {busy} busy · {at}',
-    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data','env.sub.win':'{jobs} jobs running · {pct}% of the data',
+    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data · {runs} runs','env.sub.win':'{jobs} jobs running · {pct}% of the data',
     'env.hourtip':'{h}:00 — {bytes}/day · {runs} starts · {jobs} distinct jobs',
     'vd.env.bound':'The infrastructure sustained {mbps} MB/s at peak; {stage} is the recurring bottleneck ({pct}% of the data moved)',
     'vd.env.spread':'The infrastructure sustained {mbps} MB/s at peak; no single stage dominates the bottleneck',
@@ -675,7 +675,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> is at its measured ceiling ({ceil} MB/s): faster storage, more SOBR extents or splitting the load across repositories is the only way up.',
     'vd.act.feedNet':'Raise the parallel streams (proxy task slots / more VMs at once): the link measures {ceil} Mbps and only {got} are in use. A faster link would change nothing.',
     'vd.sig.measOn':'Measured ceiling: {repo} writes {repoMBps} MB/s (fio) · link {linkMbps} Mbps (iperf).',
-    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.'
+    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -772,7 +772,7 @@ const I18N = {
     'env.weighted':'Ponderado por DADO MOVIDO, nao por quantidade de execucoes: um incremental vazio nao pesa igual a um full.',
     'env.vscount':'Este resumo conta EXECUCOES: 20 incrementais vazios pesam igual a um full. O veredito acima pondera por DADO MOVIDO — por isso pode apontar outro gargalo.',
     'env.sub.jobs':'{jobs} jobs · {runs} execucoes · {days} dias','env.sub.peak':'{bytes} na hora de pico · {busy} ativo · {at}',
-    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado','env.sub.win':'{jobs} jobs em execucao · {pct}% do dado',
+    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado · {runs} execucoes','env.sub.win':'{jobs} jobs em execucao · {pct}% do dado',
     'env.hourtip':'{h}:00 — {bytes}/dia · {runs} inicios · {jobs} jobs distintos',
     'vd.env.bound':'A infra sustentou {mbps} MB/s no pico; o gargalo recorrente e {stage} ({pct}% do dado movido)',
     'vd.env.spread':'A infra sustentou {mbps} MB/s no pico; nenhum stage domina o gargalo',
@@ -794,7 +794,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está no seu teto medido ({ceil} MB/s): storage mais rápido, mais extents do SOBR ou repartir a carga entre repositórios é a única saída.',
     'vd.act.feedNet':'Subir os streams em paralelo (task slots do proxy / mais VMs por vez): o enlace mede {ceil} Mbps e usam-se só {got}. Um enlace mais rápido não mudaria nada.',
     'vd.sig.measOn':'Teto medido: {repo} escreve {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.'
+    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1850,11 +1850,19 @@ function renderAssessment(a) {
   const badge = a.topStage && a.severity !== 'unknown'
     ? `<span class="verdict ${badgeCls}">${t('vd.badge.stage')}: ${a.topStage} · ${a.topStagePct}%</span>`
     : `<span class="verdict ${a.severity === 'unknown' ? 'low' : 'ok'}">${t(a.severity === 'unknown' ? 'vd.badge.nodata' : 'vd.badge.balanced')}</span>`;
+  // Confianza del entorno: con pocas corridas o poco dato NO se dictamina.
+  const cf = { observed: ['ok', 'observed', 'env.conf_obs'], low: ['warn', t('cap.indicative'), 'env.conf_low'] }[a.confidence]
+    || ['low', t('cap.insufficient'), 'env.conf_insuf'];
+  const conf = `<span class="verdict ${cf[0]}" title="${attrTxt(t(cf[2]))}" style="cursor:help;">${cf[1]} ⓘ</span>`;
+  // Los params que viajan en bytes se formatean antes de traducir.
+  const hp = Object.assign({}, a.headlineParams);
+  if (hp.bytes != null) hp.bytes = fmtBytes(hp.bytes);
   const hero = `<div class="vd ${a.severity}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-        ${badge}<span class="muted" style="font-size:12px;">${tp('env.sub.jobs', { jobs: a.jobs, runs: a.runs, days: a.days })}</span>
+        <span style="display:flex;gap:8px;align-items:center;">${badge}${conf}</span>
+        <span class="muted" style="font-size:12px;">${tp('env.sub.jobs', { jobs: a.jobs, runs: a.runs, days: a.days })}</span>
       </div>
-      <div class="vd-hl">${vt(a.headlineCode, a.headlineParams, a.headline)}</div>
+      <div class="vd-hl">${vt(a.headlineCode, hp, a.headline)}</div>
     </div>`;
 
   // Sustained rate first: it is the rate while the infrastructure was working.
@@ -1862,10 +1870,14 @@ function renderAssessment(a) {
   let tiles = kpi(t('env.sustained'), a.peakMBps ? a.peakMBps + ' MB/s' : '—',
     a.peakMBps ? tp('env.sub.peak', { bytes: fmtBytes(a.peakBytesPerHour), busy: fmtDur(a.peakBusySec), at: a.peakAt }) : t('env.nopeak'));
   tiles += kpi(t('env.moved'), fmtBytes(a.totalBytes), tp('env.sub.days', { days: a.days }));
-  tiles += kpi(t('cap.bneck'), a.topStage || '—', a.topStage ? tp('env.sub.share', { pct: a.topStagePct }) : '', 'bad');
+  tiles += a.confidence === 'insufficient'
+    ? kpi(t('cap.bneck'), '—', t('env.nobneck'))
+    : kpi(t('cap.bneck'), a.topStage || '—', a.topStage ? tp('env.sub.share', { pct: a.topStagePct, runs: a.topStageRuns }) : '', 'bad');
   if (a.busiestHour >= 0) {
     tiles += kpi(t('env.peakwin'), String(a.busiestHour).padStart(2, '0') + ':00',
-      tp('env.sub.win', { jobs: a.busiestJobs, pct: a.busiestPct }));
+      a.confidence === 'insufficient'
+        ? tp('env.sub.winthin', { jobs: a.busiestJobs })
+        : tp('env.sub.win', { jobs: a.busiestJobs, pct: a.busiestPct }));
   }
 
   const hs = (a.hotspots || []).map(h => `<tr><td>${h.name}</td><td>${t('env.kind.' + h.kind)}</td><td>${h.stage}</td>`
