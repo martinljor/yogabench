@@ -39,7 +39,7 @@ func allRepositories(ctx context.Context, s *vbr.Session) []map[string]any {
 // jobProxyMap: por jobId, los proxies asignados (config del job). Auto = vacio.
 func jobProxyMap(ctx context.Context, s *vbr.Session) map[string][]string {
 	m := map[string][]string{}
-	for _, j := range getItems(ctx, s, "v1/jobs?limit=1000") {
+	for _, j := range getItems(ctx, s, jobsPath) {
 		if id := str(j["id"]); id != "" {
 			m[id] = cleanIDs(findProxyIDs(j))
 		}

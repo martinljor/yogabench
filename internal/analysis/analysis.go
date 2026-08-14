@@ -36,6 +36,7 @@ var (
 type Task struct {
 	Name            string   `json:"name"`
 	RepositoryID    string   `json:"repositoryId"`
+	Algorithm       string   `json:"algorithm"` // Full | Increment (the WebUI shows it as "Mode")
 	Result          string   `json:"result"`
 	Bottleneck      string   `json:"bottleneck"`
 	ProcessingRate  string   `json:"processingRate"`
@@ -295,7 +296,8 @@ func buildTasks(items []map[string]any) []Task {
 		}
 		out = append(out, Task{
 			Name: str(tk["name"]), RepositoryID: str(tk["repositoryId"]),
-			Result: str(res["result"]), Bottleneck: str(pg["bottleneck"]),
+			Algorithm: str(tk["algorithm"]), // Full | Increment
+			Result:    str(res["result"]), Bottleneck: str(pg["bottleneck"]),
 			ProcessingRate: str(pg["processingRate"]), Duration: str(pg["duration"]),
 			ProcessedSize: processed, ReadSize: num(pg["readSize"]),
 			TransferredSize: transferred, Reduction: reduction,

@@ -38,7 +38,7 @@ func Recommend(ctx context.Context, s *vbr.Session) ([]Recommendation, error) {
 		}
 	}
 
-	jobs, _ := getItems(ctx, s, "v1/jobs?limit=500")
+	jobs, _ := getItems(ctx, s, jobsPath)
 	load := map[string]int{} // proxyId -> nº de jobs VMware asignados explícito
 	type jinfo struct {
 		name string

@@ -4,6 +4,7 @@
 package vbr
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 )
@@ -38,6 +39,35 @@ type Session struct {
 	// para volcarlo en el diagnostico y poder reproducirlo/calibrarlo offline sin
 	// gastar mas llamadas REST. Key: "job:<id>" | "assessment".
 	analyzed map[string]any
+
+	cacheMu sync.Mutex
+	cache   map[string]cacheEntry
+}
+
+// cacheEntry: a GET response kept for a short while (see cacheable in client.go).
+type cacheEntry struct {
+	at   time.Time
+	body json.RawMessage
+}
+
+// cacheGet returns a cached response if it is still fresh.
+func (s *Session) cacheGet(path string) (json.RawMessage, bool) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	e, ok := s.cache[path]
+	if !ok || time.Since(e.at) > cacheTTL {
+		return nil, false
+	}
+	return e.body, true
+}
+
+func (s *Session) cachePut(path string, body json.RawMessage) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	if s.cache == nil {
+		s.cache = map[string]cacheEntry{}
+	}
+	s.cache[path] = cacheEntry{at: time.Now(), body: body}
 }
 
 // SetAnalyzed guarda un resultado ya calculado (se sobreescribe por key).

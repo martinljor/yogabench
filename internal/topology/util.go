@@ -20,6 +20,10 @@ var (
 
 // --- acceso a la API + decode ----------------------------------------------
 
+// jobsPath: one single query for the job list, shared with the analysis package so
+// both hit the same cache entry (see cacheable in internal/vbr).
+const jobsPath = "v1/jobs?limit=1000"
+
 func getItems(ctx context.Context, s *vbr.Session, path string) ([]map[string]any, error) {
 	raw, err := vbr.Get(ctx, s, path)
 	if err != nil {

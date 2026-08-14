@@ -102,12 +102,31 @@ func renewToken(ctx context.Context, s *Session, used string) error {
 	return nil
 }
 
+// cacheTTL / cacheable: infrastructure and job configuration change slowly, and a
+// single click asks for them several times (the analysis, the topology and the
+// recommendations all need the job list). On a loaded VBR `v1/jobs` can take 12 s
+// or time out, so paying it once per minute instead of once per caller is the
+// difference between a usable UI and a hung one. Sessions are deliberately NOT
+// cached: they change on every run and the analysis depends on them being fresh.
+const cacheTTL = 60 * time.Second
+
+func cacheable(path string) bool {
+	return strings.HasPrefix(path, "v1/jobs") || strings.HasPrefix(path, "v1/backupInfrastructure/")
+}
+
 // Get hace un GET autenticado a la REST API (o devuelve datos demo). Renueva el
 // token solo (antes de que venza, y si igual sale 401 reintenta una vez).
 // Devuelve el JSON crudo, listo para reenviar o parsear.
 func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) {
 	if s.Demo {
 		return demoResponse(path), nil
+	}
+	cache := cacheable(path)
+	if cache {
+		if body, ok := s.cacheGet(path); ok {
+			dbg.Logf("GET %s -> cached (%dB)", path, len(body))
+			return body, nil
+		}
 	}
 	tok, stale := s.token()
 	if stale { // esta por vencer: lo renovamos antes de gastar el request
@@ -142,6 +161,9 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 	if !json.Valid(body) {
 		log.Printf("REST GET %s: non-JSON response", path)
 		return nil, &APIError{502, fmt.Sprintf("Non-JSON response from %s", path)}
+	}
+	if cache {
+		s.cachePut(path, json.RawMessage(body))
 	}
 	return json.RawMessage(body), nil
 }

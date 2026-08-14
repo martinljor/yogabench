@@ -113,7 +113,7 @@ func buildJobEdges(ctx context.Context, s *vbr.Session, proxies []map[string]any
 		}
 	}
 
-	jobs, _ := getItems(ctx, s, "v1/jobs?limit=500") // si /jobs falla, sin edges (no rompe)
+	jobs, _ := getItems(ctx, s, jobsPath) // si /jobs falla, sin edges (no rompe)
 
 	edgeAuto := map[[2]string]bool{}
 	add := func(from, to string, auto bool) {

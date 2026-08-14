@@ -8,6 +8,7 @@ package analysis
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -16,14 +17,21 @@ import (
 )
 
 const (
-	maxWindowRuns  = 40           // cap de corridas a agregar en la ventana (N+1 acotado)
-	satBytes       = int64(256) << 20 // 256 MiB movidos (max leido/transferido) = corrida "observed" (rate firme)
-	lowFloor       = int64(16) << 20  // <16 MiB movidos = no-op -> insufficient (evita rates 0/0 y reduccion absurda)
-	bindThreshold  = 85         // util% a partir del cual un stage se considera "topando"
-	coLimitSpread  = 6          // stages dentro de este spread del maximo tambien co-limitan
+	maxWindowRuns = 40               // cap de corridas a agregar en la ventana (N+1 acotado)
+	satBytes      = int64(256) << 20 // 256 MiB movidos (max leido/transferido) = corrida "observed" (rate firme)
+	lowFloor      = int64(16) << 20  // <16 MiB movidos = no-op -> insufficient (evita rates 0/0 y reduccion absurda)
+	bindThreshold = 85               // util% a partir del cual un stage se considera "topando"
+	coLimitSpread = 6                // stages dentro de este spread del maximo tambien co-limitan
 )
 
 var stageNames = []string{"Source", "Proxy", "Network", "Target"}
+
+// JobsPath: one single query for the job list, so every caller shares the same
+// cache entry (see cacheable in internal/vbr). On a loaded VBR this endpoint can
+// take 12 s or time out, so it must not be asked for twice with two limits.
+const JobsPath = "v1/jobs?limit=1000"
+
+const jobsPath = JobsPath
 
 // --- tipos de salida --------------------------------------------------------
 
@@ -32,6 +40,11 @@ type JobItem struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 	Disabled bool   `json:"disabled"`
+	// Source: "config" = listed by v1/jobs · "sessions" = only seen in the session
+	// history. v1/jobs does not return every job type (plugins, NAS, object
+	// storage, some agents), and on a loaded VBR it can time out — in both cases
+	// the session history still knows the job, and it is analyzable from there.
+	Source string `json:"source"`
 }
 
 type StageInfo struct {
@@ -87,8 +100,10 @@ type JobCapacityResult struct {
 	Days         int          `json:"days"`
 	Runs         int          `json:"runs"`         // corridas analizadas en la ventana
 	RunsWithData int          `json:"runsWithData"` // cuantas movieron datos
-	PrimaryPct   int          `json:"primaryPct"`   // % de corridas con ese cuello dominante
-	RunList      []RunSummary `json:"runList"`      // resumen por corrida (detalle)
+	FullRuns     int          `json:"fullRuns"`     // mezcla de la ventana: se analizan TODAS
+	IncrRuns     int          `json:"incrRuns"`
+	PrimaryPct   int          `json:"primaryPct"` // % de corridas con ese cuello dominante
+	RunList      []RunSummary `json:"runList"`    // resumen por corrida (detalle)
 }
 
 // RunSummary: una corrida del job dentro de la ventana (para el detalle).
@@ -101,28 +116,73 @@ type RunSummary struct {
 	WriteMBps       float64 `json:"writeMBps"`
 	Primary         string  `json:"primary"`
 	TransferredSize int64   `json:"transferredSize"`
+	Algorithm       string  `json:"algorithm"` // Full | Increment (de las tareas)
+}
+
+// runAlgorithm: the run is a Full if any of its tasks ran as Full.
+func runAlgorithm(tasks []Task) string {
+	out := ""
+	for _, t := range tasks {
+		if strings.EqualFold(t.Algorithm, "Full") {
+			return "Full"
+		}
+		if t.Algorithm != "" {
+			out = t.Algorithm
+		}
+	}
+	return out
 }
 
 // --- API publica ------------------------------------------------------------
 
-// JobList: lista de jobs para el listbox del drill-down (solo lectura).
+// JobList: jobs for the drill-down selector (read-only). It is the UNION of the
+// configured jobs and the jobs seen in the session history, because neither
+// source alone is complete: v1/jobs omits several job types (plugins, NAS, object
+// storage) and can time out on a loaded VBR, while the history only knows jobs
+// that actually ran.
 func JobList(ctx context.Context, s *vbr.Session) []JobItem {
-	items := getItems(ctx, s, "v1/jobs?limit=1000")
-	out := make([]JobItem, 0, len(items))
-	for _, j := range items {
+	out := make([]JobItem, 0, 32)
+	seen := map[string]bool{}
+	for _, j := range getItems(ctx, s, jobsPath) {
+		id := str(j["id"])
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
 		out = append(out, JobItem{
-			ID: str(j["id"]), Name: str(j["name"]), Type: str(j["type"]),
-			Disabled: boolOf(j["isDisabled"]),
+			ID: id, Name: str(j["name"]), Type: str(j["type"]),
+			Disabled: boolOf(j["isDisabled"]), Source: "config",
+		})
+	}
+	for _, x := range getItems(ctx, s, "v1/sessions?limit=2000&orderColumn=CreationTime&orderAsc=false") {
+		id := str(x["jobId"])
+		if id == "" || seen[id] || !isDataJob(x) {
+			continue
+		}
+		seen[id] = true
+		out = append(out, JobItem{
+			ID: id, Name: JobNameOf(str(x["name"])), Type: strOr(x["sessionType"], str(x["type"])),
+			Source: "sessions",
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
+// runSuffix: Veeam names a session "<job> (Incremental)" / "(Full)" / "(Retry)".
+// The suffix describes the RUN, not the job, so showing it as the job name makes
+// the analysis look like it only covers that one run.
+var runSuffix = regexp.MustCompile(`(?i)\s*\((full|incremental|increment|synthetic full|active full|retry(\s+\d+)?)\)\s*$`)
+
+// JobNameOf turns a session name into the job name.
+func JobNameOf(sessionName string) string {
+	return strings.TrimSpace(runSuffix.ReplaceAllString(sessionName, ""))
+}
+
 // JobDeepTarget: nombre del job + OS del VBR (donde viven los Job/Task logs),
 // para el modo deep. osKind = "windows" | "linux".
 func JobDeepTarget(ctx context.Context, s *vbr.Session, jobID string) (name, osKind string, err error) {
-	for _, j := range getItems(ctx, s, "v1/jobs?limit=1000") {
+	for _, j := range getItems(ctx, s, jobsPath) {
 		if str(j["id"]) == jobID {
 			name = str(j["name"])
 			break
@@ -172,7 +232,7 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*
 		cand = cand[:maxWindowRuns]
 	}
 
-	out := &JobCapacityResult{JobID: jobID, JobName: str(cand[0]["name"]), Days: days, Notes: []string{}}
+	out := &JobCapacityResult{JobID: jobID, JobName: JobNameOf(str(cand[0]["name"])), Days: days, Notes: []string{}}
 
 	var totProc, totRead, totXfer int64 // sobre corridas con datos
 	var sumDur, sumDataDur float64      // avg duracion (todas) / rate (con datos)
@@ -227,6 +287,13 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*
 			repData, repTasks, repSess = maxData, tasks, x
 		}
 		rs := RunSummary{SessionID: sid, CreationTime: str(x["creationTime"]), Result: resultOf(x), DurationSec: round1(durSec), TransferredSize: xfer}
+		rs.Algorithm = runAlgorithm(tasks)
+		switch rs.Algorithm {
+		case "Full":
+			out.FullRuns++
+		case "Increment":
+			out.IncrRuns++
+		}
 		rs.Primary, _ = bn["primary"].(string)
 		if durSec > 0 {
 			rs.ReadMBps = round1(float64(read) / durSec / 1e6)
