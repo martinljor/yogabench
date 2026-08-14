@@ -798,7 +798,9 @@ const I18N = {
 function tp(key, vars) { let s = t(key); for (const k in (vars||{})) s = s.split('{'+k+'}').join(vars[k]); return s; }
 // attrTxt: texto listo para un atributo (title=...): sin HTML y con las comillas escapadas.
 function attrTxt(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, '').replace(/"/g, '&quot;'); }
-let LANG = localStorage.getItem('lang') || 'es';
+// Default language is English; ES/PT are available from the top bar. A language
+// the user picked before wins, since it is stored in localStorage.
+let LANG = localStorage.getItem('lang') || 'en';
 let connState = null;  // {where, exp} cuando esta conectado
 
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.es[key] || key; }
