@@ -533,9 +533,9 @@ const I18N = {
     'env.resource':'Recurso','env.kind':'Tipo','env.share':'% del dato','env.data':'Dato','env.kind.repository':'repositorio','env.kind.proxy':'proxy',
     'env.weighted':'Ponderado por DATO MOVIDO, no por cantidad de corridas: un incremental vacio no pesa igual que un full.',
     'env.vscount':'Este resumen cuenta CORRIDAS: 20 incrementales vacios pesan igual que un full. El veredicto de arriba pondera por DATO MOVIDO — por eso puede senalar otro cuello.',
-    'env.sub.jobs':'{jobs} jobs · {runs} corridas · {days} dias','env.sub.peak':'{mbps} MB/s sostenidos · pico {at}',
-    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato','env.sub.win':'{jobs} jobs distintos · {pct}% del dato',
-    'env.hourtip':'{h}:00 — {bytes}/dia · {runs} corridas · {jobs} jobs distintos',
+    'env.sub.jobs':'{jobs} jobs · {runs} corridas · {days} dias','env.sub.peak':'{bytes} en la hora pico · {busy} activo · {at}',
+    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato','env.sub.win':'{jobs} jobs en ejecucion · {pct}% del dato',
+    'env.hourtip':'{h}:00 — {bytes}/dia · {runs} arranques · {jobs} jobs distintos',
     'vd.env.bound':'La infra sostuvo {mbps} MB/s en el pico; el cuello recurrente es {stage} ({pct}% del dato movido)',
     'vd.env.spread':'La infra sostuvo {mbps} MB/s en el pico; ningun stage domina el cuello',
     'vd.env.nodata':'Ninguna corrida de la ventana movio datos: no se puede dictaminar la infraestructura',
@@ -543,6 +543,7 @@ const I18N = {
     'vd.act.envProxy':'<b>{name}</b> es el cuello del {pct}% del dato (stage {stage}, {mbps} MB/s observados): validá su enlace con iperf y su CPU/task slots.',
     'vd.act.envStagger':'{jobs} jobs distintos arrancan a las {hour}:00 y concentran {pct}% del dato: escalonarlos reparte el pico sin comprar nada.',
     'vd.act.envNoData':'{n} job(s) solo corrieron incrementales casi vacios en estos {days} dias: ampliá la ventana o incluí un Active Full para poder medir la infra.',
+    'vd.act.envSource':'El origen es el cuello del {pct}% del dato: el camino de lectura (modo de transporte, latencia del datastore/volumen, CBT) marca el ritmo, asi que sumar proxies o repositorios no va a ayudar. Usa el modo deep en el job mas pesado para ver el transporte real.',
     'vd.act.envMeasure':'Medir el techo del repositorio mas cargado (fio) y del enlace proxy↔repositorio (iperf): eso convierte \"lo que hicieron los jobs\" en \"lo que puede el hardware\".',
     // Senal MEDIDA (fio/iperf) — v0.6.1
     'vd.cause.starvedTarget':'<b>{name}</b> mide <b>{ceil} MB/s</b> con {tool}, pero el job escribe sólo <b>{got} MB/s</b> ({used}% del techo): el disco <b>NO</b> es el límite — el job no lo alimenta.',
@@ -651,9 +652,9 @@ const I18N = {
     'env.resource':'Resource','env.kind':'Kind','env.share':'% of data','env.data':'Data','env.kind.repository':'repository','env.kind.proxy':'proxy',
     'env.weighted':'Weighted by DATA MOVED, not by run count: an empty incremental does not weigh the same as a full.',
     'env.vscount':'This summary counts RUNS: 20 empty incrementals weigh the same as a full. The verdict above weights by DATA MOVED — that is why it can point at a different bottleneck.',
-    'env.sub.jobs':'{jobs} jobs · {runs} runs · {days} days','env.sub.peak':'{mbps} MB/s sustained · peak {at}',
-    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data','env.sub.win':'{jobs} distinct jobs · {pct}% of the data',
-    'env.hourtip':'{h}:00 — {bytes}/day · {runs} runs · {jobs} distinct jobs',
+    'env.sub.jobs':'{jobs} jobs · {runs} runs · {days} days','env.sub.peak':'{bytes} in the peak hour · {busy} busy · {at}',
+    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data','env.sub.win':'{jobs} jobs running · {pct}% of the data',
+    'env.hourtip':'{h}:00 — {bytes}/day · {runs} starts · {jobs} distinct jobs',
     'vd.env.bound':'The infrastructure sustained {mbps} MB/s at peak; {stage} is the recurring bottleneck ({pct}% of the data moved)',
     'vd.env.spread':'The infrastructure sustained {mbps} MB/s at peak; no single stage dominates the bottleneck',
     'vd.env.nodata':'No run in the window moved data: the infrastructure cannot be assessed',
@@ -661,6 +662,7 @@ const I18N = {
     'vd.act.envProxy':'<b>{name}</b> is the bottleneck for {pct}% of the data ({stage} stage, {mbps} MB/s observed): validate its link with iperf and its CPU/task slots.',
     'vd.act.envStagger':'{jobs} different jobs start at {hour}:00 and concentrate {pct}% of the data: staggering them spreads the peak without buying anything.',
     'vd.act.envNoData':'{n} job(s) only ran near-empty incrementals in these {days} day(s): widen the window or include an Active Full to measure the infrastructure.',
+    'vd.act.envSource':'The source side is the bottleneck for {pct}% of the data: the read path (transport mode, datastore/volume latency, CBT) sets the pace, so adding proxies or repositories will not help. Use deep mode on the heaviest job to get the actual transport.',
     'vd.act.envMeasure':'Measure the ceiling of the busiest repository (fio) and of the proxy\u2194repository link (iperf): that turns \"what the jobs did\" into \"what the hardware can do\".',
     // MEASURED signal (fio/iperf) — v0.6.1
     'vd.cause.starvedTarget':'<b>{name}</b> measures <b>{ceil} MB/s</b> with {tool}, but the job only writes <b>{got} MB/s</b> ({used}% of the ceiling): the disk is <b>NOT</b> the limit — the job is not feeding it.',
@@ -769,9 +771,9 @@ const I18N = {
     'env.resource':'Recurso','env.kind':'Tipo','env.share':'% do dado','env.data':'Dado','env.kind.repository':'repositorio','env.kind.proxy':'proxy',
     'env.weighted':'Ponderado por DADO MOVIDO, nao por quantidade de execucoes: um incremental vazio nao pesa igual a um full.',
     'env.vscount':'Este resumo conta EXECUCOES: 20 incrementais vazios pesam igual a um full. O veredito acima pondera por DADO MOVIDO — por isso pode apontar outro gargalo.',
-    'env.sub.jobs':'{jobs} jobs · {runs} execucoes · {days} dias','env.sub.peak':'{mbps} MB/s sustentados · pico {at}',
-    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado','env.sub.win':'{jobs} jobs distintos · {pct}% do dado',
-    'env.hourtip':'{h}:00 — {bytes}/dia · {runs} execucoes · {jobs} jobs distintos',
+    'env.sub.jobs':'{jobs} jobs · {runs} execucoes · {days} dias','env.sub.peak':'{bytes} na hora de pico · {busy} ativo · {at}',
+    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado','env.sub.win':'{jobs} jobs em execucao · {pct}% do dado',
+    'env.hourtip':'{h}:00 — {bytes}/dia · {runs} inicios · {jobs} jobs distintos',
     'vd.env.bound':'A infra sustentou {mbps} MB/s no pico; o gargalo recorrente e {stage} ({pct}% do dado movido)',
     'vd.env.spread':'A infra sustentou {mbps} MB/s no pico; nenhum stage domina o gargalo',
     'vd.env.nodata':'Nenhuma execucao da janela moveu dados: nao e possivel avaliar a infraestrutura',
@@ -779,6 +781,7 @@ const I18N = {
     'vd.act.envProxy':'<b>{name}</b> e o gargalo de {pct}% do dado (stage {stage}, {mbps} MB/s observados): valide o enlace com iperf e a CPU/task slots.',
     'vd.act.envStagger':'{jobs} jobs distintos comecam as {hour}:00 e concentram {pct}% do dado: escalonar reparte o pico sem comprar nada.',
     'vd.act.envNoData':'{n} job(s) rodaram apenas incrementais quase vazios nestes {days} dias: amplie a janela ou inclua um Active Full para medir a infra.',
+    'vd.act.envSource':'A origem e o gargalo de {pct}% do dado: o caminho de leitura (modo de transporte, latencia do datastore/volume, CBT) dita o ritmo, entao somar proxies ou repositorios nao vai ajudar. Use o modo deep no job mais pesado para ver o transporte real.',
     'vd.act.envMeasure':'Medir o teto do repositorio mais carregado (fio) e do enlace proxy\u2194repositorio (iperf): isso transforma \"o que os jobs fizeram\" em \"o que o hardware pode\".',
     // Sinal MEDIDO (fio/iperf) — v0.6.1
     'vd.cause.starvedTarget':'<b>{name}</b> mede <b>{ceil} MB/s</b> com {tool}, mas o job escreve só <b>{got} MB/s</b> ({used}% do teto): o disco <b>NÃO</b> é o limite — o job não o alimenta.',
@@ -1854,8 +1857,10 @@ function renderAssessment(a) {
       <div class="vd-hl">${vt(a.headlineCode, a.headlineParams, a.headline)}</div>
     </div>`;
 
-  let tiles = kpi(t('env.sustained'), a.peakBytesPerHour ? fmtBytes(a.peakBytesPerHour) + '/h' : '—',
-    a.peakBytesPerHour ? tp('env.sub.peak', { mbps: a.peakMBps, at: a.peakAt }) : t('env.nopeak'));
+  // Sustained rate first: it is the rate while the infrastructure was working.
+  // The bytes moved in that clock hour go in the sub, for window planning.
+  let tiles = kpi(t('env.sustained'), a.peakMBps ? a.peakMBps + ' MB/s' : '—',
+    a.peakMBps ? tp('env.sub.peak', { bytes: fmtBytes(a.peakBytesPerHour), busy: fmtDur(a.peakBusySec), at: a.peakAt }) : t('env.nopeak'));
   tiles += kpi(t('env.moved'), fmtBytes(a.totalBytes), tp('env.sub.days', { days: a.days }));
   tiles += kpi(t('cap.bneck'), a.topStage || '—', a.topStage ? tp('env.sub.share', { pct: a.topStagePct }) : '', 'bad');
   if (a.busiestHour >= 0) {

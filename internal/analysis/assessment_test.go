@@ -240,6 +240,102 @@ func TestAssessmentHourLoadFollowsActivity(t *testing.T) {
 	}
 }
 
+// Field bug (small environment, 2026-08-14): a full moved 16.58 GB in 5m14s and
+// the tool reported 2.8 MB/s, because the hour's bytes were divided by 3600s even
+// though the job only worked ~4 min of that hour. The rate has to be measured
+// over the BUSY time.
+func TestAssessmentPeakRateUsesBusyTimeNotClockHour(t *testing.T) {
+	recs := []Record{rec("j1", "2026-08-05", "12:58", "13:03", 16_580_000_000, "Source", []string{"r1"}, nil)}
+	a := BuildAssessment(recs, 12, names, names)
+	if a.PeakMBps < 50 || a.PeakMBps > 60 {
+		t.Fatalf("sustained rate: got %.1f MB/s, want ~55 (16.58 GB in 5 min, not spread over the clock hour)", a.PeakMBps)
+	}
+	if a.PeakBusySec <= 0 || a.PeakBusySec > 3600 {
+		t.Errorf("PeakBusySec: got %.0fs", a.PeakBusySec)
+	}
+	// The bytes-per-hour figure stays available for window planning.
+	if a.PeakBytesPerHour <= 0 {
+		t.Error("PeakBytesPerHour should still report the load of the peak hour")
+	}
+}
+
+// The busiest hour counts jobs RUNNING, not jobs starting: a run from 12:58 to
+// 13:03 makes hour 13 busy without any job starting there. Reporting "0 jobs" in
+// the peak window (as the field run did) is meaningless.
+func TestAssessmentBusiestHourCountsActiveJobs(t *testing.T) {
+	recs := []Record{rec("j1", "2026-08-05", "12:58", "13:40", 20*gib, "Target", []string{"r1"}, nil)}
+	a := BuildAssessment(recs, 1, names, names)
+	if a.BusiestHour != 13 {
+		t.Fatalf("busiest hour: got %d, want 13 (most of the activity is there)", a.BusiestHour)
+	}
+	if a.BusiestJobs != 1 {
+		t.Fatalf("jobs in the busiest hour: got %d, want 1 (it was running, even if it did not start there)", a.BusiestJobs)
+	}
+	if a.Hours[13].JobStarts != 0 || a.Hours[13].JobsActive != 1 {
+		t.Errorf("hour 13: starts=%d active=%d, want 0/1", a.Hours[13].JobStarts, a.Hours[13].JobsActive)
+	}
+	if a.Hours[12].JobStarts != 1 {
+		t.Errorf("hour 12 should own the start, got %d", a.Hours[12].JobStarts)
+	}
+}
+
+// Staggering is about START times, so it is reported on the hour where jobs
+// start, even if the load peaks an hour later.
+func TestAssessmentStaggerUsesStartHour(t *testing.T) {
+	recs := []Record{
+		rec("j1", "2026-08-10", "02:50", "03:40", 50*gib, "Target", []string{"r1"}, nil),
+		rec("j2", "2026-08-10", "02:55", "03:30", 40*gib, "Target", []string{"r1"}, nil),
+		rec("j3", "2026-08-10", "02:58", "03:20", 30*gib, "Target", []string{"r1"}, nil),
+	}
+	a := BuildAssessment(recs, 1, names, names)
+	if a.BusiestHour != 3 {
+		t.Fatalf("the load peaks at 03, got %d", a.BusiestHour)
+	}
+	if a.StaggerHour != 2 || a.StaggerJobs != 3 {
+		t.Fatalf("stagger: got %02dh with %d jobs, want 02h with 3", a.StaggerHour, a.StaggerJobs)
+	}
+	for _, x := range a.Actions {
+		if x.Code == "act.envStagger" {
+			if x.Params["hour"] != "02" {
+				t.Errorf("the action must name the START hour, got %v", x.Params["hour"])
+			}
+			return
+		}
+	}
+	t.Errorf("expected act.envStagger; actions: %v", codes(a))
+}
+
+// A Source-bound environment has no owning resource, so it used to end up with
+// nothing but "go measure". It must name the read path.
+func TestAssessmentSourceBoundHasAction(t *testing.T) {
+	recs := []Record{rec("j1", "2026-08-05", "12:58", "13:03", 16*gib, "Source", []string{"r1"}, nil)}
+	a := BuildAssessment(recs, 12, names, names)
+	if a.TopStage != "Source" {
+		t.Fatalf("top stage: got %s", a.TopStage)
+	}
+	if !hasEnvAction(a, "act.envSource") {
+		t.Fatalf("expected act.envSource; actions: %v", codes(a))
+	}
+	if a.Actions[0].Code != "act.envSource" {
+		t.Errorf("it should lead the list, got %s", a.Actions[0].Code)
+	}
+}
+
+// No-op runs must not become the peak nor paint the histogram.
+func TestAssessmentNoOpRunsAreNotAPeak(t *testing.T) {
+	recs := []Record{
+		rec("j1", "2026-08-10", "09:00", "09:02", 64, "Source", []string{"r1"}, nil),
+		rec("j2", "2026-08-10", "17:00", "17:30", 12*gib, "Target", []string{"r1"}, nil),
+	}
+	a := BuildAssessment(recs, 1, names, names)
+	if a.PeakAt == "" || a.PeakBytesPerHour < gib {
+		t.Fatalf("the peak should be the 12 GiB run, got %d B at %q", a.PeakBytesPerHour, a.PeakAt)
+	}
+	if a.Hours[9].Bytes != 0 {
+		t.Errorf("hour 09 moved 64 B: it must not paint the histogram, got %d", a.Hours[9].Bytes)
+	}
+}
+
 func hasEnvAction(a *Assessment, code string) bool {
 	for _, x := range a.Actions {
 		if x.Code == code {

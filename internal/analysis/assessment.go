@@ -35,12 +35,22 @@ type Hotspot struct {
 	ThrouMBps float64 `json:"throuMBps"` // rate observado del recurso
 }
 
-// HourLoad: carga por hora del dia (para ver la ventana de backup y el solape).
+// HourLoad: load per hour of the day (backup window shape and overlap).
 type HourLoad struct {
-	Hour      int   `json:"hour"`
-	Bytes     int64 `json:"bytes"` // promedio por dia de la ventana
-	Runs      int   `json:"runs"`
-	JobStarts int   `json:"jobStarts"` // jobs DISTINTOS que arrancan en esa hora
+	Hour       int   `json:"hour"`
+	Bytes      int64 `json:"bytes"` // per-day average over the window
+	Runs       int   `json:"runs"`
+	JobStarts  int   `json:"jobStarts"`  // distinct jobs STARTING in that hour
+	JobsActive int   `json:"jobsActive"` // distinct jobs RUNNING during that hour
+}
+
+// bucket: one absolute clock hour of activity. Bytes are attributed to the hours
+// a run spans; spans keep the busy intervals so the rate can be computed over the
+// time the infrastructure was actually working, not over the whole clock hour.
+type bucket struct {
+	bytes int64
+	spans []span
+	jobs  map[string]bool
 }
 
 // Assessment: la foto del entorno.
@@ -49,10 +59,14 @@ type Assessment struct {
 	Runs int `json:"runs"`
 	Jobs int `json:"jobs"`
 
-	// Capacidad observada (lo que la infra REALMENTE sostuvo).
+	// Observed capacity. PeakMBps is the rate DURING THE BUSY TIME of the peak
+	// hour (bytes / union of the run intervals in that hour), not bytes/3600: a
+	// job that moves 16 GB in 5 minutes sustained ~53 MB/s, and dividing by the
+	// whole clock hour would report ~3 MB/s.
 	PeakBytesPerHour int64   `json:"peakBytesPerHour"`
+	PeakBusySec      float64 `json:"peakBusySec"`
 	PeakMBps         float64 `json:"peakMBps"`
-	PeakAt           string  `json:"peakAt"` // cuando fue el pico
+	PeakAt           string  `json:"peakAt"`
 	TotalBytes       int64   `json:"totalBytes"`
 
 	// Cuello del entorno, ponderado por dato movido.
@@ -65,10 +79,14 @@ type Assessment struct {
 	Hotspots []Hotspot  `json:"hotspots"`
 	Hours    []HourLoad `json:"hours"`
 
-	// Solape de la ventana.
+	// Backup window. Busiest* is where the load actually is (jobs RUNNING);
+	// Stagger* is where most jobs START, which is what can be moved apart.
 	BusiestHour    int            `json:"busiestHour"`
 	BusiestJobs    int            `json:"busiestJobs"`
-	BusiestPct     int            `json:"busiestPct"` // % del dato concentrado en esa hora
+	BusiestPct     int            `json:"busiestPct"`
+	StaggerHour    int            `json:"staggerHour"`
+	StaggerJobs    int            `json:"staggerJobs"`
+	StaggerPct     int            `json:"staggerPct"`
 	Actions        []Action       `json:"actions"`
 	Severity       string         `json:"severity"` // critical | warn | ok | unknown
 	HeadlineCode   string         `json:"headlineCode"`
@@ -87,9 +105,10 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		a.Days = 1
 	}
 
-	buckets := map[time.Time]int64{} // bytes por hora ABSOLUTA (pico real)
-	hourRuns := map[int]int{}        // arranques por hora del dia
+	buckets := map[time.Time]*bucket{} // activity per absolute clock hour
+	hourRuns := map[int]int{}          // run starts per hour of the day
 	hourJobs := map[int]map[string]bool{}
+	startBytes := map[int]int64{} // bytes of the runs STARTING in each hour
 	jobs := map[string]bool{}
 	jobData := map[string]int64{}
 	resBytes := map[string]int64{} // "kind|id" -> dato binding
@@ -110,17 +129,20 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		if okS {
 			h := start.Hour()
 			hourRuns[h]++
+			startBytes[h] += r.TransferredSize
 			if hourJobs[h] == nil {
 				hourJobs[h] = map[string]bool{}
 			}
 			hourJobs[h][jobID] = true
 		}
-		// Pico observado: repartimos los bytes de la corrida en las horas que abarca
-		// (una corrida de 02:00 a 06:00 no movio todo a las 02:00).
+		// Attribute the bytes to the hours the run spans (a run from 02:00 to 06:00
+		// did not move everything at 02:00), and keep its busy interval per hour.
 		if okS && okE && end.After(start) && r.TransferredSize > 0 {
-			spread(buckets, start, end, r.TransferredSize)
+			spread(buckets, start, end, r.TransferredSize, jobID)
 		} else if okS {
-			buckets[start.Truncate(time.Hour)] += r.TransferredSize
+			bk := getBucket(buckets, start.Truncate(time.Hour))
+			bk.bytes += r.TransferredSize
+			bk.jobs[jobID] = true
 		}
 
 		// Cuello ponderado por dato: solo cuentan las corridas que movieron algo.
@@ -163,23 +185,44 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		}
 	}
 
-	// Pico + carga por hora del dia: las dos salen de los mismos buckets, asi que
-	// la carga refleja la ACTIVIDAD real (no la hora de arranque).
+	// Peak hour and load per hour of the day: both come from the same buckets, so
+	// the load reflects real ACTIVITY, not the start time. Buckets below lowFloor
+	// are no-op noise (a 32-byte incremental is not a peak).
 	hourBytes := map[int]int64{}
-	for t, b := range buckets {
-		if b > a.PeakBytesPerHour {
-			a.PeakBytesPerHour, a.PeakAt = b, t.Format("2006-01-02 15:04")
+	hourActive := map[int]map[string]bool{}
+	var peak *bucket
+	for t, bk := range buckets {
+		if bk.bytes < lowFloor {
+			continue
 		}
-		hourBytes[t.Hour()] += b
+		if peak == nil || bk.bytes > peak.bytes {
+			peak, a.PeakAt = bk, t.Format("2006-01-02 15:04")
+		}
+		hourBytes[t.Hour()] += bk.bytes
+		if hourActive[t.Hour()] == nil {
+			hourActive[t.Hour()] = map[string]bool{}
+		}
+		for j := range bk.jobs {
+			hourActive[t.Hour()][j] = true
+		}
 	}
-	a.PeakMBps = round1(float64(a.PeakBytesPerHour) / 3600 / 1e6)
+	if peak != nil {
+		a.PeakBytesPerHour = peak.bytes
+		a.PeakBusySec = round1(unionSeconds(peak.spans))
+		// Rate over the time it was actually working, not over the clock hour.
+		if a.PeakBusySec > 0 {
+			a.PeakMBps = round1(float64(peak.bytes) / a.PeakBusySec / 1e6)
+		}
+	}
 
 	for h := 0; h < 24; h++ {
 		a.Hours = append(a.Hours, HourLoad{
-			Hour: h, Bytes: hourBytes[h] / int64(a.Days), Runs: hourRuns[h], JobStarts: len(hourJobs[h]),
+			Hour: h, Bytes: hourBytes[h] / int64(a.Days), Runs: hourRuns[h],
+			JobStarts: len(hourJobs[h]), JobsActive: len(hourActive[h]),
 		})
 	}
-	// Hora mas cargada por dato, y cuantos jobs DISTINTOS arrancan ahi.
+	// Busiest hour by data, and how many distinct jobs were RUNNING then. Starts
+	// are a different question and are used by the staggering rule below.
 	a.BusiestHour = -1
 	var maxH int64
 	for h, b := range hourBytes {
@@ -188,10 +231,22 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		}
 	}
 	if a.BusiestHour >= 0 {
-		a.BusiestJobs = len(hourJobs[a.BusiestHour])
+		a.BusiestJobs = len(hourActive[a.BusiestHour])
 		if a.TotalBytes > 0 {
 			a.BusiestPct = pct(maxH, a.TotalBytes)
 		}
+	}
+	// Staggering candidate: the hour where most distinct jobs START.
+	a.StaggerHour = -1
+	for h, jobs := range hourJobs {
+		if len(jobs) > a.StaggerJobs {
+			a.StaggerJobs, a.StaggerHour = len(jobs), h
+		}
+	}
+	// The share is what those runs CARRY, not what lands in that clock hour: three
+	// jobs starting at 02:00 may move most of their data after 03:00.
+	if a.StaggerHour >= 0 && a.TotalBytes > 0 {
+		a.StaggerPct = pct(startBytes[a.StaggerHour], a.TotalBytes)
 	}
 
 	// Cuello del entorno.
@@ -282,22 +337,30 @@ func (a *Assessment) verdict() {
 		break // solo el principal: el resto queda en la tabla de hotspots
 	}
 
-	// 2) Solape: varios jobs en la misma hora concentrando el dato. Esto es
-	// gratis de arreglar (mover horarios) y no requiere hardware.
-	if a.BusiestJobs >= staggerJobs && a.BusiestPct >= 40 {
-		add("medium", "act.envStagger",
-			fmt.Sprintf("%d different jobs start at %02d:00 and concentrate %d%% of the data: staggering them spreads the peak without buying anything.", a.BusiestJobs, a.BusiestHour, a.BusiestPct),
-			map[string]any{"jobs": a.BusiestJobs, "hour": fmt.Sprintf("%02d", a.BusiestHour), "pct": a.BusiestPct})
+	// 2) Source side: no single resource owns it, so name the read path instead of
+	// leaving the environment with nothing but "go measure".
+	if a.TopStage == "Source" && a.TopStagePct >= envStageShare {
+		add("high", "act.envSource",
+			fmt.Sprintf("The source side is the bottleneck for %d%% of the data: the read path (transport mode, datastore/volume latency, CBT) sets the pace, so adding proxies or repositories will not help. Use deep mode on the heaviest job to get the actual transport.", a.TopStagePct),
+			map[string]any{"pct": a.TopStagePct})
 	}
 
-	// 3) Jobs que no se pueden dictaminar.
+	// 3) Overlap: several jobs STARTING in the same hour and concentrating the
+	// data. Moving schedules is free, so it comes before any hardware.
+	if a.StaggerJobs >= staggerJobs && a.StaggerPct >= 40 {
+		add("medium", "act.envStagger",
+			fmt.Sprintf("%d different jobs start at %02d:00 and concentrate %d%% of the data: staggering them spreads the peak without buying anything.", a.StaggerJobs, a.StaggerHour, a.StaggerPct),
+			map[string]any{"jobs": a.StaggerJobs, "hour": fmt.Sprintf("%02d", a.StaggerHour), "pct": a.StaggerPct})
+	}
+
+	// 4) Jobs that cannot be judged.
 	if a.NoDataJobs > 0 {
 		add("verify", "act.envNoData",
 			fmt.Sprintf("%d job(s) only ran near-empty incrementals in these %d day(s): widen the window or include an Active Full to measure the infrastructure.", a.NoDataJobs, a.Days),
 			map[string]any{"n": a.NoDataJobs, "days": a.Days})
 	}
 
-	// 4) El techo medido sigue siendo la pata que falta.
+	// 5) The measured ceiling is still the missing input.
 	add("verify", "act.envMeasure",
 		"Measure the ceiling of the busiest repository (fio) and of the proxy<->repository link (iperf): that turns \"what the jobs did\" into \"what the hardware can do\".", nil)
 
@@ -306,13 +369,24 @@ func (a *Assessment) verdict() {
 
 // --- helpers ----------------------------------------------------------------
 
-// spread reparte los bytes de una corrida entre las horas absolutas que abarca,
-// proporcional al tiempo en cada una: asi el pico no se le adjudica entero a la
-// hora de arranque.
-func spread(buckets map[time.Time]int64, start, end time.Time, bytes int64) {
+func getBucket(m map[time.Time]*bucket, t time.Time) *bucket {
+	bk := m[t]
+	if bk == nil {
+		bk = &bucket{jobs: map[string]bool{}}
+		m[t] = bk
+	}
+	return bk
+}
+
+// spread splits a run's bytes across the absolute hours it covers, proportional
+// to the time spent in each, and records the busy interval and the job in every
+// hour touched. Without this the whole peak lands on the start hour.
+func spread(buckets map[time.Time]*bucket, start, end time.Time, bytes int64, jobID string) {
 	total := end.Sub(start).Seconds()
 	if total <= 0 {
-		buckets[start.Truncate(time.Hour)] += bytes
+		bk := getBucket(buckets, start.Truncate(time.Hour))
+		bk.bytes += bytes
+		bk.jobs[jobID] = true
 		return
 	}
 	for t := start.Truncate(time.Hour); t.Before(end); t = t.Add(time.Hour) {
@@ -324,7 +398,10 @@ func spread(buckets map[time.Time]int64, start, end time.Time, bytes int64) {
 			hi = end
 		}
 		if s := hi.Sub(lo).Seconds(); s > 0 {
-			buckets[t] += int64(float64(bytes) * s / total)
+			bk := getBucket(buckets, t)
+			bk.bytes += int64(float64(bytes) * s / total)
+			bk.spans = append(bk.spans, span{lo, hi})
+			bk.jobs[jobID] = true
 		}
 	}
 }
