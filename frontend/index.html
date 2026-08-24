@@ -159,6 +159,28 @@
   .sig { font-size:12px; color:var(--muted); cursor:help; }
   .sig.on { color:#7ede6f; }
 
+  /* Tendencia por corrida (uso historico) */
+  .trend { margin-top:6px; }
+  .trend svg { display:block; width:100%; height:auto; }
+  .trend .t-grid { stroke:var(--border); stroke-width:1; }
+  .trend .t-area { fill:rgba(58,142,230,.20); }
+  .trend .t-line { fill:none; stroke:var(--blue); stroke-width:2; stroke-linejoin:round; }
+  .trend .t-dot  { fill:var(--panel2); stroke:var(--blue); stroke-width:2; }
+  .trend .t-tgt  { stroke:var(--muted); stroke-width:2; stroke-dasharray:6 4; opacity:.85; }
+  .trend text { fill:var(--muted); font-size:10px; }
+  .trend .t-val { fill:#b9c0cc; font-size:11px; }
+
+  /* Medidores: una proporcion contra un limite (tick = objetivo) */
+  .mts { display:flex; gap:24px; flex-wrap:wrap; margin-top:8px; }
+  .mt { flex:1; min-width:160px; }
+  .mt-top { display:flex; justify-content:space-between; align-items:baseline; gap:6px; }
+  .mt-val { font-size:21px; font-weight:600; margin-top:1px; }
+  .mt-track { position:relative; height:8px; border-radius:5px; background:#2b2f3b; margin-top:6px; }
+  .mt-fill { position:absolute; left:0; top:0; bottom:0; border-radius:5px; }
+  .mt-tick { position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--muted); }
+  .mt-sub { font-size:11px; color:var(--muted); margin-top:5px; }
+  .mt-st { font-size:11px; font-weight:600; }
+
   /* Histograma de carga por hora (ventana de backup) */
   .hbars { display:flex; align-items:flex-end; gap:3px; height:64px; margin-top:6px; }
   .hbar { flex:1; height:100%; display:flex; align-items:flex-end; background:rgba(255,255,255,.035); border-radius:2px; cursor:help; }
@@ -556,7 +578,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está en su techo medido ({ceil} MB/s): storage más rápido, más extents del SOBR o repartir la carga entre repositorios es la única salida.',
     'vd.act.feedNet':'Subir los streams en paralelo (task slots del proxy / más VMs a la vez): el enlace mide {ceil} Mbps y se usan sólo {got}. Un enlace más rápido no cambiaría nada.',
     'vd.sig.measOn':'Techo medido: {repo} escribe {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura'
+    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura','an.trend':'Duracion por corrida','an.trendsub':'{runs} corridas de la ventana de {days} dias','an.trendtgt':'proyectado {dur}','an.trendaria':'Duracion de {n} corridas, de {from} a {to}','an.ceiling':'Contra el limite','an.ceilingsub':'el tick marca el objetivo','mt.repowrite':'Escritura del repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espacio libre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sin alimentar','mt.ok':'ok','mt.maxed':'al limite','mt.low':'poco','mt.crit':'critico'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -675,7 +697,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> is at its measured ceiling ({ceil} MB/s): faster storage, more SOBR extents or splitting the load across repositories is the only way up.',
     'vd.act.feedNet':'Raise the parallel streams (proxy task slots / more VMs at once): the link measures {ceil} Mbps and only {got} are in use. A faster link would change nothing.',
     'vd.sig.measOn':'Measured ceiling: {repo} writes {repoMBps} MB/s (fio) · link {linkMbps} Mbps (iperf).',
-    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure'
+    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure','an.trend':'Duration per run','an.trendsub':'{runs} runs in the {days}-day window','an.trendtgt':'projected {dur}','an.trendaria':'Duration of {n} runs, from {from} to {to}','an.ceiling':'Against the limit','an.ceilingsub':'the tick marks the target','mt.repowrite':'Repository write','mt.link':'Proxy ↔ repository link','mt.free':'Free space · {name}','mt.of':'{got} of {ceil} {unit} ({tool})','mt.freesub':'{free} of {cap} GB','mt.target':'target {pct}%','mt.starved':'starved','mt.ok':'ok','mt.maxed':'at the limit','mt.low':'low','mt.crit':'critical'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -794,7 +816,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está no seu teto medido ({ceil} MB/s): storage mais rápido, mais extents do SOBR ou repartir a carga entre repositórios é a única saída.',
     'vd.act.feedNet':'Subir os streams em paralelo (task slots do proxy / mais VMs por vez): o enlace mede {ceil} Mbps e usam-se só {got}. Um enlace mais rápido não mudaria nada.',
     'vd.sig.measOn':'Teto medido: {repo} escreve {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura'
+    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura','an.trend':'Duracao por execucao','an.trendsub':'{runs} execucoes na janela de {days} dias','an.trendtgt':'projetado {dur}','an.trendaria':'Duracao de {n} execucoes, de {from} a {to}','an.ceiling':'Contra o limite','an.ceilingsub':'o tick marca o objetivo','mt.repowrite':'Escrita do repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espaco livre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sem alimentar','mt.ok':'ok','mt.maxed':'no limite','mt.low':'pouco','mt.crit':'critico'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1666,6 +1688,89 @@ function actionsList(v) {
       <span class="muted" style="font-weight:400;">(${acts.length})</span></div>${rows}`;
 }
 
+// runTrend: duracion de CADA corrida de la ventana (el uso historico, que es de
+// donde sale el valor del analisis) mas la duracion proyectada por el veredicto:
+// la proxima corrida cae al lado de la punteada y se ve si la accion sirvio.
+// Una sola serie, un solo color: no necesita leyenda.
+function runTrend(d) {
+  const runs = (d.runList || []).slice().reverse(); // runList viene del mas nuevo al mas viejo
+  if (runs.length < 2) return ''; // con una corrida no hay tendencia que mostrar
+  const W = 620, H = 150, L = 46, R = 10, T = 14, B = 26;
+  const tgt = (d.verdict && d.verdict.targetSec > 0) ? d.verdict.targetSec : 0;
+  const top = Math.max(...runs.map(r => r.durationSec || 0), tgt) * 1.12 || 1;
+  const x = i => L + i * (W - L - R) / (runs.length - 1);
+  const y = v => T + (1 - v / top) * (H - T - B);
+  const pts = runs.map((r, i) => [x(i), y(r.durationSec || 0)]);
+  const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const area = `M${line.split(' ').join(' L')} L${x(runs.length - 1).toFixed(1)},${y(0)} L${L},${y(0)} Z`;
+
+  let grid = '', ylab = '';
+  for (const f of [1, 0.5, 0]) {
+    const yy = y(top * f).toFixed(1);
+    grid += `<line class="t-grid" x1="${L}" y1="${yy}" x2="${W - R}" y2="${yy}"/>`;
+    ylab += `<text x="${L - 6}" y="${(+yy + 3).toFixed(1)}" text-anchor="end">${fmtDur(top * f)}</text>`;
+  }
+  const dots = pts.map((p, i) => {
+    const r = runs[i];
+    const tip = `${(r.creationTime || '').slice(0, 16).replace('T', ' ')} · ${fmtDur(r.durationSec)}`
+      + ` · ${r.algorithm || '—'}${r.primary ? ' · ' + r.primary : ''} · ${r.writeMBps} MB/s`;
+    return `<circle class="t-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4"><title>${attrTxt(tip)}</title></circle>`;
+  }).join('');
+  const tline = tgt > 0 ? `<line class="t-tgt" x1="${L}" y1="${y(tgt).toFixed(1)}" x2="${W - R}" y2="${y(tgt).toFixed(1)}"/>`
+    + `<text x="${W - R}" y="${(y(tgt) + 13).toFixed(1)}" text-anchor="end">${tp('an.trendtgt', { dur: fmtDur(tgt) })}</text>` : '';
+  const first = runs[0], last = runs[runs.length - 1];
+  return `<div class="trend"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${attrTxt(tp('an.trendaria', { n: runs.length, from: fmtDur(first.durationSec), to: fmtDur(last.durationSec) }))}">
+      ${grid}${ylab}
+      <path class="t-area" d="${area}"/><polyline class="t-line" points="${line}"/>${tline}${dots}
+      <text class="t-val" x="${x(0)}" y="${(y(first.durationSec) - 8).toFixed(1)}" text-anchor="start">${fmtDur(first.durationSec)}</text>
+      <text class="t-val" x="${x(runs.length - 1)}" y="${(y(last.durationSec) - 8).toFixed(1)}" text-anchor="end">${fmtDur(last.durationSec)}</text>
+      <text x="${L}" y="${H - 6}" text-anchor="start">${(first.creationTime || '').slice(5, 10)}</text>
+      <text x="${W - R}" y="${H - 6}" text-anchor="end">${(last.creationTime || '').slice(5, 10)}</text>
+    </svg></div>`;
+}
+
+// ceilingMeters: lo que el job usa CONTRA su limite. El tick marca el objetivo;
+// en un anillo no se veria donde esta el limite ni se podrian comparar entre si.
+function meterCard(label, pct, targetPct, sub, sev, stLabel) {
+  const col = { good: 'var(--green)', warn: 'var(--amber)', bad: 'var(--red)' }[sev] || 'var(--blue)';
+  return `<div class="mt">
+      <div class="mt-top"><span class="muted" style="font-size:12px;">${label}</span><span class="mt-st" style="color:${col};">${stLabel}</span></div>
+      <div class="mt-val">${pct}%</div>
+      <div class="mt-track"><span class="mt-fill" style="width:${Math.max(1, Math.min(100, pct))}%;background:${col};"></span><span class="mt-tick" style="left:${targetPct}%;" title="${attrTxt(tp('mt.target', { pct: targetPct }))}"></span></div>
+      <div class="mt-sub">${sub}</div>
+    </div>`;
+}
+function ceilingMeters(d) {
+  const m = (d.verdict && d.verdict.measured) || null;
+  const out = [];
+  if (m && m.repoWriteMBps > 0 && d.writeMBps > 0) {
+    const p = Math.round(d.writeMBps / m.repoWriteMBps * 100);
+    const sev = p < 60 ? 'warn' : (p >= 80 ? 'bad' : 'good');
+    out.push(meterCard(t('mt.repowrite'), p, 80,
+      tp('mt.of', { got: d.writeMBps, ceil: m.repoWriteMBps, unit: 'MB/s', tool: m.repoTool || 'fio' }),
+      sev, t(p < 60 ? 'mt.starved' : (p >= 80 ? 'mt.maxed' : 'mt.ok'))));
+  }
+  if (m && m.linkMbps > 0 && d.writeMBps > 0) {
+    const p = Math.round(d.writeMBps * 8 / m.linkMbps * 100);
+    const sev = p < 60 ? 'warn' : (p >= 80 ? 'bad' : 'good');
+    out.push(meterCard(t('mt.link'), p, 80,
+      tp('mt.of', { got: Math.round(d.writeMBps * 8), ceil: Math.round(m.linkMbps), unit: 'Mbps', tool: 'iperf' }),
+      sev, t(p < 60 ? 'mt.starved' : (p >= 80 ? 'mt.maxed' : 'mt.ok'))));
+  }
+  for (const r of (d.resources || [])) {
+    if (r.kind !== 'repository' || !r.capacityGB || r.freeGB == null) continue;
+    const p = Math.round(r.freeGB / r.capacityGB * 100);
+    const sev = p < 5 ? 'bad' : (p < 10 ? 'warn' : 'good');
+    out.push(meterCard(tp('mt.free', { name: r.name }), p, 10,
+      tp('mt.freesub', { free: r.freeGB, cap: r.capacityGB }),
+      sev, t(p < 5 ? 'mt.crit' : (p < 10 ? 'mt.low' : 'mt.ok'))));
+  }
+  if (!out.length) return '';
+  return `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('an.ceiling')}
+      <span class="muted" style="font-weight:400;font-size:12px;">· ${t('an.ceilingsub')}</span></div>
+    <div class="mts">${out.join('')}</div>`;
+}
+
 // signalsRow: que datos entraron al veredicto (y cuales faltan para que sea
 // mas firme). El detalle va en el tooltip.
 function signalsRow(v) {
@@ -1681,6 +1786,7 @@ function signalsRow(v) {
 function renderJobCapacity(d) {
   const el = document.getElementById('anJobContent');
   window._anJob = d; // para openDeep
+  const trend = runTrend(d);
   let confCls, confLbl, confExp;
   if (d.confidence === 'observed') { confCls = 'ok'; confLbl = 'observed'; confExp = t('cap.obs_exp'); }
   else if (d.confidence === 'low') { confCls = 'warn'; confLbl = t('cap.indicative'); confExp = t('cap.low_exp'); }
@@ -1732,6 +1838,9 @@ function renderJobCapacity(d) {
       </div>
       ${d.verdict ? verdictHero(d.verdict) : ''}
       <div class="kpi-grid">${tiles}</div>
+      ${trend ? `<div style="font-size:13px;font-weight:600;margin:2px 0 0;">${t('an.trend')}
+        <span class="muted" style="font-weight:400;font-size:12px;">· ${tp('an.trendsub', { days: d.days, runs: (d.runList || []).length })}</span></div>${trend}` : ''}
+      ${ceilingMeters(d)}
       ${d.verdict ? actionsList(d.verdict) + signalsRow(d.verdict) : ''}
       <div style="margin-top:14px;">
         <details class="exp"><summary>${t('cap.stages')} <span class="muted" style="font-weight:400;">${noPct ? '' : `(${t('cap.avg')})`}</span></summary>
