@@ -251,12 +251,33 @@ func (s *Server) recommendations(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	recs, err := topology.Recommend(r.Context(), sess)
+	adv, err := topology.Recommend(r.Context(), sess, observedHotspots(sess))
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": recs})
+	log.Printf("recommendations: %d suggestion(s), %d resource(s), observed=%v",
+		len(adv.Recommendations), len(adv.Resources), adv.HasObserved)
+	writeJSON(w, http.StatusOK, adv)
+}
+
+// observedHotspots: the resources the environment assessment saw topping out, if
+// it was already computed in this session. Without it the advice only knows the
+// configuration and could move load onto the very resource that is the
+// bottleneck. Running the assessment here would cost a full window scan, so it is
+// used only when it is already there — free.
+func observedHotspots(sess *vbr.Session) []topology.Hotspot {
+	a, _ := sess.AnalyzedAll()["assessment"].(*analysis.Assessment)
+	if a == nil || a.Confidence == "insufficient" {
+		return nil // a verdict we would not stand behind must not drive advice
+	}
+	out := make([]topology.Hotspot, 0, len(a.Hotspots))
+	for _, h := range a.Hotspots {
+		out = append(out, topology.Hotspot{
+			ID: h.ID, Kind: h.Kind, Stage: h.Stage, SharePct: h.SharePct, MBps: h.ThrouMBps,
+		})
+	}
+	return out
 }
 
 // analysis: estadistica de bottleneck agregada por repo y proxy. `days` opcional
@@ -409,6 +430,14 @@ type deepInput struct {
 	Days     int    `json:"days"`
 }
 
+// deepFail answers the WebUI and ALSO logs the reason. Deep failures used to be
+// reported only on screen, so a field report ("deep did not work") came with a log
+// that had no trace of it. Never logs the credentials.
+func (s *Server) deepFail(w http.ResponseWriter, jobID, jobName, host, stage, detail string) {
+	log.Printf("deep analysis FAILED: job=%q id=%s host=%s stage=%s: %s", jobName, jobID, host, stage, detail) // no password
+	writeJSON(w, http.StatusOK, map[string]string{"detail": detail})
+}
+
 // analysisJobDeep: "doble-click" — entra al OS del VBR (Windows: SMB2 a C$) con las
 // credenciales del usuario, baja Job/Task logs del job y devuelve el analisis deep
 // (transporte+motivo, 4-stage por VM, duraciones, opciones). Read-only; sin secretos al log.
@@ -427,12 +456,13 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.JobID == "" || strings.TrimSpace(in.Username) == "" || in.Password == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "jobId, username and password are required"})
+		s.deepFail(w, in.JobID, "", "", "input", "jobId, username and password are required")
 		return
 	}
 	name, osKind, err := analysis.JobDeepTarget(r.Context(), sess, in.JobID)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
+		// Typically v1/jobs timed out or the job only exists in the session history.
+		s.deepFail(w, in.JobID, "", "", "job-lookup", err.Error())
 		return
 	}
 	host := strings.TrimSpace(in.Host)
@@ -440,12 +470,13 @@ func (s *Server) analysisJobDeep(w http.ResponseWriter, r *http.Request) {
 		host = sess.Host
 	}
 	if osKind == "linux" {
-		writeJSON(w, http.StatusOK, map[string]string{"detail": "Deep mode for a Linux appliance needs SSH, which the hardened v13 appliance does not allow. It is supported on a Windows VBR (SMB to C$)."})
+		s.deepFail(w, in.JobID, name, host, "os",
+			"Deep mode for a Linux appliance needs SSH, which the hardened v13 appliance does not allow. It is supported on a Windows VBR (SMB to C$).")
 		return
 	}
 	jobLog, taskLogs, err := deeplog.FetchWindows(host, in.Username, in.Password, in.Domain, name)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]string{"detail": err.Error()})
+		s.deepFail(w, in.JobID, name, host, "fetch", err.Error()) // SMB reach / auth / folder
 		return
 	}
 	res := deeplog.Parse(jobLog, taskLogs)

@@ -35,12 +35,18 @@ func baseURL(host string, port int) string {
 	return fmt.Sprintf("https://%s:%d/api", host, port)
 }
 
+// getTimeout: a loaded VBR answers v1/jobs in 9-12 s and sometimes never; hanging
+// the UI for a minute on each attempt is worse than failing and degrading (the
+// analysis works without the job list, and the job selector falls back to the
+// session history). Kept well above the 12 s observed in the field.
+const getTimeout = 30 * time.Second
+
 func httpClient(verify bool) *http.Client {
 	tr := &http.Transport{}
 	if !verify { // VBR suele tener cert self-signed
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	return &http.Client{Timeout: 60 * time.Second, Transport: tr}
+	return &http.Client{Timeout: 60 * time.Second, Transport: tr} // backstop; per-request budget in doGet
 }
 
 // Authenticate hace el OAuth2 password grant contra VBR.
@@ -170,6 +176,9 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 
 // doGet: un intento de GET con el token dado. Devuelve el body y el status.
 func doGet(ctx context.Context, s *Session, path, token string) ([]byte, int, error) {
+	// Per-attempt budget: the retry after a token renewal gets a fresh one.
+	ctx, cancel := context.WithTimeout(ctx, getTimeout)
+	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL(s.Host, s.Port)+"/"+path, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("x-api-version", s.APIVersion)
@@ -177,6 +186,10 @@ func doGet(ctx context.Context, s *Session, path, token string) ([]byte, int, er
 	start := time.Now()
 	resp, e := httpClient(s.VerifySSL).Do(req)
 	if e != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("REST GET %s: timed out after %s (the VBR is loaded)", path, getTimeout)
+			return nil, 0, &APIError{504, fmt.Sprintf("%s timed out after %s: the VBR did not answer in time.", path, getTimeout)}
+		}
 		log.Printf("REST GET %s: no response: %v", path, e)
 		return nil, 0, &APIError{504, fmt.Sprintf("Error querying %s: %v", path, e)}
 	}

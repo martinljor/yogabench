@@ -159,6 +159,18 @@
   .sig { font-size:12px; color:var(--muted); cursor:help; }
   .sig.on { color:#7ede6f; }
 
+  /* Leyenda del diagrama: chips en vez de un parrafo */
+  .legend { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:0 0 8px; font-size:12px; }
+  .legend .lg { background:var(--panel2); border:1px solid var(--border); border-radius:4px; padding:2px 8px; color:var(--muted); }
+  .legend .lg b { color:var(--text); font-weight:600; }
+  .legend .sq { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:4px; }
+  /* Estados en la tabla de carga por recurso */
+  .st { font-size:11px; font-weight:600; border-radius:4px; padding:1px 7px; white-space:nowrap; }
+  .st.hotspot { background:rgba(224,86,86,.18); color:#f08b8b; }
+  .st.concentration { background:rgba(224,160,32,.18); color:#f0c368; }
+  .st.headroom { background:rgba(84,185,72,.16); color:#7ede6f; }
+  .st.ok { color:var(--muted); }
+
   /* Tendencia por corrida (uso historico) */
   .trend { margin-top:6px; }
   .trend svg { display:block; width:100%; height:auto; }
@@ -258,9 +270,8 @@
 </div>
 
 <div class="card" id="flowPanel" style="display:none;">
-  <p class="muted" style="font-size:12px;" data-i18n-html="flow.legend"></p>
-  <div id="flowDominantNote" class="muted" style="font-size:12px;margin:2px 0 4px;"></div>
-  <div id="flowBusyNote" class="muted" style="font-size:12px;margin:2px 0 8px;color:#e0b060;"></div>
+  <div id="flowLegend" class="legend"></div>
+  <div id="flowDominantNote" class="muted" style="font-size:12px;margin:2px 0 6px;"></div>
   <svg id="flowCanvas" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg"></svg>
   <div id="flowReco" style="margin-top:14px;"></div>
 </div>
@@ -578,7 +589,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está en su techo medido ({ceil} MB/s): storage más rápido, más extents del SOBR o repartir la carga entre repositorios es la única salida.',
     'vd.act.feedNet':'Subir los streams en paralelo (task slots del proxy / más VMs a la vez): el enlace mide {ceil} Mbps y se usan sólo {got}. Un enlace más rápido no cambiaría nada.',
     'vd.sig.measOn':'Techo medido: {repo} escribe {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura','an.trend':'Duracion por corrida','an.trendsub':'{runs} corridas de la ventana de {days} dias','an.trendtgt':'proyectado {dur}','an.trendaria':'Duracion de {n} corridas, de {from} a {to}','an.ceiling':'Contra el limite','an.ceilingsub':'el tick marca el objetivo','mt.repowrite':'Escritura del repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espacio libre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sin alimentar','mt.ok':'ok','mt.maxed':'al limite','mt.low':'poco','mt.crit':'critico'
+    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura','an.trend':'Duracion por corrida','an.trendsub':'{runs} corridas de la ventana de {days} dias','an.trendtgt':'proyectado {dur}','an.trendaria':'Duracion de {n} corridas, de {from} a {to}','an.ceiling':'Contra el limite','an.ceilingsub':'el tick marca el objetivo','mt.repowrite':'Escritura del repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espacio libre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sin alimentar','mt.ok':'ok','mt.maxed':'al limite','mt.low':'poco','mt.crit':'critico','flow.lg.bneck':'cuello (telemetria)','flow.lg.gray':'ok / sin datos','flow.lg.solid':'— proxy asignado','flow.lg.dashed':'┄ automatico','reco.now':'Ahora','reco.sugg':'Sugerido','reco.why':'Por que','reco.auto':'automatico','reco.nochange':'sin cambios','reco.load':'Carga por recurso','reco.perslot':'Jobs/slot','reco.state':'Estado','reco.share':'{pct}% del dato','reco.loadcfg':'Segun la configuracion y los task slots. Corre el analisis Global para sumar lo observado.','reco.loadobs':'Configuracion + task slots + lo observado en la ventana (ponderado por dato movido).','reco.st.hotspot':'cuello','reco.st.concentration':'concentracion','reco.st.headroom':'margen','reco.st.ok':'ok'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -697,7 +708,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> is at its measured ceiling ({ceil} MB/s): faster storage, more SOBR extents or splitting the load across repositories is the only way up.',
     'vd.act.feedNet':'Raise the parallel streams (proxy task slots / more VMs at once): the link measures {ceil} Mbps and only {got} are in use. A faster link would change nothing.',
     'vd.sig.measOn':'Measured ceiling: {repo} writes {repoMBps} MB/s (fio) · link {linkMbps} Mbps (iperf).',
-    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure','an.trend':'Duration per run','an.trendsub':'{runs} runs in the {days}-day window','an.trendtgt':'projected {dur}','an.trendaria':'Duration of {n} runs, from {from} to {to}','an.ceiling':'Against the limit','an.ceilingsub':'the tick marks the target','mt.repowrite':'Repository write','mt.link':'Proxy ↔ repository link','mt.free':'Free space · {name}','mt.of':'{got} of {ceil} {unit} ({tool})','mt.freesub':'{free} of {cap} GB','mt.target':'target {pct}%','mt.starved':'starved','mt.ok':'ok','mt.maxed':'at the limit','mt.low':'low','mt.crit':'critical'
+    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure','an.trend':'Duration per run','an.trendsub':'{runs} runs in the {days}-day window','an.trendtgt':'projected {dur}','an.trendaria':'Duration of {n} runs, from {from} to {to}','an.ceiling':'Against the limit','an.ceilingsub':'the tick marks the target','mt.repowrite':'Repository write','mt.link':'Proxy ↔ repository link','mt.free':'Free space · {name}','mt.of':'{got} of {ceil} {unit} ({tool})','mt.freesub':'{free} of {cap} GB','mt.target':'target {pct}%','mt.starved':'starved','mt.ok':'ok','mt.maxed':'at the limit','mt.low':'low','mt.crit':'critical','flow.lg.bneck':'bottleneck (telemetry)','flow.lg.gray':'ok / no data','flow.lg.solid':'— assigned proxy','flow.lg.dashed':'┄ automatic','reco.now':'Now','reco.sugg':'Suggested','reco.why':'Why','reco.auto':'automatic','reco.nochange':'no change','reco.load':'Load per resource','reco.perslot':'Jobs/slot','reco.state':'State','reco.share':'{pct}% of the data','reco.loadcfg':'From the configuration and the task slots. Run the Global analysis to add what was observed.','reco.loadobs':'Configuration + task slots + what was observed in the window (weighted by data moved).','reco.st.hotspot':'bottleneck','reco.st.concentration':'concentration','reco.st.headroom':'headroom','reco.st.ok':'ok'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -816,7 +827,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está no seu teto medido ({ceil} MB/s): storage mais rápido, mais extents do SOBR ou repartir a carga entre repositórios é a única saída.',
     'vd.act.feedNet':'Subir os streams em paralelo (task slots do proxy / mais VMs por vez): o enlace mede {ceil} Mbps e usam-se só {got}. Um enlace mais rápido não mudaria nada.',
     'vd.sig.measOn':'Teto medido: {repo} escreve {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura','an.trend':'Duracao por execucao','an.trendsub':'{runs} execucoes na janela de {days} dias','an.trendtgt':'projetado {dur}','an.trendaria':'Duracao de {n} execucoes, de {from} a {to}','an.ceiling':'Contra o limite','an.ceilingsub':'o tick marca o objetivo','mt.repowrite':'Escrita do repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espaco livre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sem alimentar','mt.ok':'ok','mt.maxed':'no limite','mt.low':'pouco','mt.crit':'critico'
+    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura','an.trend':'Duracao por execucao','an.trendsub':'{runs} execucoes na janela de {days} dias','an.trendtgt':'projetado {dur}','an.trendaria':'Duracao de {n} execucoes, de {from} a {to}','an.ceiling':'Contra o limite','an.ceilingsub':'o tick marca o objetivo','mt.repowrite':'Escrita do repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espaco livre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sem alimentar','mt.ok':'ok','mt.maxed':'no limite','mt.low':'pouco','mt.crit':'critico','flow.lg.bneck':'gargalo (telemetria)','flow.lg.gray':'ok / sem dados','flow.lg.solid':'— proxy atribuido','flow.lg.dashed':'┄ automatico','reco.now':'Agora','reco.sugg':'Sugerido','reco.why':'Por que','reco.auto':'automatico','reco.nochange':'sem mudancas','reco.load':'Carga por recurso','reco.perslot':'Jobs/slot','reco.state':'Estado','reco.share':'{pct}% do dado','reco.loadcfg':'Pela configuracao e os task slots. Rode a analise Global para somar o observado.','reco.loadobs':'Configuracao + task slots + o observado na janela (ponderado por dado movido).','reco.st.hotspot':'gargalo','reco.st.concentration':'concentracao','reco.st.headroom':'margem','reco.st.ok':'ok'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1009,39 +1020,65 @@ async function loadFlow() {
     showFlowBusy(graph);
     // Subitem: recomendaciones de asignación de proxies (se habilita al cargar Arquitectura).
     fetch(`${BACKEND}/api/${sessionId}/recommendations`).then(r => r.json())
-      .then(rc => renderReco(rc.data || [])).catch(() => {});
+      .then(rc => renderReco(rc)).catch(() => {});
   } catch (e) { console.error(e); }
 }
 
-// renderReco: lista las recomendaciones de asignación de proxies (VMware).
-function renderReco(list) {
+// renderReco: las recomendaciones y la carga por recurso, en tablas. Antes era
+// prosa ("job X: automatic proxy -> assign a fixed proxy: Y (least loaded)"), que
+// obliga a leer la frase entera para entender que hay que hacer.
+function renderReco(adv) {
   const el = document.getElementById('flowReco');
   if (!el) return;
-  let h = `<h4 style="margin:8px 0 6px;">${t('reco.title')}</h4>`;
-  if (!list.length) {
-    el.innerHTML = h + `<p class="muted" style="font-size:13px;">${t('reco.none')}</p>`;
-    return;
+  const recs = (adv && adv.recommendations) || [];
+  const res = (adv && adv.resources) || [];
+  let h = '';
+
+  if (recs.length) {
+    const rows = recs.map(r => {
+      const imp = { high: 'hotspot', medium: 'concentration', ok: 'ok' }[r.impact] || 'ok';
+      const cur = r.kind === 'auto' ? `<span style="color:var(--amber);">${t('reco.auto')}</span>` : r.current;
+      const sug = r.impact === 'ok' ? `<span style="color:#7ede6f;">${t('reco.nochange')}</span>` : `<b>${r.suggest}</b>`;
+      return `<tr><td><span class="st ${imp}">${t('vd.imp.' + (r.impact === 'ok' ? 'info' : r.impact))}</span></td>`
+        + `<td>${r.job}</td><td>${cur}</td><td>${sug}</td><td class="muted">${r.why || ''}</td></tr>`;
+    }).join('');
+    h += `<h4 style="margin:10px 0 2px;">${t('reco.title')}</h4>`
+      + `<p class="muted" style="font-size:12px;margin:0 0 6px;">${t('reco.intro')}</p>`
+      + `<div style="overflow-x:auto;"><table><tr><th></th><th>Job</th><th>${t('reco.now')}</th><th>${t('reco.sugg')}</th><th>${t('reco.why')}</th></tr>${rows}</table></div>`;
+  } else {
+    h += `<h4 style="margin:10px 0 2px;">${t('reco.title')}</h4>`
+      + `<p class="muted" style="font-size:13px;">${t('reco.none')}</p>`;
   }
-  h += `<p class="muted" style="font-size:12px;">${t('reco.intro')}</p>`;
-  for (const r of list) {
-    const c = r.kind === 'auto' ? '#E0A020' : '#3a8ee6';
-    h += `<div class="diag" style="border-left-color:${c};"><b>${r.job}</b>: ${r.current} → <b>${r.suggest}</b></div>`;
+
+  if (res.length) {
+    const rows = res.map(r => `<tr><td>${r.name}</td><td class="muted">${t('env.kind.' + r.kind)}</td>`
+      + `<td style="text-align:right;">${r.slots > 0 ? r.slots : '—'}</td>`
+      + `<td style="text-align:right;font-weight:600;">${r.jobs}</td>`
+      + `<td style="text-align:right;">${r.slots > 0 ? r.jobsPerSlot : '—'}</td>`
+      + `<td><span class="st ${r.state}">${t('reco.st.' + r.state)}</span>`
+      + `${r.sharePct ? ` <span class="muted" style="font-size:11px;">${tp('reco.share', { pct: r.sharePct })}</span>` : ''}</td></tr>`).join('');
+    h += `<h4 style="margin:16px 0 2px;">${t('reco.load')}</h4>`
+      + `<p class="muted" style="font-size:12px;margin:0 0 6px;">${adv.hasObserved ? t('reco.loadobs') : t('reco.loadcfg')}</p>`
+      + `<div style="overflow-x:auto;"><table><tr><th>${t('env.resource')}</th><th>${t('env.kind')}</th>`
+      + `<th style="text-align:right;">${t('cap.slots')}</th><th style="text-align:right;">Jobs</th>`
+      + `<th style="text-align:right;">${t('reco.perslot')}</th><th>${t('reco.state')}</th></tr>${rows}</table></div>`;
   }
   el.innerHTML = h;
 }
 
-// Explica los nodos en ámbar (muchas conexiones): lista cuáles son y su nº de
-// conexiones, para que el color ámbar tenga siempre una explicación al lado.
+// showFlowBusy: la leyenda del diagrama, en chips. Antes era un parrafo denso mas
+// una lista en prosa de los nodos cargados; ahora esos nodos salen en la tabla de
+// carga por recurso, donde se ven los slots al lado.
 function showFlowBusy(graph) {
-  const el = document.getElementById('flowBusyNote');
+  const el = document.getElementById('flowLegend');
   if (!el) return;
-  const deg = {}, byId = {};
-  (graph.nodes || []).forEach(n => byId[n.id] = n);
-  (graph.edges || []).forEach(e => { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; });
-  const busy = Object.keys(deg).filter(id => deg[id] >= 4 && byId[id])
-    .sort((a, b) => deg[b] - deg[a])
-    .map(id => `<b>${byId[id].label}</b> (${deg[id]})`);
-  el.innerHTML = busy.length ? `${t('flow.busy')} ${busy.join(', ')}` : '';
+  el.innerHTML = [
+    `<span class="lg"><b>proxy → ${t('common.repo')} → mount server</b></span>`,
+    `<span class="lg"><span class="sq" style="background:var(--red);"></span>${t('flow.lg.bneck')}</span>`,
+    `<span class="lg"><span class="sq" style="background:#5c6270;"></span>${t('flow.lg.gray')}</span>`,
+    `<span class="lg">${t('flow.lg.solid')}</span>`,
+    `<span class="lg">${t('flow.lg.dashed')}</span>`
+  ].join('');
 }
 
 // Color del nodo: con % -> semaforo (ok/atención/cuello); sin % -> rojo si el
