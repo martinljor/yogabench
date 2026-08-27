@@ -96,6 +96,7 @@ type JobCapacityResult struct {
 	Verdict         *Verdict       `json:"verdict"` // la conclusion accionable (ver verdict.go)
 	Notes           []string       `json:"notes"`
 	RepDurationSec  float64        `json:"repDurationSec"` // duracion de la corrida representativa
+	VbrOS           string         `json:"vbrOS"`          // windows | linux (donde viven los logs del job)
 	// Ventana (promedios sobre las corridas del periodo).
 	Days         int          `json:"days"`
 	Runs         int          `json:"runs"`         // corridas analizadas en la ventana
@@ -191,16 +192,22 @@ func JobDeepTarget(ctx context.Context, s *vbr.Session, jobID string) (name, osK
 	if name == "" {
 		return "", "", fmt.Errorf("job not found")
 	}
-	osKind = "windows"
+	return name, VbrOSKind(ctx, s), nil
+}
+
+// VbrOSKind: donde viven los Job/Task logs. "linux" = appliance (el deep necesita
+// SSH, que el appliance hardened no permite); "windows" = SMB al share C$.
+// La llamada a managedServers va por cache, asi que es practicamente gratis.
+func VbrOSKind(ctx context.Context, s *vbr.Session) string {
 	for _, m := range getItems(ctx, s, "v1/backupInfrastructure/managedServers?limit=1000") {
 		if boolOf(m["isBackupServer"]) {
 			if boolOf(m["isVBRLinuxAppliance"]) {
-				osKind = "linux"
+				return "linux"
 			}
-			break
+			return "windows"
 		}
 	}
-	return name, osKind, nil
+	return "windows"
 }
 
 // JobCapacity: modelo de capacidad de un job AGREGADO sobre una ventana de N dias
@@ -367,6 +374,7 @@ func JobCapacity(ctx context.Context, s *vbr.Session, jobID string, days int) (*
 		out.Resources = jobResources(ctx, s, jobID, keys(repoSet))
 	}
 
+	out.VbrOS = VbrOSKind(ctx, s) // para avisar si el deep no es posible (appliance)
 	out.Projection = projectTime(out.Stages, out.DurationSec, out.RunsWithData > 0)
 	out.Verdict = BuildVerdict(out, nil, nil) // sin deep ni medicion (ver arriba)
 	return out, nil

@@ -5,6 +5,7 @@ package topology
 
 import (
 	"context"
+	"strings"
 
 	"yogabench/internal/vbr"
 )
@@ -14,6 +15,10 @@ type Node struct {
 	Label string `json:"label"`
 	Role  string `json:"role"`
 	Info  string `json:"info,omitempty"`
+	// Kind: sub-type within the role, so the diagram can tell a local repository
+	// from object storage, a SOBR or an immutable one — they behave differently and
+	// the advice differs. Empty when the role has no sub-types.
+	Kind string `json:"kind,omitempty"`
 }
 
 type Edge struct {
@@ -43,6 +48,49 @@ func (b *builder) add(id, label, role, info string) {
 	n := &Node{ID: id, Label: label, Role: role, Info: info}
 	b.byID[id] = n
 	b.order = append(b.order, n)
+}
+
+// setKind marca el sub-tipo del nodo (ver Node.Kind).
+func (b *builder) setKind(id, kind string) {
+	if n := b.byID[id]; n != nil && kind != "" {
+		n.Kind = kind
+	}
+}
+
+// repoKind clasifica el repositorio por lo que cambia el consejo: object storage
+// (sin limite de tareas, latencia distinta), SOBR (extents), inmutable, o local.
+func repoKind(r map[string]any) string {
+	t := strings.ToLower(str(r["type"]))
+	switch {
+	case strings.Contains(t, "scaleout"), strings.Contains(t, "sobr"):
+		return "sobr"
+	case strings.Contains(t, "s3"), strings.Contains(t, "object"), strings.Contains(t, "blob"),
+		strings.Contains(t, "vault"), strings.Contains(t, "amazon"), strings.Contains(t, "azure"),
+		strings.Contains(t, "google"), strings.Contains(t, "smart"):
+		if repoImmutable(r) {
+			return "object-immutable"
+		}
+		return "object"
+	default:
+		if repoImmutable(r) {
+			return "local-immutable"
+		}
+		return "local"
+	}
+}
+
+// repoImmutable: la inmutabilidad vive en bucket/container segun el tipo.
+func repoImmutable(r map[string]any) bool {
+	for _, k := range []string{"bucket", "container"} {
+		if m, ok := r[k].(map[string]any); ok {
+			if imm, ok := m["immutability"].(map[string]any); ok {
+				if on, _ := imm["isEnabled"].(bool); on {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (b *builder) promote(id, role string) {
@@ -82,6 +130,7 @@ func Build(ctx context.Context, s *vbr.Session) (Graph, error) {
 	for _, r := range repos {
 		rid := str(r["id"])
 		b.add(rid, strOr(r["name"], "repository"), "repository", repoTasksInfo(r))
+		b.setKind(rid, repoKind(r))
 		if mid := mountServerID(r); mid != "" {
 			b.add(mid, labelFor(managed, mid, "mount server"), "mount-server", "")
 			b.promote(mid, "mount-server")

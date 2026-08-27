@@ -589,7 +589,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está en su techo medido ({ceil} MB/s): storage más rápido, más extents del SOBR o repartir la carga entre repositorios es la única salida.',
     'vd.act.feedNet':'Subir los streams en paralelo (task slots del proxy / más VMs a la vez): el enlace mide {ceil} Mbps y se usan sólo {got}. Un enlace más rápido no cambiaría nada.',
     'vd.sig.measOn':'Techo medido: {repo} escribe {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura','an.trend':'Duracion por corrida','an.trendsub':'{runs} corridas de la ventana de {days} dias','an.trendtgt':'proyectado {dur}','an.trendaria':'Duracion de {n} corridas, de {from} a {to}','an.ceiling':'Contra el limite','an.ceilingsub':'el tick marca el objetivo','mt.repowrite':'Escritura del repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espacio libre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sin alimentar','mt.ok':'ok','mt.maxed':'al limite','mt.low':'poco','mt.crit':'critico','flow.lg.bneck':'cuello (telemetria)','flow.lg.gray':'ok / sin datos','flow.lg.solid':'— proxy asignado','flow.lg.dashed':'┄ automatico','reco.now':'Ahora','reco.sugg':'Sugerido','reco.why':'Por que','reco.auto':'automatico','reco.nochange':'sin cambios','reco.load':'Carga por recurso','reco.perslot':'Jobs/slot','reco.state':'Estado','reco.share':'{pct}% del dato','reco.loadcfg':'Segun la configuracion y los task slots. Corre el analisis Global para sumar lo observado.','reco.loadobs':'Configuracion + task slots + lo observado en la ventana (ponderado por dato movido).','reco.st.hotspot':'cuello','reco.st.concentration':'concentracion','reco.st.headroom':'margen','reco.st.ok':'ok'
+    'deep.runat':'Corrida analizada','deep.runat_exp':'Los logs de Veeam acumulan varias corridas en el mismo archivo. Se analiza SIEMPRE la mas reciente: esta es su marca de tiempo, tal como la escribio el log.','env.nobneck':'sin datos suficientes','env.sub.winthin':'{jobs} jobs en ejecucion','env.conf_obs':'Observado: hay suficientes corridas con datos para hablar de un cuello recurrente.','env.conf_low':'Indicativo: pocas corridas con datos. El cuello puede cambiar cuando corran mas jobs.','env.conf_insuf':'Sin datos suficientes: en la ventana se movio muy poco (o en una sola corrida). No se dictamina el entorno.','vd.env.thin':'Solo se movieron {bytes} en {runs} corrida(s) en {days} dias: no alcanza para dictaminar la infraestructura','an.trend':'Duracion por corrida','an.trendsub':'{runs} corridas de la ventana de {days} dias','an.trendtgt':'proyectado {dur}','an.trendaria':'Duracion de {n} corridas, de {from} a {to}','an.ceiling':'Contra el limite','an.ceilingsub':'el tick marca el objetivo','mt.repowrite':'Escritura del repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espacio libre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sin alimentar','mt.ok':'ok','mt.maxed':'al limite','mt.low':'poco','mt.crit':'critico','flow.lg.bneck':'cuello (telemetria)','flow.lg.gray':'ok / sin datos','flow.lg.solid':'— proxy asignado','flow.lg.dashed':'┄ automatico','reco.now':'Ahora','reco.sugg':'Sugerido','reco.why':'Por que','reco.auto':'automatico','reco.nochange':'sin cambios','reco.load':'Carga por recurso','reco.perslot':'Jobs/slot','reco.state':'Estado','reco.share':'{pct}% del dato','reco.loadcfg':'Segun la configuracion y los task slots. Corre el analisis Global para sumar lo observado.','reco.loadobs':'Configuracion + task slots + lo observado en la ventana (ponderado por dato movido).','reco.st.hotspot':'cuello','reco.st.concentration':'concentracion','reco.st.headroom':'margen','reco.st.ok':'ok','role.backup-server':'Backup server','role.proxy':'Proxy','role.repository':'Repositorio','role.mount-server':'Mount server','role.gateway':'Gateway','role.managed-server':'Servidor','kind.local':'local','kind.local-immutable':'local inmutable','kind.object':'object storage','kind.object-immutable':'object inmutable','kind.sobr':'SOBR','deep.appl.title':'Este VBR es un appliance Linux: el detalle profundo no esta disponible','deep.appl.body':'El modo deep lee los Job/Task logs del VBR, y en un appliance eso requiere <b>SSH</b>, que el appliance hardened de v13 no permite habilitar. Por eso no se piden credenciales.','deep.appl.alt':'El resto del analisis funciona igual (ventana, veredicto, tendencia, medidores). El 4-stage <b>por VM</b> y el modo de transporte solo salen de esos logs: en un VBR Windows el deep los lee por SMB.'
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
@@ -708,7 +708,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> is at its measured ceiling ({ceil} MB/s): faster storage, more SOBR extents or splitting the load across repositories is the only way up.',
     'vd.act.feedNet':'Raise the parallel streams (proxy task slots / more VMs at once): the link measures {ceil} Mbps and only {got} are in use. A faster link would change nothing.',
     'vd.sig.measOn':'Measured ceiling: {repo} writes {repoMBps} MB/s (fio) · link {linkMbps} Mbps (iperf).',
-    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure','an.trend':'Duration per run','an.trendsub':'{runs} runs in the {days}-day window','an.trendtgt':'projected {dur}','an.trendaria':'Duration of {n} runs, from {from} to {to}','an.ceiling':'Against the limit','an.ceilingsub':'the tick marks the target','mt.repowrite':'Repository write','mt.link':'Proxy ↔ repository link','mt.free':'Free space · {name}','mt.of':'{got} of {ceil} {unit} ({tool})','mt.freesub':'{free} of {cap} GB','mt.target':'target {pct}%','mt.starved':'starved','mt.ok':'ok','mt.maxed':'at the limit','mt.low':'low','mt.crit':'critical','flow.lg.bneck':'bottleneck (telemetry)','flow.lg.gray':'ok / no data','flow.lg.solid':'— assigned proxy','flow.lg.dashed':'┄ automatic','reco.now':'Now','reco.sugg':'Suggested','reco.why':'Why','reco.auto':'automatic','reco.nochange':'no change','reco.load':'Load per resource','reco.perslot':'Jobs/slot','reco.state':'State','reco.share':'{pct}% of the data','reco.loadcfg':'From the configuration and the task slots. Run the Global analysis to add what was observed.','reco.loadobs':'Configuration + task slots + what was observed in the window (weighted by data moved).','reco.st.hotspot':'bottleneck','reco.st.concentration':'concentration','reco.st.headroom':'headroom','reco.st.ok':'ok'
+    'deep.runat':'Run analyzed','deep.runat_exp':'Veeam logs accumulate several runs in the same file. The LATEST one is always the one analyzed: this is its timestamp, exactly as the log wrote it.','env.nobneck':'not enough data','env.sub.winthin':'{jobs} jobs running','env.conf_obs':'Observed: enough runs with data to talk about a recurring bottleneck.','env.conf_low':'Indicative: few runs with data. The bottleneck may change once more jobs run.','env.conf_insuf':'Not enough data: very little moved in the window (or in a single run). The environment is not judged.','vd.env.thin':'Only {bytes} moved in {runs} run(s) over {days} days: not enough to assess the infrastructure','an.trend':'Duration per run','an.trendsub':'{runs} runs in the {days}-day window','an.trendtgt':'projected {dur}','an.trendaria':'Duration of {n} runs, from {from} to {to}','an.ceiling':'Against the limit','an.ceilingsub':'the tick marks the target','mt.repowrite':'Repository write','mt.link':'Proxy ↔ repository link','mt.free':'Free space · {name}','mt.of':'{got} of {ceil} {unit} ({tool})','mt.freesub':'{free} of {cap} GB','mt.target':'target {pct}%','mt.starved':'starved','mt.ok':'ok','mt.maxed':'at the limit','mt.low':'low','mt.crit':'critical','flow.lg.bneck':'bottleneck (telemetry)','flow.lg.gray':'ok / no data','flow.lg.solid':'— assigned proxy','flow.lg.dashed':'┄ automatic','reco.now':'Now','reco.sugg':'Suggested','reco.why':'Why','reco.auto':'automatic','reco.nochange':'no change','reco.load':'Load per resource','reco.perslot':'Jobs/slot','reco.state':'State','reco.share':'{pct}% of the data','reco.loadcfg':'From the configuration and the task slots. Run the Global analysis to add what was observed.','reco.loadobs':'Configuration + task slots + what was observed in the window (weighted by data moved).','reco.st.hotspot':'bottleneck','reco.st.concentration':'concentration','reco.st.headroom':'headroom','reco.st.ok':'ok','role.backup-server':'Backup server','role.proxy':'Proxy','role.repository':'Repository','role.mount-server':'Mount server','role.gateway':'Gateway','role.managed-server':'Server','kind.local':'local','kind.local-immutable':'local immutable','kind.object':'object storage','kind.object-immutable':'object immutable','kind.sobr':'SOBR','deep.appl.title':'This VBR is a Linux appliance: deep detail is not available','deep.appl.body':'Deep mode reads the VBR Job/Task logs, and on an appliance that requires <b>SSH</b>, which the hardened v13 appliance does not allow. That is why no credentials are asked for.','deep.appl.alt':'The rest of the analysis works normally (window, verdict, trend, meters). The <b>per-VM</b> 4-stage and the transport mode only come from those logs: on a Windows VBR deep mode reads them over SMB.'
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
@@ -827,7 +827,7 @@ const I18N = {
     'vd.act.fasterTarget':'<b>{name}</b> está no seu teto medido ({ceil} MB/s): storage mais rápido, mais extents do SOBR ou repartir a carga entre repositórios é a única saída.',
     'vd.act.feedNet':'Subir os streams em paralelo (task slots do proxy / mais VMs por vez): o enlace mede {ceil} Mbps e usam-se só {got}. Um enlace mais rápido não mudaria nada.',
     'vd.sig.measOn':'Teto medido: {repo} escreve {repoMBps} MB/s (fio) · enlace {linkMbps} Mbps (iperf).',
-    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura','an.trend':'Duracao por execucao','an.trendsub':'{runs} execucoes na janela de {days} dias','an.trendtgt':'projetado {dur}','an.trendaria':'Duracao de {n} execucoes, de {from} a {to}','an.ceiling':'Contra o limite','an.ceilingsub':'o tick marca o objetivo','mt.repowrite':'Escrita do repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espaco livre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sem alimentar','mt.ok':'ok','mt.maxed':'no limite','mt.low':'pouco','mt.crit':'critico','flow.lg.bneck':'gargalo (telemetria)','flow.lg.gray':'ok / sem dados','flow.lg.solid':'— proxy atribuido','flow.lg.dashed':'┄ automatico','reco.now':'Agora','reco.sugg':'Sugerido','reco.why':'Por que','reco.auto':'automatico','reco.nochange':'sem mudancas','reco.load':'Carga por recurso','reco.perslot':'Jobs/slot','reco.state':'Estado','reco.share':'{pct}% do dado','reco.loadcfg':'Pela configuracao e os task slots. Rode a analise Global para somar o observado.','reco.loadobs':'Configuracao + task slots + o observado na janela (ponderado por dado movido).','reco.st.hotspot':'gargalo','reco.st.concentration':'concentracao','reco.st.headroom':'margem','reco.st.ok':'ok'
+    'deep.runat':'Execucao analisada','deep.runat_exp':'Os logs do Veeam acumulam varias execucoes no mesmo arquivo. Sempre se analisa a MAIS RECENTE: este e o seu timestamp, tal como o log escreveu.','env.nobneck':'sem dados suficientes','env.sub.winthin':'{jobs} jobs em execucao','env.conf_obs':'Observado: ha execucoes suficientes com dados para falar de um gargalo recorrente.','env.conf_low':'Indicativo: poucas execucoes com dados. O gargalo pode mudar quando mais jobs rodarem.','env.conf_insuf':'Sem dados suficientes: moveu-se muito pouco na janela (ou em uma unica execucao). O ambiente nao e avaliado.','vd.env.thin':'Moveram-se apenas {bytes} em {runs} execucao(oes) em {days} dias: nao alcanca para avaliar a infraestrutura','an.trend':'Duracao por execucao','an.trendsub':'{runs} execucoes na janela de {days} dias','an.trendtgt':'projetado {dur}','an.trendaria':'Duracao de {n} execucoes, de {from} a {to}','an.ceiling':'Contra o limite','an.ceilingsub':'o tick marca o objetivo','mt.repowrite':'Escrita do repositorio','mt.link':'Enlace proxy ↔ repositorio','mt.free':'Espaco livre · {name}','mt.of':'{got} de {ceil} {unit} ({tool})','mt.freesub':'{free} de {cap} GB','mt.target':'objetivo {pct}%','mt.starved':'sem alimentar','mt.ok':'ok','mt.maxed':'no limite','mt.low':'pouco','mt.crit':'critico','flow.lg.bneck':'gargalo (telemetria)','flow.lg.gray':'ok / sem dados','flow.lg.solid':'— proxy atribuido','flow.lg.dashed':'┄ automatico','reco.now':'Agora','reco.sugg':'Sugerido','reco.why':'Por que','reco.auto':'automatico','reco.nochange':'sem mudancas','reco.load':'Carga por recurso','reco.perslot':'Jobs/slot','reco.state':'Estado','reco.share':'{pct}% do dado','reco.loadcfg':'Pela configuracao e os task slots. Rode a analise Global para somar o observado.','reco.loadobs':'Configuracao + task slots + o observado na janela (ponderado por dado movido).','reco.st.hotspot':'gargalo','reco.st.concentration':'concentracao','reco.st.headroom':'margem','reco.st.ok':'ok','role.backup-server':'Backup server','role.proxy':'Proxy','role.repository':'Repositorio','role.mount-server':'Mount server','role.gateway':'Gateway','role.managed-server':'Servidor','kind.local':'local','kind.local-immutable':'local imutavel','kind.object':'object storage','kind.object-immutable':'object imutavel','kind.sobr':'SOBR','deep.appl.title':'Este VBR e um appliance Linux: o detalhe profundo nao esta disponivel','deep.appl.body':'O modo deep le os Job/Task logs do VBR, e num appliance isso requer <b>SSH</b>, que o appliance hardened do v13 nao permite habilitar. Por isso nao se pedem credenciais.','deep.appl.alt':'O resto da analise funciona igual (janela, veredito, tendencia, medidores). O 4-stage <b>por VM</b> e o modo de transporte saem apenas desses logs: num VBR Windows o deep os le por SMB.'
   },
 };
 // tp: t con reemplazo de {placeholders}
@@ -1143,6 +1143,51 @@ function orderColumns(roles, nodes, edges) {
 }
 
 // Layout: agrupa nodos por 'role' en columnas ordenadas segun el camino de datos.
+
+// ROLE_ICONS: glifos propios (16x16, trazo) en el mismo estilo que los del menu.
+// No usamos los iconos del producto: el repo es publico y aclara que no es un
+// producto oficial de Veeam. SVG inline -> escala, sigue el tema y no agrega
+// archivos al binario.
+const ROLE_ICONS = {
+  // Servidor con dos bahias y un LED: el VBR.
+  'backup-server': ['M2.5 3h11v4.2h-11z', 'M2.5 8.8h11V13h-11z', 'M4.6 5.1h.01', 'M4.6 10.9h.01'],
+  // Data mover: dos flechas opuestas.
+  'proxy': ['M2 6h9', 'M9 4l2 2-2 2', 'M14 10H5', 'M7 8l-2 2 2 2'],
+  // Cilindro: almacenamiento.
+  'repository': ['M3 4.8c0-1 2.2-1.8 5-1.8s5 .8 5 1.8-2.2 1.8-5 1.8-5-.8-5-1.8z', 'M3 4.8v6.4c0 1 2.2 1.8 5 1.8s5-.8 5-1.8V4.8'],
+  // Cilindro + flecha: presenta los datos.
+  'mount-server': ['M2 4.8c0-1 1.9-1.8 4.2-1.8s4.2.8 4.2 1.8-1.9 1.8-4.2 1.8S2 5.8 2 4.8z', 'M2 4.8v6.4c0 1 1.9 1.8 4.2 1.8', 'M10.4 4.8v4', 'M12 11h2.5', 'M13.2 9.8L14.5 11l-1.3 1.2'],
+  // Puerta entre dos zonas.
+  'gateway': ['M3.5 3v10', 'M12.5 3v10', 'M6 8h4', 'M8.6 6.6L10 8l-1.4 1.4'],
+  'managed-server': ['M2.5 5h11v6h-11z', 'M4.6 8h.01'],
+  // Sub-tipos de repositorio (Node.Kind).
+  'repo-local': ['M3 4.8c0-1 2.2-1.8 5-1.8s5 .8 5 1.8-2.2 1.8-5 1.8-5-.8-5-1.8z', 'M3 4.8v6.4c0 1 2.2 1.8 5 1.8s5-.8 5-1.8V4.8'],
+  // Nube: object storage.
+  'repo-object': ['M4.6 11.5h6.9a2.4 2.4 0 0 0 .3-4.8 3.5 3.5 0 0 0-6.7-.9 2.4 2.4 0 0 0-.5 5.7z'],
+  // Nube + candado: inmutable.
+  'repo-object-immutable': ['M4.4 10.2h4.2a2.2 2.2 0 0 0 .3-4.4 3.2 3.2 0 0 0-6.1-.8 2.2 2.2 0 0 0-.4 5.2z', 'M10.5 10h4.2v3.6h-4.2z', 'M11.4 10V8.9a1.2 1.2 0 0 1 2.4 0V10'],
+  // Cilindro + candado.
+  'repo-local-immutable': ['M2 4.6c0-.9 1.9-1.6 4.2-1.6s4.2.7 4.2 1.6-1.9 1.6-4.2 1.6S2 5.5 2 4.6z', 'M2 4.6v6.2c0 .9 1.9 1.6 4.2 1.6', 'M9.6 9.8h4.6v3.5H9.6z', 'M10.6 9.8V8.7a1.3 1.3 0 0 1 2.6 0v1.1'],
+  // Tres cilindros: SOBR (extents).
+  'repo-sobr': ['M1.6 4.6c0-.7 1.3-1.3 3-1.3s3 .6 3 1.3-1.3 1.3-3 1.3-3-.6-3-1.3z', 'M1.6 4.6v4.2c0 .7 1.3 1.3 3 1.3s3-.6 3-1.3V4.6', 'M9 7.4c0-.7 1.3-1.3 3-1.3s3 .6 3 1.3-1.3 1.3-3 1.3-3-.6-3-1.3z', 'M9 7.4v4.2c0 .7 1.3 1.3 3 1.3s3-.6 3-1.3V7.4']
+};
+
+// iconKeyFor: el sub-tipo manda si existe (un object storage no se comporta como
+// un repo local, y el consejo cambia).
+function iconKeyFor(node) {
+  if (node.role === 'repository' && node.kind) return 'repo-' + node.kind;
+  return node.role;
+}
+
+// roleIconEl: el glifo como <g> centrado en (cx,cy).
+function roleIconEl(node, cx, cy, color) {
+  const paths = ROLE_ICONS[iconKeyFor(node)] || ROLE_ICONS[node.role] || ROLE_ICONS['managed-server'];
+  const g = mk('g', { transform: `translate(${cx - 8},${cy - 8})`, fill: 'none', stroke: color,
+    'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  paths.forEach(d => g.appendChild(mk('path', { d })));
+  return g;
+}
+
 function renderFlow(graph) {
   const svg = document.getElementById('flowCanvas');
   svg.innerHTML = '';
@@ -1172,8 +1217,12 @@ function renderFlow(graph) {
   roles.forEach((role, colIdx) => {
     const items = cols[colIdx];
     const x = colIdx * colWidth + colWidth / 2;
-    const title = mk('text', { x, y:24, 'text-anchor':'middle', 'font-size':'13px', fill:'#aab0bc', 'font-weight':'600' });
-    title.textContent = role;
+    const rname = t('role.' + role) !== 'role.' + role ? t('role.' + role) : role;
+    const tw = rname.length * 7 + 20;              // ancho aprox para centrar icono+texto
+    const tx = x - tw / 2;
+    svg.appendChild(roleIconEl({ role }, tx + 8, 20, '#aab0bc'));
+    const title = mk('text', { x: tx + 20, y: 24, 'font-size': '13px', fill: '#aab0bc', 'font-weight': '600' });
+    title.textContent = rname;
     svg.appendChild(title);
 
     // Centrar verticalmente cada columna: alinea la de 1 nodo (mount) con el medio.
@@ -1189,9 +1238,10 @@ function renderFlow(graph) {
         fill: sev ? sev+'40' : '#252a35',
         stroke: sev || (busy ? '#E0A020' : '#39404f'), 'stroke-width': (sev || busy) ? 2.5 : 1 });
       svg.appendChild(rect);
-      if (sev) {  // punto solido de semaforo
-        svg.appendChild(mk('circle', { cx:x-86, cy:y-h/2+11, r:5, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
+      if (sev) {  // punto solido de semaforo, en la esquina (el icono va al lado)
+        svg.appendChild(mk('circle', { cx:x-92, cy:y-h/2+7, r:4, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
       }
+      svg.appendChild(roleIconEl(node, x-80, y, sev || '#aab0bc'));
       if (busy) {  // solo marcamos los puntos de concentración (muchas conexiones)
         const bx = x + 88, by = y - h/2 + 2;
         svg.appendChild(mk('circle', { cx:bx, cy:by, r:9, fill:'#E0A020', stroke:'#181b22', 'stroke-width':1 }));
@@ -1199,14 +1249,14 @@ function renderFlow(graph) {
         dt.textContent = deg;
         svg.appendChild(dt);
       }
-      const label = node.label.length > 28 ? node.label.slice(0, 27) + '…' : node.label;
-      const text = mk('text', { x, y: node.info ? y-2 : y+4, 'text-anchor':'middle', 'font-size':'12px', fill:'#e6e8ec' });
+      const label = node.label.length > 21 ? node.label.slice(0, 20) + '…' : node.label;
+      const text = mk('text', { x: x-64, y: node.info ? y-2 : y+4, 'font-size':'12px', fill:'#e6e8ec' });
       text.textContent = label;
       const tt = document.createElementNS('http://www.w3.org/2000/svg', 'title'); tt.textContent = node.label; text.appendChild(tt);
       svg.appendChild(text);
       if (node.info) {
-        const sub = mk('text', { x, y:y+14, 'text-anchor':'middle', 'font-size':'10px', fill:'#8b909c' });
-        sub.textContent = node.info;
+        const sub = mk('text', { x: x-64, y:y+14, 'font-size':'10px', fill:'#8b909c' });
+        sub.textContent = node.kind ? `${t('kind.' + node.kind)} · ${node.info}` : node.info;
         svg.appendChild(sub);
       }
     });
@@ -1894,7 +1944,21 @@ function renderJobCapacity(d) {
 function openDeep() {
   const sel = document.getElementById('anJobSel');
   document.getElementById('deepJobName').textContent = (window._anJob && window._anJob.jobName) || (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '');
-  document.getElementById('deepResult').innerHTML = '';
+  // Appliance Linux: el deep lee los logs por SSH, que el appliance hardened no
+  // permite. Se avisa aca en vez de dejar tipear credenciales y fallar despues.
+  const isAppliance = (window._anJob || {}).vbrOS === 'linux';
+  const form = document.getElementById('deepForm');
+  form.style.display = isAppliance ? 'none' : 'block';
+  document.getElementById('deepResult').innerHTML = isAppliance
+    ? `<div class="vd warn"><div class="vd-hl" style="font-size:16px;margin-top:0;">${t('deep.appl.title')}</div>
+        <div class="vd-cause">${t('deep.appl.body')}</div>
+        <div class="vd-cause" style="margin-top:8px;">${t('deep.appl.alt')}</div></div>`
+    : '';
+  if (isAppliance) {
+    document.getElementById('anJobMain').style.display = 'none';
+    document.getElementById('anDeepView').style.display = 'block';
+    return;
+  }
   document.getElementById('anJobMain').style.display = 'none';
   document.getElementById('anDeepView').style.display = 'block';
 }
