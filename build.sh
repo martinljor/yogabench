@@ -23,6 +23,11 @@ echo "Linux   x64  ..."; GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "
 echo "Windows x64  ..."; GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o "$W" .
 echo "macOS   arm64..."; GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o "$M" .
 
+# ZIP del binario de Windows: el .exe suelto lo bloquea el escaneo de descarga del
+# navegador (falso positivo tipico de binario Go sin firmar). El ZIP suele pasar,
+# y de paso deja el SHA256 al lado para verificar.
+echo "ZIP (Windows) ..."; ( cd dist && zip -q "yogabench-windows-amd64-v$VERSION.zip" "yogabench-windows-amd64-v$VERSION.exe" )
+
 # Checksums (portable: sha256sum en Linux, shasum en macOS).
 echo "SHA256SUMS.txt ..."
 ( cd dist && (command -v sha256sum >/dev/null && sha256sum yogabench-* || shasum -a 256 yogabench-*) > SHA256SUMS.txt )
