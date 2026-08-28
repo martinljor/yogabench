@@ -57,6 +57,7 @@
   .langsel { width:auto; padding:4px 8px; font-size:12px; }
 
   table { width:100%; border-collapse:collapse; font-size:13px; }
+  table td:last-child { max-width:60ch; }
   th, td { text-align:left; padding:8px; border-bottom:1px solid var(--border); }
   th { color:var(--muted); font-weight:600; }
   .error { color:var(--red); font-size:13px; margin-top:8px; }
@@ -80,7 +81,7 @@
   .dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex:0 0 auto; }
   .dot.on  { background:var(--green); box-shadow:0 0 0 3px rgba(84,185,72,.25); }
   .dot.off { background:#5c6270; }
-  #flowCanvas { width:auto; max-width:100%; height:auto; border:1px solid var(--border); border-radius:8px; background:var(--panel2); }
+  #flowCanvas { display:block; width:100%; height:auto; border:1px solid var(--border); border-radius:8px; background:var(--panel2); }
   .bar-track { background:#2b2f3b; border-radius:4px; height:14px; width:120px; display:inline-block; vertical-align:middle; overflow:hidden; }
   .bar-fill { background:var(--blue); height:100%; display:block; }
   .progress { background:#2b2f3b; border-radius:6px; height:20px; overflow:hidden; margin:10px 0; }
@@ -126,7 +127,9 @@
   .kpi .k-val.good { color:#7ede6f; } .kpi .k-val.bad { color:#f08b8b; }
   .kpi .k-sub.good { color:#7ede6f; } .kpi .k-sub.bad { color:#f08b8b; }
   details.exp { border-bottom:1px solid var(--border); }
-  details.exp > summary { cursor:pointer; padding:10px 2px; font-size:14px; list-style:none; display:flex; justify-content:space-between; align-items:center; color:var(--text); }
+  details.exp > summary { cursor:pointer; padding:9px 2px; font-size:13px; font-weight:600; list-style:none;
+    display:flex; align-items:center; gap:8px; color:var(--text); }
+  details.exp > summary .cnt { margin-left:auto; font-weight:400; font-size:12px; color:var(--muted); }
   details.exp > summary::-webkit-details-marker { display:none; }
   details.exp > summary::before { content:'▸'; color:var(--muted); margin-right:8px; transition:transform .15s; display:inline-block; }
   details.exp[open] > summary::before { transform:rotate(90deg); }
@@ -139,8 +142,8 @@
   .vd.critical { border-left-color:var(--red); }
   .vd.warn     { border-left-color:var(--amber); }
   .vd.ok       { border-left-color:var(--green); }
-  .vd-hl { font-size:19px; font-weight:600; line-height:1.3; margin-top:8px; }
-  .vd-cause { font-size:13px; color:#b9c0cc; margin-top:5px; }
+  .vd-hl { font-size:19px; font-weight:600; line-height:1.3; margin-top:8px; max-width:70ch; }
+  .vd-cause { font-size:13px; line-height:1.5; color:#b9c0cc; margin-top:5px; max-width:95ch; }
   .vd-cause b { color:var(--text); font-weight:600; }
   .act { display:flex; gap:10px; align-items:flex-start; padding:11px 2px; border-bottom:1px solid var(--border); }
   .act:last-child { border-bottom:none; }
@@ -150,13 +153,13 @@
   .act-b.medium  { background:rgba(224,160,32,.18); color:#f0c368; }
   .act-b.verify  { background:rgba(58,142,230,.18); color:#8ec2f5; }
   .act-b.info    { background:#2b2f3b; color:#b9c0cc; }
-  .act-txt { flex:1; font-size:13.5px; line-height:1.45; }
+  .act-txt { flex:1; font-size:13px; line-height:1.5; max-width:95ch; }
   .act-src { font-size:11px; color:var(--muted); margin-top:2px; }
   .act-gain { flex:0 0 auto; color:#7ede6f; font-size:13px; white-space:nowrap; margin-top:1px; }
   .gain-track { height:9px; background:#2b2f3b; border-radius:5px; overflow:hidden; margin-top:7px; }
   .gain-fill { height:100%; background:#54b948; display:block; }
-  .sigs { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
-  .sig { font-size:12px; color:var(--muted); cursor:help; }
+  .sigs { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+  .sig { font-size:12px; line-height:1.5; color:var(--muted); cursor:help; }
   .sig.on { color:#7ede6f; }
 
   /* Leyenda del diagrama: chips en vez de un parrafo */
@@ -174,13 +177,15 @@
   /* Tendencia por corrida (uso historico) */
   .trend { margin-top:6px; }
   .trend svg { display:block; width:100%; height:auto; }
+  /* El viewBox se arma con el ancho real del contenedor: 1 unidad = 1 px, asi el
+     texto no se agranda al escalar (era el motivo de los numeros gigantes). */
   .trend .t-grid { stroke:var(--border); stroke-width:1; }
   .trend .t-area { fill:rgba(58,142,230,.20); }
   .trend .t-line { fill:none; stroke:var(--blue); stroke-width:2; stroke-linejoin:round; }
   .trend .t-dot  { fill:var(--panel2); stroke:var(--blue); stroke-width:2; }
   .trend .t-tgt  { stroke:var(--muted); stroke-width:2; stroke-dasharray:6 4; opacity:.85; }
   .trend text { fill:var(--muted); font-size:10px; }
-  .trend .t-val { fill:#b9c0cc; font-size:11px; }
+  .trend .t-val { fill:#b9c0cc; font-size:11px; font-weight:600; }
 
   /* Medidores: una proporcion contra un limite (tick = objetivo) */
   .mts { display:flex; gap:24px; flex-wrap:wrap; margin-top:8px; }
@@ -1194,7 +1199,12 @@ function renderFlow(graph) {
   const order = ['backup-server', 'proxy', 'repository', 'mount-server', 'gateway', 'managed-server'];
   const present = order.filter(r => graph.nodes.some(n => n.role === r));
   const roles = present.length ? present : [...new Set(graph.nodes.map(n => n.role))];
-  const colWidth = 900 / Math.max(roles.length, 1);
+  // Ancho real disponible: la topologia usa toda la pantalla en vez de 900 fijos.
+  const host = svg.parentElement;
+  const W = Math.max(760, (host ? host.clientWidth : 900) - 4);
+  const colWidth = W / Math.max(roles.length, 1);
+  const NW = Math.min(280, Math.max(190, colWidth - 40)); // ancho del nodo
+  const half = NW / 2;
   // El color ahora significa semaforo de bottleneck. Sin dato -> gris neutro
   // (para no confundir el color de rol con una severidad).
   const NEUTRAL = '#9a988f';
@@ -1208,9 +1218,9 @@ function renderFlow(graph) {
 
   // Alto dinamico: el lienzo crece con la columna mas larga, asi no se corta.
   const maxRows = Math.max(1, ...roles.map(r => graph.nodes.filter(n => n.role === r).length));
-  const H = 60 + maxRows * 64;
-  svg.setAttribute('viewBox', `0 0 900 ${H}`);
-  svg.setAttribute('width', 900);   // tamaño natural; CSS lo achica si no entra
+  const H = 56 + maxRows * 62;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.removeAttribute('width');     // el CSS lo lleva al 100% del contenedor
   svg.setAttribute('height', H);
 
   const cols = orderColumns(roles, graph.nodes, graph.edges);
@@ -1218,7 +1228,7 @@ function renderFlow(graph) {
     const items = cols[colIdx];
     const x = colIdx * colWidth + colWidth / 2;
     const rname = t('role.' + role) !== 'role.' + role ? t('role.' + role) : role;
-    const tw = rname.length * 7 + 20;              // ancho aprox para centrar icono+texto
+    const tw = rname.length * 7 + 20;              // ancho aprox para centrar icono+texto (13px)
     const tx = x - tw / 2;
     svg.appendChild(roleIconEl({ role }, tx + 8, 20, '#aab0bc'));
     const title = mk('text', { x: tx + 20, y: 24, 'font-size': '13px', fill: '#aab0bc', 'font-weight': '600' });
@@ -1228,34 +1238,35 @@ function renderFlow(graph) {
     // Centrar verticalmente cada columna: alinea la de 1 nodo (mount) con el medio.
     const startY = Math.max(64, (H - (items.length - 1) * 64) / 2 + 8);
     items.forEach((node, rowIdx) => {
-      const y = startY + rowIdx * 64;
+      const y = startY + rowIdx * 62;
       positions[node.id] = { x, y };
       const sev = nodeSeverity(node);
       const deg = degree[node.id] || 0;
       const busy = deg >= BUSY;
       const h = node.info ? 46 : 38;
-      const rect = mk('rect', { x:x-100, y:y-h/2, width:200, height:h, rx:8,
+      const rect = mk('rect', { x:x-half, y:y-h/2, width:NW, height:h, rx:8,
         fill: sev ? sev+'40' : '#252a35',
         stroke: sev || (busy ? '#E0A020' : '#39404f'), 'stroke-width': (sev || busy) ? 2.5 : 1 });
       svg.appendChild(rect);
       if (sev) {  // punto solido de semaforo, en la esquina (el icono va al lado)
-        svg.appendChild(mk('circle', { cx:x-92, cy:y-h/2+7, r:4, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
+        svg.appendChild(mk('circle', { cx:x-half+8, cy:y-h/2+7, r:4, fill:sev, stroke:'#181b22', 'stroke-width':1 }));
       }
-      svg.appendChild(roleIconEl(node, x-80, y, sev || '#aab0bc'));
+      svg.appendChild(roleIconEl(node, x-half+20, y, sev || '#aab0bc'));
       if (busy) {  // solo marcamos los puntos de concentración (muchas conexiones)
-        const bx = x + 88, by = y - h/2 + 2;
+        const bx = x + half - 12, by = y - h/2 + 2;
         svg.appendChild(mk('circle', { cx:bx, cy:by, r:9, fill:'#E0A020', stroke:'#181b22', 'stroke-width':1 }));
         const dt = mk('text', { x:bx, y:by+4, 'text-anchor':'middle', 'font-size':'10px', fill:'#181b22', 'font-weight':'700' });
         dt.textContent = deg;
         svg.appendChild(dt);
       }
-      const label = node.label.length > 21 ? node.label.slice(0, 20) + '…' : node.label;
-      const text = mk('text', { x: x-64, y: node.info ? y-2 : y+4, 'font-size':'12px', fill:'#e6e8ec' });
+      const maxCh = Math.max(14, Math.floor((NW - 66) / 6.4)); // 6.4px por caracter a 12px
+      const label = node.label.length > maxCh ? node.label.slice(0, maxCh - 1) + '…' : node.label;
+      const text = mk('text', { x: x-half+36, y: node.info ? y-2 : y+4, 'font-size':'12px', fill:'#e6e8ec' });
       text.textContent = label;
       const tt = document.createElementNS('http://www.w3.org/2000/svg', 'title'); tt.textContent = node.label; text.appendChild(tt);
       svg.appendChild(text);
       if (node.info) {
-        const sub = mk('text', { x: x-64, y:y+14, 'font-size':'10px', fill:'#8b909c' });
+        const sub = mk('text', { x: x-half+36, y:y+14, 'font-size':'10px', fill:'#8b909c' });
         sub.textContent = node.kind ? `${t('kind.' + node.kind)} · ${node.info}` : node.info;
         svg.appendChild(sub);
       }
@@ -1782,7 +1793,11 @@ function actionsList(v) {
 function runTrend(d) {
   const runs = (d.runList || []).slice().reverse(); // runList viene del mas nuevo al mas viejo
   if (runs.length < 2) return ''; // con una corrida no hay tendencia que mostrar
-  const W = 620, H = 150, L = 46, R = 10, T = 14, B = 26;
+  // Ancho real del contenedor: el viewBox se arma en px, asi 1 unidad = 1 px y el
+  // texto conserva su tamano en vez de escalarse con el SVG.
+  const host = document.getElementById('anJobContent');
+  const W = Math.max(420, (host ? host.clientWidth : 900) - 36); // sin tope: 1 unidad = 1 px
+  const H = 116, L = 44, R = 10, T = 12, B = 22;
   const tgt = (d.verdict && d.verdict.targetSec > 0) ? d.verdict.targetSec : 0;
   const top = Math.max(...runs.map(r => r.durationSec || 0), tgt) * 1.12 || 1;
   const x = i => L + i * (W - L - R) / (runs.length - 1);
@@ -1930,11 +1945,11 @@ function renderJobCapacity(d) {
       ${ceilingMeters(d)}
       ${d.verdict ? actionsList(d.verdict) + signalsRow(d.verdict) : ''}
       <div style="margin-top:14px;">
-        <details class="exp"><summary>${t('cap.stages')} <span class="muted" style="font-weight:400;">${noPct ? '' : `(${t('cap.avg')})`}</span></summary>
+        <details class="exp"><summary>${t('cap.stages')} <span class="cnt">${noPct ? '' : t('cap.avg')}</span></summary>
           <div class="exp-body">${noPct ? `<p class="muted" style="font-size:12px;margin:2px 0;">ℹ️ ${tp('cap.nopct', { stage: d.primary || '—' })}</p>` : (stages || '<span class="muted">—</span>')}</div></details>
-        <details class="exp"><summary>${t('cap.runs')} <span class="muted">${(d.runList || []).length}</span></summary>
+        <details class="exp"><summary>${t('cap.runs')} <span class="cnt">${(d.runList || []).length}</span></summary>
           <div class="exp-body">${runs}</div></details>
-        <details class="exp"><summary>${t('cap.pervm')} <span class="muted" style="font-weight:400;">(${t('cap.reprun')})</span> <span class="muted">${(d.tasks || []).length}</span></summary>
+        <details class="exp"><summary>${t('cap.pervm')} <span class="cnt">${t('cap.reprun')}</span> <span class="cnt">${(d.tasks || []).length}</span></summary>
           <div class="exp-body">${vms}${notes}</div></details>
       </div>
     </div>`;
@@ -2103,7 +2118,7 @@ function renderAssessment(a) {
     + `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('env.hours')}</div>`
     + hourChart(a.hours || [], a.busiestHour)
     + `<div style="margin-top:12px;">
-        <details class="exp"><summary>${t('env.hotspots')} <span class="muted">${(a.hotspots || []).length}</span></summary>
+        <details class="exp"><summary>${t('env.hotspots')} <span class="cnt">${(a.hotspots || []).length}</span></summary>
           <div class="exp-body">${hsTable}</div></details>
       </div>`;
 }
@@ -2120,12 +2135,12 @@ function renderAnalysis(d) {
   el.innerHTML =
     (asmt ? `<div class="subcard">${renderAssessment(asmt)}</div>` : '') +
     `<div style="margin-top:14px;">
-      <details class="exp"><summary>${t('an.period')} <span class="muted">${(d.summary || {}).runs || 0}</span></summary>
+      <details class="exp"><summary>${t('an.period')} <span class="cnt">${(d.summary || {}).runs || 0}</span></summary>
         <div class="exp-body">${globalTiles(d && d.summary)}
           <p class="muted" style="font-size:11px;margin:2px 0 0;">ℹ️ ${t('env.vscount')}</p></div></details>
-      <details class="exp"><summary>${t('an.byproxy')} <span class="muted">${prx.length}</span></summary>
+      <details class="exp"><summary>${t('an.byproxy')} <span class="cnt">${prx.length}</span></summary>
         <div class="exp-body">${prx.length ? prx.map(g => groupCard(g, 'proxy')).join('') : `<p class="muted">${t('an.noproxy')}</p>`}</div></details>
-      <details class="exp"><summary>${t('an.byrepo')} <span class="muted">${repo.length}</span></summary>
+      <details class="exp"><summary>${t('an.byrepo')} <span class="cnt">${repo.length}</span></summary>
         <div class="exp-body">${repo.length ? repo.map(g => groupCard(g, 'repo')).join('') : `<p class="muted">${t('an.nodata')}</p>`}</div></details>
     </div>`;
 }
