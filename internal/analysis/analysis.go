@@ -180,11 +180,20 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	if days != nil {
 		winDays = *days
 	}
+	// Fiabilidad: las sesiones fallidas se descartan del agregado (no tienen
+	// telemetria util) pero SI cuentan para el veredicto. No cuesta REST extra:
+	// vienen en la misma respuesta que ya leimos.
+	asmt := BuildAssessment(recs, winDays, repoNames, proxyNames)
+	if asmt != nil {
+		rel := FailuresOf(dataSess)
+		rel.DownHosts = DownHostsOf(ctx, s)
+		asmt.AddReliability(rel)
+	}
 	return Result{
 		Range:        rng,
 		Days:         days,
 		Summary:      summarize(recs),
-		Assessment:   BuildAssessment(recs, winDays, repoNames, proxyNames),
+		Assessment:   asmt,
 		ByRepository: aggregate(recs, func(r Record) []string { return r.RepoIDs }, repoNames, "(sin repositorio)"),
 		ByProxy:      aggregate(recs, func(r Record) []string { return r.ProxyIDs }, proxyNames, "(sin proxy identificado)"),
 	}, nil

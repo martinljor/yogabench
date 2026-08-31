@@ -93,12 +93,17 @@ type Assessment struct {
 
 	// Backup window. Busiest* is where the load actually is (jobs RUNNING);
 	// Stagger* is where most jobs START, which is what can be moved apart.
-	BusiestHour    int            `json:"busiestHour"`
-	BusiestJobs    int            `json:"busiestJobs"`
-	BusiestPct     int            `json:"busiestPct"`
-	StaggerHour    int            `json:"staggerHour"`
-	StaggerJobs    int            `json:"staggerJobs"`
-	StaggerPct     int            `json:"staggerPct"`
+	BusiestHour int `json:"busiestHour"`
+	BusiestJobs int `json:"busiestJobs"`
+	BusiestPct  int `json:"busiestPct"`
+	StaggerHour int `json:"staggerHour"`
+	StaggerJobs int `json:"staggerJobs"`
+	StaggerPct  int `json:"staggerPct"`
+	// Reliability: corridas que fallaron y hosts caidos (ver reliability.go). Va
+	// antes que cualquier cuello: un backup que no termina no es un problema de
+	// velocidad.
+	Reliability Reliability `json:"reliability"`
+
 	Actions        []Action       `json:"actions"`
 	Severity       string         `json:"severity"` // critical | warn | ok | unknown
 	HeadlineCode   string         `json:"headlineCode"`

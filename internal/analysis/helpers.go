@@ -92,6 +92,14 @@ func isDataJob(sess map[string]any) bool {
 	return false
 }
 
+// messageOf: el mensaje de error de la sesion (vive dentro de "result").
+func messageOf(sess map[string]any) string {
+	if res, ok := sess["result"].(map[string]any); ok {
+		return str(res["message"])
+	}
+	return ""
+}
+
 func resultOf(sess map[string]any) string {
 	if res, ok := sess["result"].(map[string]any); ok {
 		return str(res["result"])
