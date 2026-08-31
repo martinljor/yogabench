@@ -56,3 +56,46 @@ func TestCacheHitAndExpiry(t *testing.T) {
 		t.Error("an entry older than the TTL must be a miss")
 	}
 }
+
+// Single-flight: several parallel misses on the same path must produce ONE fetch.
+// In the field two parallel v1/jobs fetches took 19 s each on the same payload.
+func TestSingleFlightJoinsOneCall(t *testing.T) {
+	s := &Session{}
+	const path = "v1/jobs?limit=1000"
+	call, lead := s.joinOrLead(path)
+	if !lead {
+		t.Fatal("the first caller must lead the fetch")
+	}
+	// Two more callers arrive while it is in flight: both wait on the same call.
+	same, lead2 := s.joinOrLead(path)
+	if lead2 || same != call {
+		t.Fatalf("a second caller must join, not lead: lead=%v same=%v", lead2, same == call)
+	}
+	// A different path is independent.
+	if _, leadOther := s.joinOrLead("v1/backupInfrastructure/proxies?limit=1000"); !leadOther {
+		t.Error("another path must lead its own fetch")
+	}
+
+	got := make(chan string, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			<-call.done
+			got <- string(call.body)
+		}()
+	}
+	s.leadDone(path, call, json.RawMessage(`{"data":[1]}`), nil)
+	for i := 0; i < 2; i++ {
+		select {
+		case v := <-got:
+			if v != `{"data":[1]}` {
+				t.Errorf("waiter got %q", v)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("a waiter was never released")
+		}
+	}
+	// Once finished the path is free again, so the next miss fetches fresh.
+	if _, leadAgain := s.joinOrLead(path); !leadAgain {
+		t.Error("after finishing, the next caller must lead")
+	}
+}

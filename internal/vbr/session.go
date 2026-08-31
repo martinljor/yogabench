@@ -42,6 +42,44 @@ type Session struct {
 
 	cacheMu sync.Mutex
 	cache   map[string]cacheEntry
+
+	// inflight: one request per path even if several parallel GETs hit the same
+	// cache miss. On a loaded VBR v1/jobs takes 19 s, so paying it twice at the
+	// same time is pure waste (seen in the field: two 19 s fetches back to back).
+	inflightMu sync.Mutex
+	inflight   map[string]*inflightCall
+}
+
+// inflightCall: a fetch in progress that other callers can wait on.
+type inflightCall struct {
+	done chan struct{}
+	body json.RawMessage
+	err  error
+}
+
+// joinOrLead returns the call for this path and whether the caller must perform
+// the fetch (leader) or just wait for it.
+func (s *Session) joinOrLead(path string) (*inflightCall, bool) {
+	s.inflightMu.Lock()
+	defer s.inflightMu.Unlock()
+	if c := s.inflight[path]; c != nil {
+		return c, false
+	}
+	c := &inflightCall{done: make(chan struct{})}
+	if s.inflight == nil {
+		s.inflight = map[string]*inflightCall{}
+	}
+	s.inflight[path] = c
+	return c, true
+}
+
+// leadDone publishes the result to everyone waiting on this path.
+func (s *Session) leadDone(path string, c *inflightCall, body json.RawMessage, err error) {
+	c.body, c.err = body, err
+	s.inflightMu.Lock()
+	delete(s.inflight, path)
+	s.inflightMu.Unlock()
+	close(c.done)
 }
 
 // cacheEntry: a GET response kept for a short while (see cacheable in client.go).

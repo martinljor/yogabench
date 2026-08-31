@@ -251,13 +251,18 @@ func (s *Server) recommendations(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	adv, err := topology.Recommend(r.Context(), sess, observedHotspots(sess))
+	hot, hasAssessment := observedHotspots(sess)
+	adv, err := topology.Recommend(r.Context(), sess, hot)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	log.Printf("recommendations: %d suggestion(s), %d resource(s), observed=%v",
-		len(adv.Recommendations), len(adv.Resources), adv.HasObserved)
+	// HasObserved = el assessment estaba disponible, no que haya hotspots. Un
+	// entorno Source-bound no tiene recurso "dueño" del cuello, asi que la lista
+	// de hotspots viene vacia y decir "observed=false" era enganoso.
+	adv.HasObserved = hasAssessment
+	log.Printf("recommendations: %d suggestion(s), %d resource(s), assessment=%v hotspots=%d",
+		len(adv.Recommendations), len(adv.Resources), hasAssessment, len(hot))
 	writeJSON(w, http.StatusOK, adv)
 }
 
@@ -266,10 +271,10 @@ func (s *Server) recommendations(w http.ResponseWriter, r *http.Request) {
 // configuration and could move load onto the very resource that is the
 // bottleneck. Running the assessment here would cost a full window scan, so it is
 // used only when it is already there — free.
-func observedHotspots(sess *vbr.Session) []topology.Hotspot {
+func observedHotspots(sess *vbr.Session) ([]topology.Hotspot, bool) {
 	a, _ := sess.AnalyzedAll()["assessment"].(*analysis.Assessment)
 	if a == nil || a.Confidence == "insufficient" {
-		return nil // a verdict we would not stand behind must not drive advice
+		return nil, false // a verdict we would not stand behind must not drive advice
 	}
 	out := make([]topology.Hotspot, 0, len(a.Hotspots))
 	for _, h := range a.Hotspots {
@@ -277,7 +282,7 @@ func observedHotspots(sess *vbr.Session) []topology.Hotspot {
 			ID: h.ID, Kind: h.Kind, Stage: h.Stage, SharePct: h.SharePct, MBps: h.ThrouMBps,
 		})
 	}
-	return out
+	return out, true
 }
 
 // analysis: estadistica de bottleneck agregada por repo y proxy. `days` opcional
@@ -588,7 +593,7 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			"repositories":         rawOrErr("v1/backupInfrastructure/repositories?limit=1000"),
 			"scaleOutRepositories": rawOrErr("v1/backupInfrastructure/scaleOutRepositories?limit=1000"),
 			"managedServers":       rawOrErr("v1/backupInfrastructure/managedServers?limit=1000"),
-			"jobs":                 rawOrErr(analysis.JobsPath),                                            // relaciones proxy->repo
+			"jobs":                 rawOrErr(analysis.JobsPath),                                              // relaciones proxy->repo
 			"sessions":             rawOrErr("v1/sessions?limit=10&orderColumn=CreationTime&orderAsc=false"), // analisis
 		},
 	}

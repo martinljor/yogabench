@@ -1650,7 +1650,10 @@ async function loadAnalysis() {
   try {
     const r = await getJSON(`${BACKEND}/api/${sessionId}/analysis-range`);
     if (r.from) {
-      daysEl.value = r.days_available || 7;
+      // Default 7 dias, no todo el historico: con 92 dias el histograma se divide
+      // por 92 y el "pico" deja de representar lo que la infra sostiene hoy. El
+      // rango disponible se muestra al lado por si se quiere ampliar.
+      daysEl.value = Math.min(7, r.days_available || 7);
       rangeEl.textContent = tp('an.range', { n: r.days_available, from: r.from, to: r.to });
     } else {
       rangeEl.textContent = t('an.nohistory');

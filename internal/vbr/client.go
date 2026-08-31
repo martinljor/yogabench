@@ -127,13 +127,31 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 	if s.Demo {
 		return demoResponse(path), nil
 	}
-	cache := cacheable(path)
-	if cache {
-		if body, ok := s.cacheGet(path); ok {
-			dbg.Logf("GET %s -> cached (%dB)", path, len(body))
-			return body, nil
-		}
+	if !cacheable(path) {
+		return fetchOnce(ctx, s, path)
 	}
+	if body, ok := s.cacheGet(path); ok {
+		dbg.Logf("GET %s -> cached (%dB)", path, len(body))
+		return body, nil
+	}
+	// Single-flight: si otra request ya esta trayendo este path, esperamos su
+	// resultado en vez de pedirlo de nuevo (v1/jobs tarda 19 s en un VBR cargado).
+	call, lead := s.joinOrLead(path)
+	if !lead {
+		dbg.Logf("GET %s -> waiting for the in-flight request", path)
+		<-call.done
+		return call.body, call.err
+	}
+	body, err := fetchOnce(ctx, s, path)
+	if err == nil {
+		s.cachePut(path, body)
+	}
+	s.leadDone(path, call, body, err)
+	return body, err
+}
+
+// fetchOnce: un GET con renovacion de token y un reintento ante 401.
+func fetchOnce(ctx context.Context, s *Session, path string) (json.RawMessage, error) {
 	tok, stale := s.token()
 	if stale { // esta por vencer: lo renovamos antes de gastar el request
 		if err := renewToken(ctx, s, tok); err != nil {
@@ -167,9 +185,6 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 	if !json.Valid(body) {
 		log.Printf("REST GET %s: non-JSON response", path)
 		return nil, &APIError{502, fmt.Sprintf("Non-JSON response from %s", path)}
-	}
-	if cache {
-		s.cachePut(path, json.RawMessage(body))
 	}
 	return json.RawMessage(body), nil
 }
