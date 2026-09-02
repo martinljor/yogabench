@@ -45,3 +45,30 @@ func TestRunAlgorithm(t *testing.T) {
 		}
 	}
 }
+
+// SOBR system sessions (offload/tiering) flooded the job selector and inflated
+// the assessment to "52 jobs" on a field lab: their names contain "Backup", so
+// the job-hint match let them in.
+func TestIsDataJobSkipsSobrSystemSessions(t *testing.T) {
+	skip := []map[string]any{
+		{"sessionType": "SobrOffload", "name": "Hardened Scale-Out Backup Repository Offload"},
+		{"sessionType": "BackupOffload", "name": "Repo Offload"},
+		{"sessionType": "SobrTiering", "name": "Capacity Tiering Backup"},
+		{"sessionType": "RepositoryRescan", "name": "Backup Repository Rescan"},
+	}
+	keep := []map[string]any{
+		{"sessionType": "BackupJob", "name": "VMware - File Servers (Incremental)"},
+		{"sessionType": "BackupCopy", "name": "Copy Backup"},
+		{"sessionType": "ReplicaJob", "name": "VMware - Replicas"},
+	}
+	for _, x := range skip {
+		if isDataJob(x) {
+			t.Errorf("%v must be skipped", x["sessionType"])
+		}
+	}
+	for _, x := range keep {
+		if !isDataJob(x) {
+			t.Errorf("%v must be kept", x["sessionType"])
+		}
+	}
+}

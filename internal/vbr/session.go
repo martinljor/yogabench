@@ -99,6 +99,18 @@ func (s *Session) cacheGet(path string) (json.RawMessage, bool) {
 	return e.body, true
 }
 
+// cacheGetStale returns an expired entry, still usable as a fallback when the
+// fresh fetch fails. Capped so a whole session never runs on ancient data.
+func (s *Session) cacheGetStale(path string) (json.RawMessage, bool) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	e, ok := s.cache[path]
+	if !ok || time.Since(e.at) > staleTTL {
+		return nil, false
+	}
+	return e.body, true
+}
+
 func (s *Session) cachePut(path string, body json.RawMessage) {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()

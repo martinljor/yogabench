@@ -41,6 +41,20 @@ func baseURL(host string, port int) string {
 // session history). Kept well above the 12 s observed in the field.
 const getTimeout = 30 * time.Second
 
+// jobsTimeout: v1/jobs is the one endpoint that legitimately takes long on a
+// loaded VBR — measured in the field: 6.6 s quiet, 18.5 s busy, and over 30 s
+// under load (six timeouts in a row). Everything that depends on it (topology
+// edges, the job selector, per-job analysis) degrades without it, so it gets a
+// bigger budget than the rest.
+const jobsTimeout = 75 * time.Second
+
+func budgetFor(path string) time.Duration {
+	if strings.HasPrefix(path, "v1/jobs") {
+		return jobsTimeout
+	}
+	return getTimeout
+}
+
 func httpClient(verify bool) *http.Client {
 	tr := &http.Transport{}
 	if !verify { // VBR suele tener cert self-signed
@@ -116,6 +130,10 @@ func renewToken(ctx context.Context, s *Session, used string) error {
 // cached: they change on every run and the analysis depends on them being fresh.
 const cacheTTL = 60 * time.Second
 
+// staleTTL: how old a cached copy may be and still serve as a fallback when the
+// fresh fetch times out.
+const staleTTL = 30 * time.Minute
+
 func cacheable(path string) bool {
 	return strings.HasPrefix(path, "v1/jobs") || strings.HasPrefix(path, "v1/backupInfrastructure/")
 }
@@ -145,6 +163,12 @@ func Get(ctx context.Context, s *Session, path string) (json.RawMessage, error) 
 	body, err := fetchOnce(ctx, s, path)
 	if err == nil {
 		s.cachePut(path, body)
+	} else if stale, ok := s.cacheGetStale(path); ok {
+		// The fetch failed but an older copy exists: job/infrastructure config
+		// changes slowly, so data from minutes ago beats an empty diagram and an
+		// empty job selector.
+		log.Printf("REST GET %s: failed (%v) — serving the previous copy", path, err)
+		body, err = stale, nil
 	}
 	s.leadDone(path, call, body, err)
 	return body, err
@@ -192,7 +216,8 @@ func fetchOnce(ctx context.Context, s *Session, path string) (json.RawMessage, e
 // doGet: un intento de GET con el token dado. Devuelve el body y el status.
 func doGet(ctx context.Context, s *Session, path, token string) ([]byte, int, error) {
 	// Per-attempt budget: the retry after a token renewal gets a fresh one.
-	ctx, cancel := context.WithTimeout(ctx, getTimeout)
+	budget := budgetFor(path)
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL(s.Host, s.Port)+"/"+path, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -202,8 +227,8 @@ func doGet(ctx context.Context, s *Session, path, token string) ([]byte, int, er
 	resp, e := httpClient(s.VerifySSL).Do(req)
 	if e != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("REST GET %s: timed out after %s (the VBR is loaded)", path, getTimeout)
-			return nil, 0, &APIError{504, fmt.Sprintf("%s timed out after %s: the VBR did not answer in time.", path, getTimeout)}
+			log.Printf("REST GET %s: timed out after %s (the VBR is loaded)", path, budget)
+			return nil, 0, &APIError{504, fmt.Sprintf("%s timed out after %s: the VBR did not answer in time.", path, budget)}
 		}
 		log.Printf("REST GET %s: no response: %v", path, e)
 		return nil, 0, &APIError{504, fmt.Sprintf("Error querying %s: %v", path, e)}
