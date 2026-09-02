@@ -195,6 +195,14 @@ func buildJobEdges(ctx context.Context, s *vbr.Session, proxies []map[string]any
 	}
 
 	for k, auto := range edgeAuto {
+		// A job can point at a repository the REST did not list (field case: two
+		// edge targets absent from /repositories and /scaleOutRepositories). The
+		// frontend would silently drop the edge, losing real configuration. A
+		// placeholder node keeps it visible and says what it is.
+		if b.byID[k[1]] == nil {
+			b.add(k[1], "(repository not listed by the REST API)", "repository", "")
+			b.setKind(k[1], "unknown")
+		}
 		b.edges = append(b.edges, Edge{From: k[0], To: k[1], Kind: "writes-to", Auto: auto})
 	}
 }

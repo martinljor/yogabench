@@ -7,6 +7,7 @@ package analysis
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -137,4 +138,37 @@ func TestNoFailuresLeavesVerdictAlone(t *testing.T) {
 	if a.HeadlineCode != head || a.Severity != sev || len(a.Actions) != n {
 		t.Errorf("verdict changed with no failures: %s/%s/%d", a.HeadlineCode, a.Severity, len(a.Actions))
 	}
+}
+
+// Veeam sometimes leaves the last task title ("Processing File02") in
+// result.message instead of the error. Presenting that as the reason is
+// misleading — field case from the large lab.
+func TestFailureMessageThatIsNotAnError(t *testing.T) {
+	in := []map[string]any{
+		sess("j1", "VMware - File Servers", "2026-08-26", "22:32", "Failed", "Processing File02"),
+		sess("j2", "NAS Backup", "2026-08-27", "06:57", "Failed", "Error: No route to host"),
+	}
+	rel := FailuresOf(in)
+	if len(rel.Failures) != 2 {
+		t.Fatalf("groups: got %d, want 2", len(rel.Failures))
+	}
+	for _, f := range rel.Failures {
+		switch f.JobID {
+		case "j1":
+			if f.Message == "Processing File02" {
+				t.Error("a task title must not be presented as the failure reason")
+			}
+			if want := `failed at "Processing File02"`; !containsStr(f.Message, want) {
+				t.Errorf("message: got %q, want it to contain %q", f.Message, want)
+			}
+		case "j2":
+			if f.Message != "Error: No route to host" {
+				t.Errorf("a real error must pass through untouched: %q", f.Message)
+			}
+		}
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return len(s) >= len(sub) && strings.Contains(s, sub)
 }

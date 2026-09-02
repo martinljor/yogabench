@@ -66,6 +66,11 @@ func FailuresOf(sess []map[string]any) Reliability {
 		msg := strings.TrimSpace(messageOf(x))
 		if msg == "" {
 			msg = "Failed"
+		} else if !looksLikeError(msg) {
+			// Veeam sometimes puts the last task title ("Processing File02") in
+			// result.message instead of the error. Presenting that as the reason
+			// is misleading; say what it actually is.
+			msg = fmt.Sprintf("failed at %q — the session summary does not carry the error text", msg)
 		}
 		key := jobID + "|" + msg
 		f := group[key]
@@ -91,6 +96,18 @@ func FailuresOf(sess []map[string]any) Reliability {
 		return rel.Failures[i].Count > rel.Failures[j].Count
 	})
 	return rel
+}
+
+// looksLikeError: whether the session message reads as an error, as opposed to a
+// task title Veeam sometimes leaves there.
+func looksLikeError(msg string) bool {
+	m := strings.ToLower(msg)
+	for _, w := range []string{"error", "fail", "unable", "cannot", "can't", "timeout", "timed out", "no route", "denied", "refused", "no space", "not enough", "unavailable", "warning"} {
+		if strings.Contains(m, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // DownHostsOf: managed servers that are not available, with the repositories they
