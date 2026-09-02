@@ -266,6 +266,7 @@
         </select>
       </div>
       <div><button onclick="connect()" data-i18n="btn.connect">Conectar</button></div>
+      <div><button class="ghost" onclick="connectDemo()" data-i18n="btn.demo" title="Synthetic data, no VBR needed">Demo</button></div>
     </div>
     <div class="error" id="connectError"></div>
   </div>
@@ -480,7 +481,7 @@ const I18N = {
   es: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sin conectar',
     'conn.to':'Conectado a {where} (sesión expira en {exp}s)',
-    'btn.refresh':'Refrescar','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'btn.refresh':'Refrescar','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestructura','nav.group.analysis':'Análisis',
     'nav.infra':'Infraestructura','nav.flow':'Arquitectura','nav.analysis':'Análisis','nav.bench':'Benchmark',
     'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version',
@@ -599,7 +600,7 @@ const I18N = {
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
     'conn.to':'Connected to {where} (session expires in {exp}s)',
-    'btn.refresh':'Refresh','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
+    'btn.refresh':'Refresh','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
     'nav.group.infra':'Infrastructure','nav.group.analysis':'Analytics',
     'nav.infra':'Infrastructure','nav.flow':'Architecture','nav.analysis':'Analysis','nav.bench':'Benchmark',
     'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version',
@@ -718,7 +719,7 @@ const I18N = {
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
     'conn.to':'Conectado a {where} (sessão expira em {exp}s)',
-    'btn.refresh':'Atualizar','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'btn.refresh':'Atualizar','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestrutura','nav.group.analysis':'Análise',
     'nav.infra':'Infraestrutura','nav.flow':'Arquitetura','nav.analysis':'Análise','nav.bench':'Benchmark',
     'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API',
@@ -953,6 +954,16 @@ async function connect() {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.detail || 'Error de conexion');
     onConnected(data, `${body.host}:${body.port}`);
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+// connectDemo: sesion con datos sinteticos (sin VBR) para validar la UI.
+async function connectDemo() {
+  const errEl = document.getElementById('connectError');
+  errEl.textContent = '';
+  try {
+    const data = await fetch(`${BACKEND}/api/connect-demo`, { method: 'POST' }).then(r => r.json());
+    onConnected(data, 'demo');
   } catch (e) { errEl.textContent = e.message; }
 }
 

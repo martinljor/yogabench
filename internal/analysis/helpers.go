@@ -18,11 +18,20 @@ func getItems(ctx context.Context, s *vbr.Session, path string) []map[string]any
 	if err != nil {
 		return nil
 	}
+	// "data" is the usual envelope; /sessions/{id}/logs uses "records" instead.
+	// Missing that meant the Load: line (per-stage %) was never parsed even though
+	// the REST returned it — every field lab showed "no per-stage breakdown".
 	var wrap struct {
-		Data []map[string]any `json:"data"`
+		Data    []map[string]any `json:"data"`
+		Records []map[string]any `json:"records"`
 	}
-	if err := json.Unmarshal(raw, &wrap); err == nil && wrap.Data != nil {
-		return wrap.Data
+	if err := json.Unmarshal(raw, &wrap); err == nil {
+		if wrap.Data != nil {
+			return wrap.Data
+		}
+		if wrap.Records != nil {
+			return wrap.Records
+		}
 	}
 	var arr []map[string]any
 	_ = json.Unmarshal(raw, &arr)
