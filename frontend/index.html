@@ -130,6 +130,9 @@
   details.exp > summary { cursor:pointer; padding:9px 2px; font-size:13px; font-weight:600; list-style:none;
     display:flex; align-items:center; gap:8px; color:var(--text); }
   details.exp > summary .cnt { margin-left:auto; font-weight:400; font-size:12px; color:var(--muted); }
+  details.how { margin:2px 0 10px; }
+  details.how > summary { font-size:12px; font-weight:400; color:var(--muted); padding:2px; }
+  details.how p { max-width:95ch; }
   details.exp > summary::-webkit-details-marker { display:none; }
   details.exp > summary::before { content:'▸'; color:var(--muted); margin-right:8px; transition:transform .15s; display:inline-block; }
   details.exp[open] > summary::before { transform:rotate(90deg); }
@@ -145,6 +148,8 @@
   .vd-hl { font-size:19px; font-weight:600; line-height:1.3; margin-top:8px; max-width:70ch; }
   .vd-cause { font-size:13px; line-height:1.5; color:#b9c0cc; margin-top:5px; max-width:95ch; }
   .vd-cause b { color:var(--text); font-weight:600; }
+  .vd-cause { cursor:pointer; }
+  .vd-cause.clamp { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .act { display:flex; gap:10px; align-items:flex-start; padding:11px 2px; border-bottom:1px solid var(--border); }
   .act:last-child { border-bottom:none; }
   .act-b { flex:0 0 auto; margin-top:1px; font-size:11px; font-weight:600; border-radius:4px; padding:2px 7px; white-space:nowrap; }
@@ -154,6 +159,12 @@
   .act-b.verify  { background:rgba(58,142,230,.18); color:#8ec2f5; }
   .act-b.info    { background:#2b2f3b; color:#b9c0cc; }
   .act-txt { flex:1; font-size:13px; line-height:1.5; max-width:95ch; }
+  .act { cursor:pointer; }
+  .act-more { color:var(--muted); font-size:11px; align-self:center; transition:transform .15s; }
+  .act:not(.clamp) .act-more { transform:rotate(180deg); }
+  /* Colapsada: el texto en UNA linea con elipsis, sin la fuente. */
+  .act.clamp .act-txt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .act.clamp .act-src { display:none; }
   .act-src { font-size:11px; color:var(--muted); margin-top:2px; }
   .act-gain { flex:0 0 auto; color:#7ede6f; font-size:13px; white-space:nowrap; margin-top:1px; }
   .gain-track { height:9px; background:#2b2f3b; border-radius:5px; overflow:hidden; margin-top:7px; }
@@ -301,7 +312,7 @@
 
   <!-- Paso 1: Conexión al host -->
   <div class="wz-pane" id="wzPane1">
-    <p class="muted" data-i18n-html="bench.p1"></p>
+    <details class="exp how"><summary><span data-i18n="ui.how">Como funciona</span></summary><p class="muted" data-i18n-html="bench.p1" style="margin:6px 0 2px;"></p></details>
     <div class="row" style="align-items:flex-end;">
       <div><label data-i18n="bench.server">Servidor</label>
         <select id="benchHostSel" style="width:280px;" onchange="onHostSelChange()"></select>
@@ -390,7 +401,7 @@
 
 <div class="card" id="analysisPanel" style="display:none;">
   <h3 data-i18n="an.title">Analisis de rendimiento — por repositorio y proxy</h3>
-  <p class="muted" data-i18n-html="an.desc"></p>
+  <details class="exp how"><summary><span data-i18n="ui.how">Como funciona</span></summary><p class="muted" data-i18n-html="an.desc" style="margin:6px 0 2px;"></p></details>
 
   <div class="seg" style="margin:4px 0 14px;">
     <button type="button" class="seg-btn active" id="anModeGlobalBtn" onclick="setAnMode('global')" data-i18n="an.mode.global">Global</button>
@@ -480,8 +491,8 @@ let activeTab = 'infra';
 const I18N = {
   es: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sin conectar',
-    'conn.to':'Conectado a {where} (sesión expira en {exp}s)',
-    'btn.refresh':'Refrescar','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'conn.to':'Conectado a {where}',
+    'btn.refresh':'Refrescar','ui.how':'Cómo funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestructura','nav.group.analysis':'Análisis',
     'nav.infra':'Infraestructura','nav.flow':'Arquitectura','nav.analysis':'Análisis','nav.bench':'Benchmark',
     'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version',
@@ -573,7 +584,7 @@ const I18N = {
     'env.weighted':'Ponderado por DATO MOVIDO, no por cantidad de corridas: un incremental vacio no pesa igual que un full.',
     'env.vscount':'Este resumen cuenta CORRIDAS: 20 incrementales vacios pesan igual que un full. El veredicto de arriba pondera por DATO MOVIDO — por eso puede senalar otro cuello.',
     'env.sub.jobs':'{jobs} jobs · {runs} corridas · {days} dias','env.sub.peak':'{bytes} en la hora pico · {busy} activo · {at}',
-    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato · {runs} corridas','env.sub.win':'{jobs} jobs en ejecucion · {pct}% del dato',
+    'env.sub.days':'en {days} dias','env.sub.share':'{pct}% del dato · {runs} corrida(s)','env.sub.win':'{jobs} jobs en ejecucion · {pct}% del dato',
     'env.hourtip':'{h}:00 — {bytes}/dia · {runs} arranques · {jobs} jobs distintos',
     'vd.env.bound':'La infra sostuvo {mbps} MB/s en el pico; el cuello recurrente es {stage} ({pct}% del dato movido)',
     'vd.env.spread':'La infra sostuvo {mbps} MB/s en el pico; ningun stage domina el cuello',
@@ -599,8 +610,8 @@ const I18N = {
   },
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
-    'conn.to':'Connected to {where} (session expires in {exp}s)',
-    'btn.refresh':'Refresh','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
+    'conn.to':'Connected to {where}',
+    'btn.refresh':'Refresh','ui.how':'How it works','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
     'nav.group.infra':'Infrastructure','nav.group.analysis':'Analytics',
     'nav.infra':'Infrastructure','nav.flow':'Architecture','nav.analysis':'Analysis','nav.bench':'Benchmark',
     'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version',
@@ -692,7 +703,7 @@ const I18N = {
     'env.weighted':'Weighted by DATA MOVED, not by run count: an empty incremental does not weigh the same as a full.',
     'env.vscount':'This summary counts RUNS: 20 empty incrementals weigh the same as a full. The verdict above weights by DATA MOVED — that is why it can point at a different bottleneck.',
     'env.sub.jobs':'{jobs} jobs · {runs} runs · {days} days','env.sub.peak':'{bytes} in the peak hour · {busy} busy · {at}',
-    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data · {runs} runs','env.sub.win':'{jobs} jobs running · {pct}% of the data',
+    'env.sub.days':'over {days} days','env.sub.share':'{pct}% of the data · {runs} run(s)','env.sub.win':'{jobs} jobs running · {pct}% of the data',
     'env.hourtip':'{h}:00 — {bytes}/day · {runs} starts · {jobs} distinct jobs',
     'vd.env.bound':'The infrastructure sustained {mbps} MB/s at peak; {stage} is the recurring bottleneck ({pct}% of the data moved)',
     'vd.env.spread':'The infrastructure sustained {mbps} MB/s at peak; no single stage dominates the bottleneck',
@@ -718,8 +729,8 @@ const I18N = {
   },
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
-    'conn.to':'Conectado a {where} (sessão expira em {exp}s)',
-    'btn.refresh':'Atualizar','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'conn.to':'Conectado a {where}',
+    'btn.refresh':'Atualizar','ui.how':'Como funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestrutura','nav.group.analysis':'Análise',
     'nav.infra':'Infraestrutura','nav.flow':'Arquitetura','nav.analysis':'Análise','nav.bench':'Benchmark',
     'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API',
@@ -811,7 +822,7 @@ const I18N = {
     'env.weighted':'Ponderado por DADO MOVIDO, nao por quantidade de execucoes: um incremental vazio nao pesa igual a um full.',
     'env.vscount':'Este resumo conta EXECUCOES: 20 incrementais vazios pesam igual a um full. O veredito acima pondera por DADO MOVIDO — por isso pode apontar outro gargalo.',
     'env.sub.jobs':'{jobs} jobs · {runs} execucoes · {days} dias','env.sub.peak':'{bytes} na hora de pico · {busy} ativo · {at}',
-    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado · {runs} execucoes','env.sub.win':'{jobs} jobs em execucao · {pct}% do dado',
+    'env.sub.days':'em {days} dias','env.sub.share':'{pct}% do dado · {runs} execucao(oes)','env.sub.win':'{jobs} jobs em execucao · {pct}% do dado',
     'env.hourtip':'{h}:00 — {bytes}/dia · {runs} inicios · {jobs} jobs distintos',
     'vd.env.bound':'A infra sustentou {mbps} MB/s no pico; o gargalo recorrente e {stage} ({pct}% do dado movido)',
     'vd.env.spread':'A infra sustentou {mbps} MB/s no pico; nenhum stage domina o gargalo',
@@ -1807,7 +1818,7 @@ function verdictHero(v, sub) {
   else if (v.severity === 'unknown') badge = `<span class="verdict low">${t('vd.badge.nodata')}</span>`;
   else badge = `<span class="verdict ${badgeCls}">${t('vd.badge.stage')}: ${v.stage}${v.stage2 ? ' + ' + v.stage2 : ''}${v.stageUtil ? ` · ${v.stageUtil}%` : ''}</span>`;
   const cause = v.causeCode
-    ? `<div class="vd-cause"><b>${v.causeKnown ? t('vd.cause') : t('vd.causeq')}:</b> ${vt(v.causeCode, v.causeParams, v.cause)}</div>` : '';
+    ? `<div class="vd-cause clamp" onclick="this.classList.toggle('clamp')"><b>${v.causeKnown ? t('vd.cause') : t('vd.causeq')}:</b> ${vt(v.causeCode, v.causeParams, v.cause)}</div>` : '';
   return `<div class="vd ${v.severity}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         ${badge}${sub ? `<span class="muted" style="font-size:12px;">${sub}</span>` : ''}
@@ -1835,11 +1846,14 @@ function gainTile(v) {
 function actionsList(v) {
   const acts = v.actions || [];
   if (!acts.length) return '';
-  const rows = acts.map(a => `<div class="act">
+  // Dato primero: la fila muestra una linea; el resto de la explicacion se abre
+  // con un clic (pedido de campo: "mas datos, la explicacion detras del clic").
+  const rows = acts.map(a => `<div class="act clamp" onclick="this.classList.toggle('clamp')" title="">
       <span class="act-b ${a.impact}">${t('vd.imp.' + a.impact)}</span>
       <div class="act-txt">${a.alt ? `<span class="muted">${t('vd.alt')} </span>` : ''}${vt(a.code, a.params, a.text)}
         <div class="act-src">${t('vd.src.' + a.source)}</div></div>
       ${a.gainPct != null ? `<span class="act-gain">~−${a.gainPct}%</span>` : ''}
+      <span class="act-more">▾</span>
     </div>`).join('');
   return `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('vd.actions')}
       <span class="muted" style="font-weight:400;">(${acts.length})</span></div>${rows}`;
