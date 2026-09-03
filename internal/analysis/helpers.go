@@ -88,8 +88,12 @@ func isDataJob(sess map[string]any) bool {
 	// Miramos type Y sessionType: un backup de agente puede venir con type "Backup"
 	// pero sessionType "AgentManagement" (que hay que saltear).
 	t := strings.ToLower(str(sess["type"]) + " " + str(sess["sessionType"]))
+	// La exclusion tambien mira el NOMBRE: en el campo, las sesiones de offload del
+	// SOBR llegaron con un sessionType que no dice "offload" — la palabra estaba
+	// solo en "Hardened Scale-Out Backup Repository Offload". Como cada una trae un
+	// jobId distinto, inundaban el selector con decenas de entradas repetidas.
 	for _, bad := range skipHints {
-		if strings.Contains(t, bad) {
+		if strings.Contains(t, bad) || strings.Contains(strings.ToLower(str(sess["name"])), bad) {
 			return false
 		}
 	}

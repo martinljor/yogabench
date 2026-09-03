@@ -52,6 +52,13 @@ func TestRunAlgorithm(t *testing.T) {
 func TestIsDataJobSkipsSobrSystemSessions(t *testing.T) {
 	skip := []map[string]any{
 		{"sessionType": "SobrOffload", "name": "Hardened Scale-Out Backup Repository Offload"},
+		// Field case (v1/jobs listed 12 jobs, the assessment counted 46): the
+		// offload sessions arrive with a sessionType that does not say "offload" —
+		// the word only appears in the name. They must still be excluded.
+		{"sessionType": "BackupJob", "name": "Hardened Scale-Out Backup Repository Offload"},
+		// Field case: the offload sessions arrived with a sessionType that does not
+		// say "offload" — only the name does. They must still be excluded.
+		{"sessionType": "BackupJob", "name": "Hardened Scale-Out Backup Repository Offload"},
 		{"sessionType": "BackupOffload", "name": "Repo Offload"},
 		{"sessionType": "SobrTiering", "name": "Capacity Tiering Backup"},
 		{"sessionType": "RepositoryRescan", "name": "Backup Repository Rescan"},

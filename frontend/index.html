@@ -912,11 +912,30 @@ async function downloadDiag() {
   finally { btn.textContent = prev; btn.disabled = false; }
 }
 
+// resetPanels: al desconectar (o conectar a OTRO VBR) todo lo dibujado pertenece
+// a la sesion anterior. Dejarlo puesto mezcla dos ambientes en pantalla — visto
+// en el campo al saltar entre labs.
+function resetPanels() {
+  const html = (id, v) => { const e = document.getElementById(id); if (e) e.innerHTML = v; };
+  html('infraPanel', `<p class="muted">${t('infra.connect')}</p>`);
+  const svg = document.getElementById('flowCanvas'); if (svg) svg.innerHTML = '';
+  html('flowDominantNote', ''); html('flowLegend', ''); html('flowReco', '');
+  flowSeverity = { prox: {}, repo: {} };
+  html('analysisContent', `<p class="muted">${t('an.pick')}</p>`);
+  html('anJobContent', `<p class="muted">${t('an.pickjob')}</p>`);
+  html('anRange', ''); html('anJobSel', ''); anJobs = [];
+  window._anJob = null;
+  html('benchResults', ''); html('benchStatus', ''); html('benchError', '');
+  html('netIperfResult', ''); html('netPortsResult', '');
+  html('deepResult', '');
+}
+
 async function disconnect() {
   if (sessionId) {
     try { await fetch(`${BACKEND}/api/${sessionId}/disconnect`, { method: 'POST' }); } catch (e) {}
   }
   sessionId = null;
+  resetPanels();
   document.getElementById('connDot').className = 'dot off';
   connState = null;
   const c = document.getElementById('connectedAs');
@@ -968,6 +987,7 @@ async function connectDemo() {
 }
 
 function onConnected(data, where) {
+  resetPanels(); // lo que quedara dibujado era del VBR anterior
   sessionId = data.session_id;
   document.getElementById('connDot').className = 'dot on';
   connState = { where, exp: data.expires_in };

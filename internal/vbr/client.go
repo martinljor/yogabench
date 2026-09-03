@@ -60,7 +60,11 @@ func httpClient(verify bool) *http.Client {
 	if !verify { // VBR suele tener cert self-signed
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	return &http.Client{Timeout: 60 * time.Second, Transport: tr} // backstop; per-request budget in doGet
+	// Backstop only: the real per-request budget lives in doGet (30 s default,
+	// 75 s for v1/jobs). It must sit ABOVE the largest budget — at 60 s it was
+	// killing the 75 s v1/jobs budget before it could act (field: five
+	// "Client.Timeout exceeded" at ~58 s).
+	return &http.Client{Timeout: jobsTimeout + 15*time.Second, Transport: tr}
 }
 
 // Authenticate hace el OAuth2 password grant contra VBR.
