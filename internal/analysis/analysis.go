@@ -93,7 +93,24 @@ type RangeInfo struct {
 	DaysAvailable int     `json:"days_available"`
 }
 
+// Stats: how the analysis input was formed. Exists so the log can tell the
+// story of a run without the diagnostics JSON: how many sessions the REST
+// returned, how many survived the system-session filter, what date range was
+// REALLY analyzed (the session cap can make it much narrower than the requested
+// window), and how many runs carried the per-stage Load: line.
+type Stats struct {
+	SessionsFetched int    `json:"sessionsFetched"`
+	DataSessions    int    `json:"dataSessions"` // after the skip hints (offload/config/...)
+	InWindow        int    `json:"inWindow"`     // after the day filter
+	Analyzed        int    `json:"analyzed"`     // after the maxSessions cap
+	Capped          bool   `json:"capped"`       // the cap truncated the window
+	From            string `json:"from"`         // real range of the analyzed runs
+	To              string `json:"to"`
+	RunsWithLoad    int    `json:"runsWithLoad"` // runs with per-stage % (Load: line)
+}
+
 type Result struct {
+	Stats        Stats       `json:"stats"`
 	Range        RangeInfo   `json:"range"`
 	Days         *int        `json:"days"`
 	Summary      Summary     `json:"summary"`
@@ -131,12 +148,15 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	sess := getItems(ctx, s, "v1/sessions?limit=2000&orderColumn=CreationTime&orderAsc=false")
 	rng := Range(ctx, s)
 
+	var st Stats
+	st.SessionsFetched = len(sess)
 	var dataSess []map[string]any
 	for _, x := range sess {
 		if isDataJob(x) {
 			dataSess = append(dataSess, x)
 		}
 	}
+	st.DataSessions = len(dataSess)
 	if days != nil {
 		cutoff := time.Now().AddDate(0, 0, -*days)
 		var filtered []map[string]any
@@ -147,8 +167,21 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 		}
 		dataSess = filtered
 	}
+	st.InWindow = len(dataSess)
 	if len(dataSess) > maxSessions {
 		dataSess = dataSess[:maxSessions]
+		st.Capped = true
+	}
+	st.Analyzed = len(dataSess)
+	// Real range of what is being analyzed (newest first): with the cap on, it can
+	// be much narrower than the requested window — the log must say so.
+	if len(dataSess) > 0 {
+		if t, ok := parseDT(dataSess[0]["creationTime"]); ok {
+			st.To = t.Format("2006-01-02")
+		}
+		if t, ok := parseDT(dataSess[len(dataSess)-1]["creationTime"]); ok {
+			st.From = t.Format("2006-01-02")
+		}
 	}
 
 	repoNames := nameMap(allRepositories(ctx, s))
@@ -188,6 +221,11 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	// Fiabilidad: las sesiones fallidas se descartan del agregado (no tienen
 	// telemetria util) pero SI cuentan para el veredicto. No cuesta REST extra:
 	// vienen en la misma respuesta que ya leimos.
+	for _, r := range recs {
+		if r.Bottleneck != nil && r.Bottleneck["source"] != nil {
+			st.RunsWithLoad++ // this run carried the Load: line (per-stage %)
+		}
+	}
 	asmt := BuildAssessment(recs, winDays, repoNames, proxyNames)
 	if asmt != nil {
 		rel := FailuresOf(dataSess)
@@ -195,6 +233,7 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 		asmt.AddReliability(rel)
 	}
 	return Result{
+		Stats:        st,
 		Range:        rng,
 		Days:         days,
 		Summary:      summarize(recs),

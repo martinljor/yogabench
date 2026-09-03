@@ -303,16 +303,56 @@ func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	// The input funnel first: it is what explains any surprising number below
+	// (offloads inflating the job count, or the session cap silently narrowing
+	// the window were both invisible before these lines).
+	st := res.Stats
+	capNote := ""
+	if st.Capped {
+		capNote = " (CAPPED: the window holds more)"
+	}
+	log.Printf("analysis input: %d session(s) fetched · %d data · %d in window · %d analyzed%s · range %s→%s · per-stage %% in %d/%d run(s)",
+		st.SessionsFetched, st.DataSessions, st.InWindow, st.Analyzed, capNote, st.From, st.To, st.RunsWithLoad, st.Analyzed)
 	if a := res.Assessment; a != nil {
 		sess.SetAnalyzed("assessment", a) // queda para el diagnostico
 		top := "-"
 		if len(a.Actions) > 0 {
 			top = a.Actions[0].Code
 		}
-		log.Printf("assessment: %d job(s)/%d run(s) in %dd · peak=%.0fMB/s at %s · bottleneck=%s(%d%%) · busiest=%02dh(%d jobs, %d%%) · top=%s | %s",
-			a.Jobs, a.Runs, a.Days, a.PeakMBps, a.PeakAt, a.TopStage, a.TopStagePct, a.BusiestHour, a.BusiestJobs, a.BusiestPct, top, a.Headline)
+		log.Printf("assessment: %d job(s)/%d run(s) in %dd · conf=%s · peak=%.0fMB/s at %s · bottleneck=%s(%d%%) · busiest=%02dh(%d jobs, %d%%) · top=%s | %s",
+			a.Jobs, a.Runs, a.Days, a.Confidence, a.PeakMBps, a.PeakAt, a.TopStage, a.TopStagePct, a.BusiestHour, a.BusiestJobs, a.BusiestPct, top, a.Headline)
+		logReliability(a)
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// logReliability: one line telling whether the environment is failing and why —
+// grouped failures and hosts down used to live only in the diagnostics JSON.
+func logReliability(a *analysis.Assessment) {
+	rel := a.Reliability
+	if rel.FailedRuns == 0 && len(rel.DownHosts) == 0 {
+		return
+	}
+	var parts []string
+	for i, f := range rel.Failures {
+		if i == 3 {
+			parts = append(parts, fmt.Sprintf("+%d more", len(rel.Failures)-3))
+			break
+		}
+		now := ""
+		if f.Now {
+			now = " [failing now]"
+		}
+		parts = append(parts, fmt.Sprintf("%s ×%d%s: %s", f.JobName, f.Count, now, f.Message))
+	}
+	for _, h := range rel.DownHosts {
+		d := fmt.Sprintf("host %s is %s", h.Name, h.Status)
+		if len(h.Repos) > 0 {
+			d += " (hosts " + strings.Join(h.Repos, ", ") + ")"
+		}
+		parts = append(parts, d)
+	}
+	log.Printf("reliability: %d failed run(s) in window · %s", rel.FailedRuns, strings.Join(parts, " · "))
 }
 
 // analysisRange: rango real de dias con datos (sesion mas vieja y mas nueva).
