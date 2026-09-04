@@ -1855,8 +1855,10 @@ function actionsList(v) {
       ${a.gainPct != null ? `<span class="act-gain">~−${a.gainPct}%</span>` : ''}
       <span class="act-more">▾</span>
     </div>`).join('');
-  return `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('vd.actions')}
-      <span class="muted" style="font-weight:400;">(${acts.length})</span></div>${rows}`;
+  // Seccion colapsada por defecto: el titular y los KPIs ya dicen lo esencial;
+  // el detalle de acciones se abre a demanda (dato primero, texto detras del clic).
+  return `<details class="exp" style="margin-top:10px;"><summary>${t('vd.actions')} <span class="cnt">${acts.length}</span></summary>
+      <div class="exp-body">${rows}</div></details>`;
 }
 
 // runTrend: duracion de CADA corrida de la ventana (el uso historico, que es de
