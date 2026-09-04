@@ -138,6 +138,11 @@ func (a *Assessment) AddReliability(rel Reliability) {
 		return
 	}
 	a.Reliability = rel
+	// Success rate: the records only hold completed runs; the failures arrive
+	// here. attempts = completed + failed.
+	if att := a.Runs + rel.FailedRuns; att > 0 {
+		a.SuccessPct = int(float64(a.Runs)/float64(att)*100 + 0.5)
+	}
 	var failingNow []Failure
 	for _, f := range rel.Failures {
 		if f.Now {

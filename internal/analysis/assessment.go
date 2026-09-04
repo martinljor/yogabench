@@ -76,6 +76,15 @@ type Assessment struct {
 	PeakMBps         float64 `json:"peakMBps"`
 	PeakAt           string  `json:"peakAt"`
 	TotalBytes       int64   `json:"totalBytes"`
+	// Volumetrics for the KPI tiles — all derived from the records already
+	// fetched, no extra REST: bytes processed (pre-reduction), the resulting
+	// reduction factor, and how many distinct machines the runs protected.
+	ProcessedBytes int64   `json:"processedBytes"`
+	ReductionX     float64 `json:"reductionX"`
+	VMsProtected   int     `json:"vmsProtected"`
+	// SuccessPct: completed runs vs attempts incl. failed ones (set together with
+	// the reliability data — the records alone exclude failures). -1 = unknown.
+	SuccessPct int `json:"successPct"`
 
 	// Cuello del entorno, ponderado por dato movido.
 	StageBytes   map[string]int64 `json:"stageBytes"`
@@ -117,7 +126,8 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 	if len(recs) == 0 {
 		return nil
 	}
-	a := &Assessment{Days: days, StageBytes: map[string]int64{}}
+	a := &Assessment{Days: days, StageBytes: map[string]int64{}, SuccessPct: -1}
+	vms := map[string]bool{}
 	if a.Days <= 0 {
 		a.Days = 1
 	}
@@ -140,6 +150,12 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		jobs[jobID] = true
 		a.Runs++
 		a.TotalBytes += r.TransferredSize
+		a.ProcessedBytes += r.ProcessedSize
+		for _, tk := range r.Tasks {
+			if tk.Name != "" {
+				vms[tk.Name] = true
+			}
+		}
 		jobData[jobID] += r.TransferredSize
 
 		start, okS := parseDT(r.CreationTime)
@@ -277,6 +293,10 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 	if bindingTotal > 0 && a.TopStage != "" {
 		a.TopStagePct = pct(a.StageBytes[a.TopStage], bindingTotal)
 		a.TopStageRuns = stageRuns[a.TopStage]
+	}
+	a.VMsProtected = len(vms)
+	if a.TotalBytes > 0 && a.ProcessedBytes > a.TotalBytes {
+		a.ReductionX = round1f(float64(a.ProcessedBytes) / float64(a.TotalBytes))
 	}
 	a.Confidence = envConfidence(a)
 
@@ -484,6 +504,8 @@ func rank(acts []Action) []Action {
 	}
 	return acts
 }
+
+func round1f(v float64) float64 { return float64(int(v*10+0.5)) / 10 }
 
 // bytesHuman: short size for the English fallback text. The WebUI formats the raw
 // bytes itself (the params carry them).

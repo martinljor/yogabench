@@ -492,7 +492,7 @@ const I18N = {
   es: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sin conectar',
     'conn.to':'Conectado a {where}',
-    'btn.refresh':'Refrescar','env.failedruns':'Corridas fallidas','ui.how':'Cómo funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'btn.refresh':'Refrescar','env.failedruns':'Corridas fallidas','env.successrate':'Exito de corridas','env.sub.attempts':'{ok} OK de {total} intentos','env.sub.red':'{p} procesado → {t} transferido','env.vms':'VMs protegidas','ui.how':'Cómo funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestructura','nav.group.analysis':'Análisis',
     'nav.infra':'Infraestructura','nav.flow':'Arquitectura','nav.analysis':'Análisis','nav.bench':'Benchmark',
     'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version',
@@ -611,7 +611,7 @@ const I18N = {
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
     'conn.to':'Connected to {where}',
-    'btn.refresh':'Refresh','env.failedruns':'Failed runs','ui.how':'How it works','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
+    'btn.refresh':'Refresh','env.failedruns':'Failed runs','env.successrate':'Run success','env.sub.attempts':'{ok} OK of {total} attempts','env.sub.red':'{p} processed → {t} transferred','env.vms':'VMs protected','ui.how':'How it works','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
     'nav.group.infra':'Infrastructure','nav.group.analysis':'Analytics',
     'nav.infra':'Infrastructure','nav.flow':'Architecture','nav.analysis':'Analysis','nav.bench':'Benchmark',
     'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version',
@@ -730,7 +730,7 @@ const I18N = {
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
     'conn.to':'Conectado a {where}',
-    'btn.refresh':'Atualizar','env.failedruns':'Execucoes falhas','ui.how':'Como funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'btn.refresh':'Atualizar','env.failedruns':'Execucoes falhas','env.successrate':'Sucesso das execucoes','env.sub.attempts':'{ok} OK de {total} tentativas','env.sub.red':'{p} processado → {t} transferido','env.vms':'VMs protegidas','ui.how':'Como funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestrutura','nav.group.analysis':'Análise',
     'nav.infra':'Infraestrutura','nav.flow':'Arquitetura','nav.analysis':'Análise','nav.bench':'Benchmark',
     'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API',
@@ -2186,6 +2186,13 @@ function renderAssessment(a) {
   tiles += a.confidence === 'insufficient'
     ? kpi(t('cap.bneck'), '—', t('env.nobneck'))
     : kpi(t('cap.bneck'), a.topStage || '—', a.topStage ? tp('env.sub.share', { pct: a.topStagePct, runs: a.topStageRuns }) : '', 'bad');
+  if (a.successPct != null && a.successPct >= 0) {
+    const cls = a.successPct >= 100 ? '' : a.successPct >= 90 ? 'warn' : 'bad';
+    tiles += kpi(t('env.successrate'), a.successPct + '%',
+      tp('env.sub.attempts', { ok: a.runs, total: a.runs + ((a.reliability || {}).failedRuns || 0) }), cls);
+  }
+  if (a.reductionX) tiles += kpi(t('an.reduction'), a.reductionX + '×', tp('env.sub.red', { p: fmtBytes(a.processedBytes), t: fmtBytes(a.totalBytes) }));
+  if (a.vmsProtected) tiles += kpi(t('env.vms'), String(a.vmsProtected), tp('env.sub.days', { days: a.days }));
   if (a.busiestHour >= 0) {
     tiles += kpi(t('env.peakwin'), String(a.busiestHour).padStart(2, '0') + ':00',
       a.confidence === 'insufficient'
@@ -2201,7 +2208,7 @@ function renderAssessment(a) {
     + `<td><span class="st hotspot">${h.status}</span></td><td style="text-align:right;">—</td><td>—</td>`
     + `<td class="muted">${h.repos || '—'}</td></tr>`).join('');
   const failTable = (frows || drows)
-    ? `<details class="exp" open><summary>${t('env.failures')} <span class="cnt">${(rel.failures || []).length + (rel.downHosts || []).length}</span></summary>
+    ? `<details class="exp"><summary>${t('env.failures')} <span class="cnt">${(rel.failures || []).length + (rel.downHosts || []).length}</span></summary>
         <div class="exp-body"><div style="overflow-x:auto;"><table>
           <tr><th>Job / host</th><th>${t('reco.state')}</th><th>${t('env.fail.count')}</th><th>${t('cap.date')}</th><th>${t('env.fail.msg')}</th></tr>
           ${frows}${drows}</table></div></div></details>`
