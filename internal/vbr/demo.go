@@ -152,10 +152,15 @@ func demoLogs(path string) json.RawMessage {
 	id := demoSessionID(path)
 	switch {
 	case strings.HasPrefix(id, "s-vms-"):
-		return json.RawMessage(`{"totalRecords":2,"records":[
-			{"title":"Load: Source 34% > Proxy 41% > Network 22% > Target 96%","description":""},
+		// d de "s-vms-<d>": la corrida fue hace d+1 dias a las 22:00. El registro
+		// de espera lleva su intervalo real (9 min en cola por slots).
+		d := 0
+		fmt.Sscanf(id, "s-vms-%d", &d)
+		return json.RawMessage(fmt.Sprintf(`{"totalRecords":3,"records":[
+			{"title":"Resource not ready: backup repository","startTime":%q,"updateTime":%q},
+			{"title":"Load: Source 34%% > Proxy 41%% > Network 22%% > Target 96%%","description":""},
 			{"title":"Primary bottleneck: Target","description":""}
-		]}`)
+		]}`, day(d+1, 22, 0), day(d+1, 22, 9)))
 	case strings.HasPrefix(id, "s-copy-0"):
 		return json.RawMessage(`{"totalRecords":2,"records":[
 			{"title":"Load: Source 25% > Proxy 30% > Network 88% > Target 45%","description":""},

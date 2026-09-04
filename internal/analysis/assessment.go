@@ -82,6 +82,18 @@ type Assessment struct {
 	ProcessedBytes int64   `json:"processedBytes"`
 	ReductionX     float64 `json:"reductionX"`
 	VMsProtected   int     `json:"vmsProtected"`
+	// Waiting for resources: time the runs spent queued for proxy/repository
+	// slots (from the session logs) — wasted window that reorganizing recovers.
+	WaitSec float64 `json:"waitSec"`
+	WaitPct int     `json:"waitPct"` // vs the total job time of the window
+	// RPO per machine: how fresh each protected machine's last good copy is.
+	VMsFresh int       `json:"vmsFresh"` // with a successful copy in the last 24 h
+	StaleVMs []StaleVM `json:"staleVMs,omitempty"`
+	// Space runway: the repository that fills first at the observed write rate.
+	FillRepo      string `json:"fillRepo,omitempty"`
+	FillDays      int    `json:"fillDays,omitempty"`
+	FillFreeBytes int64  `json:"fillFreeBytes,omitempty"`
+	FillPerDay    int64  `json:"fillPerDay,omitempty"`
 	// SuccessPct: completed runs vs attempts incl. failed ones (set together with
 	// the reliability data — the records alone exclude failures). -1 = unknown.
 	SuccessPct int `json:"successPct"`
@@ -120,6 +132,18 @@ type Assessment struct {
 	HeadlineParams map[string]any `json:"headlineParams,omitempty"`
 }
 
+// StaleVM: a machine without a successful copy in the last 24 hours.
+type StaleVM struct {
+	Name     string `json:"name"`
+	Job      string `json:"job"`
+	LastOK   string `json:"lastOk,omitempty"` // empty = no successful copy in the window
+	AgeHours int    `json:"ageHours"`         // -1 when there is no copy at all
+}
+
+// staleAfter: a machine whose last good copy is older than this is at risk. The
+// classic RPO ask; jobs with longer cadences will show up here by design.
+const staleAfter = 24 * time.Hour
+
 // BuildAssessment arma el veredicto del entorno desde las corridas de la ventana.
 // repoNames/proxyNames vienen del mismo mapa que usa el agregado por repo/proxy.
 func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]string) *Assessment {
@@ -128,6 +152,9 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 	}
 	a := &Assessment{Days: days, StageBytes: map[string]int64{}, SuccessPct: -1}
 	vms := map[string]bool{}
+	vmLast := map[string]time.Time{} // ultima copia EXITOSA por maquina
+	vmJob := map[string]string{}
+	var totalDurSec float64
 	if a.Days <= 0 {
 		a.Days = 1
 	}
@@ -151,9 +178,20 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		a.Runs++
 		a.TotalBytes += r.TransferredSize
 		a.ProcessedBytes += r.ProcessedSize
+		a.WaitSec += r.WaitSec
+		totalDurSec += r.DurationSec
+		rt, rtOK := parseDT(r.CreationTime)
 		for _, tk := range r.Tasks {
-			if tk.Name != "" {
-				vms[tk.Name] = true
+			if tk.Name == "" {
+				continue
+			}
+			vms[tk.Name] = true
+			if _, seen := vmJob[tk.Name]; !seen {
+				vmJob[tk.Name] = JobNameOf(r.Name)
+			}
+			ok := tk.Result == "Success" || tk.Result == "Warning"
+			if ok && rtOK && rt.After(vmLast[tk.Name]) {
+				vmLast[tk.Name] = rt
 			}
 		}
 		jobData[jobID] += r.TransferredSize
@@ -295,6 +333,37 @@ func BuildAssessment(recs []Record, days int, repoNames, proxyNames map[string]s
 		a.TopStageRuns = stageRuns[a.TopStage]
 	}
 	a.VMsProtected = len(vms)
+	if totalDurSec > 0 {
+		a.WaitPct = int(a.WaitSec/totalDurSec*100 + 0.5)
+	}
+	// RPO: fresh = successful copy within staleAfter; the rest go to the table,
+	// oldest first. parseDT reads timestamps as naive wall-clock (labeled UTC),
+	// so "now" must use the same convention or every age skews by the timezone.
+	nl := time.Now()
+	now := time.Date(nl.Year(), nl.Month(), nl.Day(), nl.Hour(), nl.Minute(), nl.Second(), 0, time.UTC)
+	for name := range vms {
+		last, has := vmLast[name]
+		if has && now.Sub(last) <= staleAfter {
+			a.VMsFresh++
+			continue
+		}
+		sv := StaleVM{Name: name, Job: vmJob[name], AgeHours: -1}
+		if has {
+			sv.LastOK = last.Format("2006-01-02 15:04")
+			sv.AgeHours = int(now.Sub(last).Hours() + 0.5)
+		}
+		a.StaleVMs = append(a.StaleVMs, sv)
+	}
+	sort.Slice(a.StaleVMs, func(i, j int) bool {
+		ai, aj := a.StaleVMs[i].AgeHours, a.StaleVMs[j].AgeHours
+		if (ai < 0) != (aj < 0) {
+			return ai < 0 // sin copia alguna, primero
+		}
+		return ai > aj
+	})
+	if len(a.StaleVMs) > 100 {
+		a.StaleVMs = a.StaleVMs[:100]
+	}
 	if a.TotalBytes > 0 && a.ProcessedBytes > a.TotalBytes {
 		a.ReductionX = round1f(float64(a.ProcessedBytes) / float64(a.TotalBytes))
 	}

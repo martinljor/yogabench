@@ -34,6 +34,8 @@ var (
 	skipHints = []string{"configuration", "malware", "compliance", "infrastructure", "agent", "delete", "retention", "discover", "filelevel", "flr", "offload", "tiering", "rescan"}
 	loadRe    = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
 	primaryRe = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
+	// Frases con las que Veeam registra la espera por slots en el log de sesion.
+	waitHints = []string{"resource not ready", "waiting for backup infrastructure", "queued for processing"}
 )
 
 // --- tipos de salida (JSON que consume el frontend) ------------------------
@@ -68,6 +70,7 @@ type Record struct {
 	ReadSize        int64          `json:"readSize"`
 	TransferredSize int64          `json:"transferredSize"`
 	DurationSec     float64        `json:"durationSec"` // de creationTime->endTime
+	WaitSec         float64        `json:"waitSec"`     // esperando recursos (slots) segun los logs
 	RepoIDs         []string       `json:"repoIds"`
 	ProxyIDs        []string       `json:"proxyIds"`
 }
@@ -228,9 +231,14 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	}
 	asmt := BuildAssessment(recs, winDays, repoNames, proxyNames)
 	if asmt != nil {
+		// Espacio: estados de repos (endpoint cacheado) x tasa de escritura del
+		// periodo realmente analizado.
+		asmt.AddCapacity(getItems(ctx, s, "v1/backupInfrastructure/repositories/states?limit=1000"),
+			repoNames, RepoBytesPerDay(recs))
 		rel := FailuresOf(dataSess)
 		rel.DownHosts = DownHostsOf(ctx, s)
 		asmt.AddReliability(rel)
+		asmt.FinishActions()
 	}
 	return Result{
 		Stats:        st,
@@ -296,6 +304,7 @@ func buildRecord(ctx context.Context, s *vbr.Session, sess map[string]any, jobPr
 	// Bottleneck: primero la linea "Load: ..." de los logs (con %); si no esta
 	// (ej. v13), caemos al stage dominante que reporta cada tarea (progress.bottleneck).
 	bneck := bottleneckFromLogs(logs)
+	waitSec := waitSecFromLogs(logs)
 	if bneck == nil {
 		if p := dominantTaskBottleneck(tasks); p != "" {
 			bneck = map[string]any{"primary": p}
@@ -311,9 +320,9 @@ func buildRecord(ctx context.Context, s *vbr.Session, sess map[string]any, jobPr
 		ProcessedSize:   processed,
 		ReadSize:        read,
 		TransferredSize: transferred,
-		DurationSec:     durSec,
-		RepoIDs:         keys(repoSet),
-		ProxyIDs:        cleanIDs(jobProxies[str(sess["jobId"])]),
+		DurationSec:     durSec, WaitSec: waitSec,
+		RepoIDs:  keys(repoSet),
+		ProxyIDs: cleanIDs(jobProxies[str(sess["jobId"])]),
 	}
 }
 
@@ -357,6 +366,33 @@ func buildTasks(items []map[string]any) []Task {
 		})
 	}
 	return out
+}
+
+// waitSecFromLogs: cuanto tiempo paso la corrida ESPERANDO recursos (slots de
+// proxy/repositorio ocupados). Veeam lo deja como un registro del log de sesion
+// cuyo intervalo startTime->updateTime ES la espera. Ese tiempo es ventana
+// desperdiciada que no se arregla comprando hardware, solo re-organizando.
+func waitSecFromLogs(logs []map[string]any) float64 {
+	var sum float64
+	for _, r := range logs {
+		txt := strings.ToLower(str(r["title"]) + " " + str(r["description"]))
+		hit := false
+		for _, h := range waitHints {
+			if strings.Contains(txt, h) {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			continue
+		}
+		st, ok1 := parseDT(r["startTime"])
+		ut, ok2 := parseDT(r["updateTime"])
+		if ok1 && ok2 && ut.After(st) {
+			sum += ut.Sub(st).Seconds()
+		}
+	}
+	return sum
 }
 
 // bottleneckFromLogs parsea la(s) linea(s) "Load: Source% > Proxy% > ..." y
