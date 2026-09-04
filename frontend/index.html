@@ -492,7 +492,7 @@ const I18N = {
   es: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sin conectar',
     'conn.to':'Conectado a {where}',
-    'btn.refresh':'Refrescar','ui.how':'Cómo funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'btn.refresh':'Refrescar','env.failedruns':'Corridas fallidas','ui.how':'Cómo funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestructura','nav.group.analysis':'Análisis',
     'nav.infra':'Infraestructura','nav.flow':'Arquitectura','nav.analysis':'Análisis','nav.bench':'Benchmark',
     'form.host':'Host / IP del VBR','form.port':'Puerto','form.user':'Usuario','form.pass':'Password','form.apiver':'API version',
@@ -611,7 +611,7 @@ const I18N = {
   en: {
     'brand.sub':'· Veeam diagnostics','conn.none':'Not connected',
     'conn.to':'Connected to {where}',
-    'btn.refresh':'Refresh','ui.how':'How it works','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
+    'btn.refresh':'Refresh','env.failedruns':'Failed runs','ui.how':'How it works','btn.demo':'Demo','btn.disconnect':'Disconnect','btn.connect':'Connect','btn.diag':'Diagnostics',
     'nav.group.infra':'Infrastructure','nav.group.analysis':'Analytics',
     'nav.infra':'Infrastructure','nav.flow':'Architecture','nav.analysis':'Analysis','nav.bench':'Benchmark',
     'form.host':'VBR host / IP','form.port':'Port','form.user':'Username','form.pass':'Password','form.apiver':'API version',
@@ -730,7 +730,7 @@ const I18N = {
   pt: {
     'brand.sub':'· diagnóstico Veeam','conn.none':'Sem conexão',
     'conn.to':'Conectado a {where}',
-    'btn.refresh':'Atualizar','ui.how':'Como funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
+    'btn.refresh':'Atualizar','env.failedruns':'Execucoes falhas','ui.how':'Como funciona','btn.demo':'Demo','btn.disconnect':'Desconectar','btn.connect':'Conectar','btn.diag':'Diagnóstico',
     'nav.group.infra':'Infraestrutura','nav.group.analysis':'Análise',
     'nav.infra':'Infraestrutura','nav.flow':'Arquitetura','nav.analysis':'Análise','nav.bench':'Benchmark',
     'form.host':'Host / IP do VBR','form.port':'Porta','form.user':'Usuário','form.pass':'Senha','form.apiver':'Versão da API',
@@ -2162,14 +2162,22 @@ function renderAssessment(a) {
   // Los params que viajan en bytes se formatean antes de traducir.
   const hp = Object.assign({}, a.headlineParams);
   if (hp.bytes != null) hp.bytes = fmtBytes(hp.bytes);
-  const hero = `<div class="vd ${a.severity}">
+  // Sin frase-titular (pedido de campo: "cajas con datos", no texto de un job):
+  // la franja lleva solo los chips y el conteo; la falla vive en su propia caja.
+  const hero = `<div class="vd ${a.severity}" style="padding-top:10px;padding-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <span style="display:flex;gap:8px;align-items:center;">${badge}${conf}</span>
         <span class="muted" style="font-size:12px;">${tp('env.sub.jobs', { jobs: a.jobs, runs: a.runs, days: a.days })}</span>
       </div>
-      <div class="vd-hl">${vt(a.headlineCode, hp, a.headline)}</div>
     </div>`;
 
+  let relTile = '';
+  if ((rel.failedRuns || 0) > 0 || (rel.downHosts || []).length) {
+    const sub = failing.length
+      ? `${failing[0].jobName}${failing.length > 1 ? ' +' + (failing.length - 1) : ''} · ${t('env.fail.now')}`
+      : t('env.fail.past');
+    relTile = kpi(t('env.failedruns'), String(rel.failedRuns || 0), sub, failing.length ? 'bad' : '');
+  }
   // Sustained rate first: it is the rate while the infrastructure was working.
   // The bytes moved in that clock hour go in the sub, for window planning.
   let tiles = kpi(t('env.sustained'), a.peakMBps ? a.peakMBps + ' MB/s' : '—',
@@ -2207,10 +2215,8 @@ function renderAssessment(a) {
     : `<p class="muted">—</p>`;
 
   return hero
-    + `<div class="kpi-grid">${tiles}</div>`
+    + `<div class="kpi-grid">${relTile}${tiles}</div>`
     + actionsList({ actions: a.actions })
-    + `<div style="font-size:13px;font-weight:600;margin:16px 0 0;">${t('env.hours')}</div>`
-    + hourChart(a.hours || [], a.busiestHour)
     + `<div style="margin-top:12px;">
         ${failTable}
         <details class="exp"><summary>${t('env.hotspots')} <span class="cnt">${(a.hotspots || []).length}</span></summary>
