@@ -72,7 +72,9 @@ func FailuresOf(sess []map[string]any) Reliability {
 			// is misleading; say what it actually is.
 			msg = fmt.Sprintf("failed at %q — the session summary does not carry the error text", msg)
 		}
-		key := jobID + "|" + msg
+		// Agrupamos por NOMBRE + mensaje: hay sesiones (restores de Entra ID, por
+		// ejemplo) que traen un jobId distinto en cada corrida y duplicaban la fila.
+		key := JobNameOf(str(x["name"])) + "|" + msg
 		f := group[key]
 		if f == nil {
 			f = &Failure{JobID: jobID, JobName: JobNameOf(str(x["name"])), Message: msg,

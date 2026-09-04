@@ -172,3 +172,19 @@ func TestFailureMessageThatIsNotAnError(t *testing.T) {
 func containsStr(s, sub string) bool {
 	return len(s) >= len(sub) && strings.Contains(s, sub)
 }
+
+// Entra ID restore sessions carry a fresh jobId per run: grouping by jobId
+// duplicated the row. Grouping is by job NAME + message.
+func TestFailuresGroupByNameNotJobID(t *testing.T) {
+	in := []map[string]any{
+		sess("id-1", "Entra ID Tenant Backup", "2026-09-03", "10:00", "Failed", "Error: restore failed"),
+		sess("id-2", "Entra ID Tenant Backup", "2026-09-02", "10:00", "Failed", "Error: restore failed"),
+	}
+	rel := FailuresOf(in)
+	if len(rel.Failures) != 1 {
+		t.Fatalf("same name+message must group into one row: got %d", len(rel.Failures))
+	}
+	if rel.Failures[0].Count != 2 {
+		t.Errorf("count: got %d, want 2", rel.Failures[0].Count)
+	}
+}

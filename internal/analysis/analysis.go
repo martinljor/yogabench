@@ -110,6 +110,10 @@ type Stats struct {
 	From            string `json:"from"`         // real range of the analyzed runs
 	To              string `json:"to"`
 	RunsWithLoad    int    `json:"runsWithLoad"` // runs with per-stage % (Load: line)
+	// SkippedTypes: sessionTypes the data-job filter rejected, with counts. The
+	// evidence for tuning the filter: the field showed v1/jobs returning 12 of 19
+	// jobs (plugin types missing) and this says what their sessions look like.
+	SkippedTypes map[string]int `json:"skippedTypes,omitempty"`
 }
 
 type Result struct {
@@ -154,9 +158,12 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	var st Stats
 	st.SessionsFetched = len(sess)
 	var dataSess []map[string]any
+	st.SkippedTypes = map[string]int{}
 	for _, x := range sess {
 		if isDataJob(x) {
 			dataSess = append(dataSess, x)
+		} else {
+			st.SkippedTypes[strOr(x["sessionType"], "?")]++
 		}
 	}
 	st.DataSessions = len(dataSess)

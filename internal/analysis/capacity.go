@@ -160,6 +160,12 @@ func JobList(ctx context.Context, s *vbr.Session) []JobItem {
 		if id == "" || seen[id] || !isDataJob(x) {
 			continue
 		}
+		// Restores quedan fuera del selector: analizar "capacidad" de un restore no
+		// tiene sentido y cada restore trae un jobId propio (inundaba la lista con
+		// entradas duplicadas de Entra ID). Sus fallas siguen en reliability.
+		if strings.Contains(strings.ToLower(str(x["sessionType"])+" "+str(x["type"])), "restore") {
+			continue
+		}
 		seen[id] = true
 		out = append(out, JobItem{
 			ID: id, Name: JobNameOf(str(x["name"])), Type: strOr(x["sessionType"], str(x["type"])),

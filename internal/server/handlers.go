@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -311,8 +312,9 @@ func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
 	if st.Capped {
 		capNote = " (CAPPED: the window holds more)"
 	}
-	log.Printf("analysis input: %d session(s) fetched · %d data · %d in window · %d analyzed%s · range %s→%s · per-stage %% in %d/%d run(s)",
-		st.SessionsFetched, st.DataSessions, st.InWindow, st.Analyzed, capNote, st.From, st.To, st.RunsWithLoad, st.Analyzed)
+	log.Printf("analysis input: %d session(s) fetched · %d data · %d in window · %d analyzed%s · range %s→%s · per-stage %% in %d/%d run(s) · skipped: %s",
+		st.SessionsFetched, st.DataSessions, st.InWindow, st.Analyzed, capNote, st.From, st.To, st.RunsWithLoad, st.Analyzed, topTypes(st.SkippedTypes, 6))
+
 	if a := res.Assessment; a != nil {
 		sess.SetAnalyzed("assessment", a) // queda para el diagnostico
 		top := "-"
@@ -324,6 +326,31 @@ func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
 		logReliability(a)
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// topTypes: "A=12 B=3 …" with the biggest counts first, for the input log line.
+func topTypes(m map[string]int, n int) string {
+	type kv struct {
+		k string
+		v int
+	}
+	var all []kv
+	for k, v := range m {
+		all = append(all, kv{k, v})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].v > all[j].v })
+	var parts []string
+	for i, e := range all {
+		if i == n {
+			parts = append(parts, fmt.Sprintf("+%d types", len(all)-n))
+			break
+		}
+		parts = append(parts, fmt.Sprintf("%s=%d", e.k, e.v))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, " ")
 }
 
 // logReliability: one line telling whether the environment is failing and why —

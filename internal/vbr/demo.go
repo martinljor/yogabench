@@ -109,6 +109,9 @@ func demoSessions() json.RawMessage {
 		out = append(out, sessJSON(fmt.Sprintf("s-sqlf-%d", i), "VMware - SQL", "job-sql", "BackupJob",
 			day(0, hm[0], hm[1]), day(0, hm[0], hm[1]+8), "Failed", "Error: No route to host"))
 	}
+	// A failed restore session: counts in reliability, NOT in the job selector.
+	out = append(out, sessJSON("s-rst-0", "Entra ID Tenant Restore", "job-rst", "EntraIdTenantRestore",
+		day(0, 2, 0), day(0, 2, 5), "Failed", "Error: restore failed"))
 	// An offload session that must NOT show up anywhere.
 	out = append(out, sessJSON("s-off-0", "Scale-Out Repository Offload", "job-off", "SobrOffload",
 		day(0, 1, 0), day(0, 1, 20), "Success", "Success"))
