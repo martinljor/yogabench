@@ -320,13 +320,19 @@ func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
 		st.SessionsFetched, st.DataSessions, st.InWindow, st.Analyzed, capNote, rng, st.RunsWithLoad, st.Analyzed, topTypes(st.SkippedTypes, 6))
 
 	if a := res.Assessment; a != nil {
-		sess.SetAnalyzed("assessment", a) // queda para el diagnostico
+		sess.SetAnalyzed("assessment", a)    // queda para el diagnostico
+		sess.SetAnalyzed("stats", res.Stats) // el embudo completo (incl. TODOS los tipos salteados)
 		top := "-"
 		if len(a.Actions) > 0 {
 			top = a.Actions[0].Code
 		}
-		log.Printf("assessment: %d job(s)/%d run(s) in %dd · conf=%s · peak=%.0fMB/s at %s · bottleneck=%s(%d%%) · busiest=%02dh(%d jobs, %d%%) · top=%s | %s",
-			a.Jobs, a.Runs, a.Days, a.Confidence, a.PeakMBps, a.PeakAt, a.TopStage, a.TopStagePct, a.BusiestHour, a.BusiestJobs, a.BusiestPct, top, a.Headline)
+		perf := "no completed runs"
+		if a.Runs > 0 {
+			perf = fmt.Sprintf("peak=%.0fMB/s at %s · bottleneck=%s(%d%%) · busiest=%02dh(%d jobs, %d%%)",
+				a.PeakMBps, a.PeakAt, a.TopStage, a.TopStagePct, a.BusiestHour, a.BusiestJobs, a.BusiestPct)
+		}
+		log.Printf("assessment: %d job(s)/%d run(s) in %dd · conf=%s · %s · top=%s | %s",
+			a.Jobs, a.Runs, a.Days, a.Confidence, perf, top, a.Headline)
 		logReliability(a)
 	}
 	writeJSON(w, http.StatusOK, res)
