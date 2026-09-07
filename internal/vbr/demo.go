@@ -34,6 +34,8 @@ func demoResponse(path string) json.RawMessage {
 		return json.RawMessage(demoRepoStates)
 	case strings.HasSuffix(path, "/managedServers"):
 		return json.RawMessage(demoManaged)
+	case strings.HasSuffix(path, "/jobs/states"):
+		return json.RawMessage(demoJobStates)
 	case strings.HasSuffix(path, "/jobs"):
 		return json.RawMessage(demoJobs)
 	case strings.HasSuffix(path, "/sessions"):
@@ -81,6 +83,13 @@ const demoJobs = `{"data":[
 	 "storage":{"backupRepositoryId":"repo-ghost","backupProxies":{"autoSelectEnabled":true,"proxyIds":[]}}},
 	{"id":"job-copy","name":"Copy to Scale-Out","type":"BackupCopy","isDisabled":false,
 	 "storage":{"backupRepositoryId":"repo-sobr","backupProxies":{"autoSelectEnabled":true,"proxyIds":[]}}}
+]}`
+
+// demoJobStates: the only endpoint that lists plugin-platform jobs (they come as
+// type "Unknown" and publish no sessions).
+const demoJobStates = `{"data":[
+	{"id":"job-vms","name":"VMware - Demo VMs","type":"VSphereBackup","status":"stopped","lastResult":"Success"},
+	{"id":"job-prx","name":"Proxmox - Demo","type":"Unknown","status":"stopped","lastResult":"Failed"}
 ]}`
 
 // day returns a timestamp d days back at hh:mm, in the local zone RFC3339-ish

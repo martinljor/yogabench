@@ -38,6 +38,21 @@ func getItems(ctx context.Context, s *vbr.Session, path string) []map[string]any
 	return arr
 }
 
+// fetchSessions: hasta 3 paginas de 2000 sesiones (mas nuevas primero). En el
+// campo, ConfigResync + CheckpointRemoval eran el 80% de la primera pagina y
+// desplazaban a las corridas reales (NAS/Object Storage quedaban invisibles).
+func fetchSessions(ctx context.Context, s *vbr.Session) []map[string]any {
+	var all []map[string]any
+	for _, skip := range []int{0, 2000, 4000} {
+		page := getItems(ctx, s, "v1/sessions?limit=2000&skip="+strconv.Itoa(skip)+"&orderColumn=CreationTime&orderAsc=false")
+		all = append(all, page...)
+		if len(page) < 2000 {
+			break
+		}
+	}
+	return all
+}
+
 // allRepositories: repos normales + scale-out (SOBR), unificados.
 func allRepositories(ctx context.Context, s *vbr.Session) []map[string]any {
 	repos := getItems(ctx, s, "v1/backupInfrastructure/repositories?limit=1000")

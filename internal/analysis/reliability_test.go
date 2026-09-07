@@ -198,8 +198,8 @@ func TestReliabilityOnlyVerdictWhenEverythingFailed(t *testing.T) {
 		HeadlineCode: "env.nodata"}
 	a.AddReliability(Reliability{
 		FailedRuns: 4,
-		Failures: []Failure{{JobName: "Backup Job 2", Message: "Error: No route to host", Count: 4, Now: true}},
-		DownHosts: []DownHost{{Name: "172.16.0.102", Status: "Unavailable", Repos: []string{"NAS repo iscsi"}}},
+		Failures:   []Failure{{JobName: "Backup Job 2", Message: "Error: No route to host", Count: 4, Now: true}},
+		DownHosts:  []DownHost{{Name: "172.16.0.102", Status: "Unavailable", Repos: []string{"NAS repo iscsi"}}},
 	})
 	a.FinishActions()
 	if a.Severity != "critical" || a.HeadlineCode != "env.failing" {

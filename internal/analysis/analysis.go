@@ -156,7 +156,7 @@ func Range(ctx context.Context, s *vbr.Session) RangeInfo {
 
 // Build: estadistica agregada por repo y proxy sobre una ventana de dias.
 func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
-	sess := getItems(ctx, s, "v1/sessions?limit=2000&orderColumn=CreationTime&orderAsc=false")
+	sess := fetchSessions(ctx, s)
 	rng := Range(ctx, s)
 
 	var st Stats

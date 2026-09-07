@@ -155,7 +155,20 @@ func JobList(ctx context.Context, s *vbr.Session) []JobItem {
 			Disabled: boolOf(j["isDisabled"]), Source: "config",
 		})
 	}
-	for _, x := range getItems(ctx, s, "v1/sessions?limit=2000&orderColumn=CreationTime&orderAsc=false") {
+	// v1/jobs/states es el UNICO endpoint que lista los jobs de plugin (AHV,
+	// Proxmox, Morpheus, NAS, Object Storage): v1/jobs no los devuelve y sus
+	// corridas no aparecen en v1/sessions. Llegan como type "Unknown".
+	for _, j := range getItems(ctx, s, "v1/jobs/states?limit=1000") {
+		id := str(j["id"])
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, JobItem{
+			ID: id, Name: str(j["name"]), Type: strOr(j["type"], "Unknown"), Source: "states",
+		})
+	}
+	for _, x := range fetchSessions(ctx, s) {
 		id := str(x["jobId"])
 		if id == "" || seen[id] || !isDataJob(x) {
 			continue
