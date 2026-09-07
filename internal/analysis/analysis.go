@@ -32,8 +32,12 @@ var (
 	// assessment counted 52 jobs, most of them offloads. They are system-scheduled
 	// movements, not the pipeline being diagnosed.
 	skipHints = []string{"configuration", "malware", "compliance", "infrastructure", "agent", "delete", "retention", "discover", "filelevel", "flr", "offload", "tiering", "rescan"}
-	loadRe    = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
-	primaryRe = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
+	// nameSkipHints: SOLO las palabras de tareas de sistema que aparecen en el
+	// NOMBRE de la sesion. La lista completa aplicada al nombre mataba jobs
+	// legitimos ("VMware - Malware", "VBR Managed Agents - ...").
+	nameSkipHints = []string{"offload", "tiering", "rescan"}
+	loadRe        = regexp.MustCompile(`Source\s+(\d+)%\s*>\s*Proxy\s+(\d+)%\s*>\s*Network\s+(\d+)%\s*>\s*Target\s+(\d+)%`)
+	primaryRe     = regexp.MustCompile(`Primary bottleneck:\s*(\w+)`)
 	// Frases con las que Veeam registra la espera por slots en el log de sesion.
 	waitHints = []string{"resource not ready", "waiting for backup infrastructure", "queued for processing"}
 )
@@ -158,24 +162,33 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	var st Stats
 	st.SessionsFetched = len(sess)
 	var dataSess []map[string]any
+	var relSess []map[string]any // datos + restores/failovers/SureBackup (fiabilidad)
 	st.SkippedTypes = map[string]int{}
 	for _, x := range sess {
 		if isDataJob(x) {
 			dataSess = append(dataSess, x)
-		} else {
-			st.SkippedTypes[strOr(x["sessionType"], "?")]++
+			relSess = append(relSess, x)
+			continue
 		}
+		if isRestoreRun(x) {
+			relSess = append(relSess, x) // un restore fallido ES un hallazgo
+		}
+		st.SkippedTypes[strOr(x["sessionType"], "?")]++
 	}
 	st.DataSessions = len(dataSess)
 	if days != nil {
 		cutoff := time.Now().AddDate(0, 0, -*days)
-		var filtered []map[string]any
-		for _, x := range dataSess {
-			if t, ok := parseDT(x["creationTime"]); ok && !t.Before(cutoff) {
-				filtered = append(filtered, x)
+		inWin := func(in []map[string]any) []map[string]any {
+			var out []map[string]any
+			for _, x := range in {
+				if t, ok := parseDT(x["creationTime"]); ok && !t.Before(cutoff) {
+					out = append(out, x)
+				}
 			}
+			return out
 		}
-		dataSess = filtered
+		dataSess = inWin(dataSess)
+		relSess = inWin(relSess)
 	}
 	st.InWindow = len(dataSess)
 	if len(dataSess) > maxSessions {
@@ -242,7 +255,7 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 		// periodo realmente analizado.
 		asmt.AddCapacity(getItems(ctx, s, "v1/backupInfrastructure/repositories/states?limit=1000"),
 			repoNames, RepoBytesPerDay(recs))
-		rel := FailuresOf(dataSess)
+		rel := FailuresOf(relSess)
 		rel.DownHosts = DownHostsOf(ctx, s)
 		asmt.AddReliability(rel)
 		asmt.FinishActions()

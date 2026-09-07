@@ -79,3 +79,41 @@ func TestIsDataJobSkipsSobrSystemSessions(t *testing.T) {
 		}
 	}
 }
+
+// Classification against the official ESessionType enum (REST 1.3-rev2): plugin
+// platforms count as data jobs, SureBackup and restores do not, and legitimate
+// job NAMES containing filter words ("Malware", "Agents") survive.
+func TestIsDataJobOfficialEnum(t *testing.T) {
+	keep := []map[string]any{
+		{"sessionType": "PlatformBackupJob", "name": "Proxmox"}, // plugin platform
+		{"sessionType": "PlatformSnapshotJob", "name": "AHV Snapshots"},
+		{"sessionType": "AgentBackup", "name": "VBR Managed Agents - Windows"},
+		{"sessionType": "BackupJob", "name": "VMware - Malware"}, // "malware" in the NAME is fine
+	}
+	skip := []map[string]any{
+		{"sessionType": "SureBackup", "name": "Scan Backup"},
+		{"sessionType": "EntraIdRestore", "name": "Entra ID Tenant Restore"},
+		{"sessionType": "ArchiveBackup", "name": "Archive tier"},
+		{"sessionType": "SqlLogBackup", "name": "SQL Log Shipping"},
+		{"sessionType": "MalwareDetection", "name": "Malware Detection"},
+	}
+	for _, x := range keep {
+		if !isDataJob(x) {
+			t.Errorf("%v/%v must be a data job", x["sessionType"], x["name"])
+		}
+	}
+	for _, x := range skip {
+		if isDataJob(x) {
+			t.Errorf("%v must NOT be a data job", x["sessionType"])
+		}
+	}
+	// SureBackup and restores still matter for reliability.
+	for _, st := range []string{"SureBackup", "EntraIdRestore", "RestoreVm", "Failover"} {
+		if !isReliabilityRun(map[string]any{"sessionType": st, "name": "x"}) {
+			t.Errorf("%s must count for reliability", st)
+		}
+	}
+	if isReliabilityRun(map[string]any{"sessionType": "ConfigurationResynchronize", "name": "x"}) {
+		t.Error("housekeeping must not count for reliability")
+	}
+}

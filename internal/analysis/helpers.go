@@ -85,15 +85,28 @@ func findProxyIDs(obj any) []string {
 // --- clasificacion de sesiones ---------------------------------------------
 
 func isDataJob(sess map[string]any) bool {
-	// Miramos type Y sessionType: un backup de agente puede venir con type "Backup"
-	// pero sessionType "AgentManagement" (que hay que saltear).
+	// El NOMBRE manda primero: en el campo, las sesiones de offload del SOBR
+	// llegaron con un sessionType que no dice "offload" — la palabra estaba solo
+	// en "Hardened Scale-Out Backup Repository Offload".
+	name := strings.ToLower(str(sess["name"]))
+	for _, bad := range nameSkipHints {
+		if strings.Contains(name, bad) {
+			return false
+		}
+	}
+	// Clasificacion por el enum OFICIAL (ESessionType, REST 1.3-rev2): ver
+	// sessiontypes.go. Tipos que el enum no cubre caen a los hints de siempre y
+	// quedan contados en el "skipped:" del log para extender los sets con datos.
+	st := sessionTypeOf(sess)
+	if backupRunTypes[st] {
+		return true
+	}
+	if systemRunTypes[st] || isRestoreRun(sess) {
+		return false
+	}
 	t := strings.ToLower(str(sess["type"]) + " " + str(sess["sessionType"]))
-	// La exclusion tambien mira el NOMBRE: en el campo, las sesiones de offload del
-	// SOBR llegaron con un sessionType que no dice "offload" — la palabra estaba
-	// solo en "Hardened Scale-Out Backup Repository Offload". Como cada una trae un
-	// jobId distinto, inundaban el selector con decenas de entradas repetidas.
 	for _, bad := range skipHints {
-		if strings.Contains(t, bad) || strings.Contains(strings.ToLower(str(sess["name"])), bad) {
+		if strings.Contains(t, bad) {
 			return false
 		}
 	}
