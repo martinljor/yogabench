@@ -312,8 +312,12 @@ func (s *Server) analysis(w http.ResponseWriter, r *http.Request) {
 	if st.Capped {
 		capNote = " (CAPPED: the window holds more)"
 	}
-	log.Printf("analysis input: %d session(s) fetched · %d data · %d in window · %d analyzed%s · range %s→%s · per-stage %% in %d/%d run(s) · skipped: %s",
-		st.SessionsFetched, st.DataSessions, st.InWindow, st.Analyzed, capNote, st.From, st.To, st.RunsWithLoad, st.Analyzed, topTypes(st.SkippedTypes, 6))
+	rng := st.From + "→" + st.To
+	if st.From == "" && st.To == "" {
+		rng = "-" // ventana sin corridas
+	}
+	log.Printf("analysis input: %d session(s) fetched · %d data · %d in window · %d analyzed%s · range %s · per-stage %% in %d/%d run(s) · skipped: %s",
+		st.SessionsFetched, st.DataSessions, st.InWindow, st.Analyzed, capNote, rng, st.RunsWithLoad, st.Analyzed, topTypes(st.SkippedTypes, 6))
 
 	if a := res.Assessment; a != nil {
 		sess.SetAnalyzed("assessment", a) // queda para el diagnostico

@@ -249,6 +249,7 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 			st.RunsWithLoad++ // this run carried the Load: line (per-stage %)
 		}
 	}
+	summary := summarize(recs)
 	asmt := BuildAssessment(recs, winDays, repoNames, proxyNames)
 	if asmt != nil {
 		// Espacio: estados de repos (endpoint cacheado) x tasa de escritura del
@@ -259,12 +260,21 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 		rel.DownHosts = DownHostsOf(ctx, s)
 		asmt.AddReliability(rel)
 		asmt.FinishActions()
+		// El Summary del periodo se arma con los records (solo corridas
+		// completadas); sin esto decia "Exito 100%" con el ambiente fallando.
+		if rel.FailedRuns > 0 {
+			if summary.Results == nil {
+				summary.Results = map[string]int{}
+			}
+			summary.Results["Failed"] += rel.FailedRuns
+			summary.Runs += rel.FailedRuns
+		}
 	}
 	return Result{
 		Stats:        st,
 		Range:        rng,
 		Days:         days,
-		Summary:      summarize(recs),
+		Summary:      summary,
 		Assessment:   asmt,
 		ByRepository: aggregate(recs, func(r Record) []string { return r.RepoIDs }, repoNames, "(sin repositorio)"),
 		ByProxy:      aggregate(recs, func(r Record) []string { return r.ProxyIDs }, proxyNames, "(sin proxy identificado)"),
