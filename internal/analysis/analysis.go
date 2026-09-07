@@ -251,13 +251,23 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 	}
 	summary := summarize(recs)
 	asmt := BuildAssessment(recs, winDays, repoNames, proxyNames)
+	rel := FailuresOf(relSess)
+	rel.DownHosts = DownHostsOf(ctx, s)
+	// Field case (appliance lab): EVERY run in the window failed -> zero completed
+	// records -> no assessment -> the most broken environment showed NOTHING (no
+	// verdict, no failures table, no reliability log line). A reliability-only
+	// verdict must exist even with nothing completed.
+	if asmt == nil && (rel.FailedRuns > 0 || len(rel.DownHosts) > 0) {
+		asmt = &Assessment{Days: winDays, StageBytes: map[string]int64{},
+			Confidence: "insufficient", Severity: "unknown", SuccessPct: -1,
+			BusiestHour: -1, StaggerHour: -1,
+			HeadlineCode: "env.nodata", Headline: "No completed runs in the window"}
+	}
 	if asmt != nil {
 		// Espacio: estados de repos (endpoint cacheado) x tasa de escritura del
 		// periodo realmente analizado.
 		asmt.AddCapacity(getItems(ctx, s, "v1/backupInfrastructure/repositories/states?limit=1000"),
 			repoNames, RepoBytesPerDay(recs))
-		rel := FailuresOf(relSess)
-		rel.DownHosts = DownHostsOf(ctx, s)
 		asmt.AddReliability(rel)
 		asmt.FinishActions()
 		// El Summary del periodo se arma con los records (solo corridas

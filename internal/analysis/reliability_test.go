@@ -188,3 +188,27 @@ func TestFailuresGroupByNameNotJobID(t *testing.T) {
 		t.Errorf("count: got %d, want 2", rel.Failures[0].Count)
 	}
 }
+
+// Field case (appliance lab): every run in the window failed -> no completed
+// records -> there was NO assessment at all. The reliability-only verdict must
+// carry the failure headline, the critical severity and a 0% success rate.
+func TestReliabilityOnlyVerdictWhenEverythingFailed(t *testing.T) {
+	a := &Assessment{Days: 7, StageBytes: map[string]int64{}, Confidence: "insufficient",
+		Severity: "unknown", SuccessPct: -1, BusiestHour: -1, StaggerHour: -1,
+		HeadlineCode: "env.nodata"}
+	a.AddReliability(Reliability{
+		FailedRuns: 4,
+		Failures: []Failure{{JobName: "Backup Job 2", Message: "Error: No route to host", Count: 4, Now: true}},
+		DownHosts: []DownHost{{Name: "172.16.0.102", Status: "Unavailable", Repos: []string{"NAS repo iscsi"}}},
+	})
+	a.FinishActions()
+	if a.Severity != "critical" || a.HeadlineCode != "env.failing" {
+		t.Fatalf("got %s/%s, want critical/env.failing", a.Severity, a.HeadlineCode)
+	}
+	if a.SuccessPct != 0 {
+		t.Errorf("success: got %d%%, want 0%% (0 completed of 4 attempts)", a.SuccessPct)
+	}
+	if a.Actions[0].Code != "act.envFailing" || !hasEnvAction(a, "act.envHostDown") {
+		t.Errorf("actions: %v", codes(a))
+	}
+}
