@@ -110,7 +110,13 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) connectDemo(w http.ResponseWriter, r *http.Request) {
-	id := s.store.New(&vbr.Session{Demo: true, Host: "demo-vbr"})
+	sess := &vbr.Session{Demo: true, Host: "demo-vbr"}
+	// Recursos sembrados para que la tabla de sizing muestre los tres estados:
+	// prx-lin (16 slots) sobre 4c/8GB = deficit; prx-win (4 slots) sobre 8c/32GB
+	// = sobredimensionado.
+	sess.SetHostRes("srv-lin", vbr.HostRes{Cores: 4, RamGB: 8})
+	sess.SetHostRes("srv-win", vbr.HostRes{Cores: 8, RamGB: 32})
+	id := s.store.New(sess)
 	writeJSON(w, http.StatusOK, map[string]any{"session_id": id, "expires_in": 3600})
 }
 

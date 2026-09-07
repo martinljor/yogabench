@@ -89,6 +89,8 @@ type Assessment struct {
 	// RPO per machine: how fresh each protected machine's last good copy is.
 	VMsFresh int       `json:"vmsFresh"` // with a successful copy in the last 24 h
 	StaleVMs []StaleVM `json:"staleVMs,omitempty"`
+	// Proxy sizing: task slots vs host resources (see sizing.go).
+	Sizing []ProxySizing `json:"sizing,omitempty"`
 	// Space runway: the repository that fills first at the observed write rate.
 	FillRepo      string `json:"fillRepo,omitempty"`
 	FillDays      int    `json:"fillDays,omitempty"`

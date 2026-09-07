@@ -269,6 +269,7 @@ func Build(ctx context.Context, s *vbr.Session, days *int) (Result, error) {
 		asmt.AddCapacity(getItems(ctx, s, "v1/backupInfrastructure/repositories/states?limit=1000"),
 			repoNames, RepoBytesPerDay(recs))
 		asmt.AddReliability(rel)
+		asmt.AddSizing(BuildSizing(ctx, s, vbr.ScrapeNodeMetrics))
 		asmt.FinishActions()
 		// El Summary del periodo se arma con los records (solo corridas
 		// completadas); sin esto decia "Exito 100%" con el ambiente fallando.

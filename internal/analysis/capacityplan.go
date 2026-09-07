@@ -81,7 +81,9 @@ func (a *Assessment) FinishActions() {
 	if len(acts) == 0 {
 		return
 	}
-	a.Actions = rank(append(acts, a.Actions...))
+	// Appended, not prepended: within the same impact the stable rank keeps the
+	// earlier findings first, and a job failing NOW must stay ahead of these.
+	a.Actions = rank(append(a.Actions, acts...))
 }
 
 // RepoBytesPerDay: bytes written to each repository per day of the ACTUAL span

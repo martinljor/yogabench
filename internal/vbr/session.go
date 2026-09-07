@@ -39,6 +39,9 @@ type Session struct {
 	// para volcarlo en el diagnostico y poder reproducirlo/calibrarlo offline sin
 	// gastar mas llamadas REST. Key: "job:<id>" | "assessment".
 	analyzed map[string]any
+	// autoRes: recursos de host detectados por metrics (Node Exporter, 13.1+).
+	// nil = ya se probo y no responde (no reintentar en cada analisis).
+	autoRes map[string]*HostRes
 
 	cacheMu sync.Mutex
 	cache   map[string]cacheEntry
