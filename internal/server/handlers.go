@@ -89,13 +89,30 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	if req.Port == 0 {
 		req.Port = 9419
 	}
-	if req.APIVersion == "" {
-		req.APIVersion = "1.3-rev0" // v13 (trae todos los tipos de proxy)
+	// "auto": negotiate the highest supported revision. Per the official table,
+	// 1.3-rev2 = build 13.1.0, rev1 = 13.0.1, rev0 = 13.0.0 (all supported). A
+	// 13.0 server rejects rev2 with an explicit version error, so we walk down.
+	// Asking rev0 against 13.1 works but hides the newer job types (AHV, Proxmox,
+	// NAS, Object Storage gained EJobType values in rev2) — field finding.
+	tryVersions := []string{req.APIVersion}
+	if req.APIVersion == "" || req.APIVersion == "auto" {
+		tryVersions = []string{"1.3-rev2", "1.3-rev1", "1.3-rev0"}
 	}
-	access, refresh, expiresIn, err := vbr.Authenticate(
-		r.Context(), req.Host, req.Port, req.Username, req.Password, req.APIVersion, req.VerifySSL)
-	if err != nil {
-		log.Printf("VBR connection failed: host=%s port=%d apiVersion=%s: %v", req.Host, req.Port, req.APIVersion, err) // no password
+	var access, refresh string
+	var expiresIn int
+	var err error
+	for i, v := range tryVersions {
+		access, refresh, expiresIn, err = vbr.Authenticate(
+			r.Context(), req.Host, req.Port, req.Username, req.Password, v, req.VerifySSL)
+		if err == nil {
+			req.APIVersion = v
+			break
+		}
+		if i < len(tryVersions)-1 && isVersionError(err) {
+			log.Printf("VBR: apiVersion %s not supported by %s, trying %s", v, req.Host, tryVersions[i+1]) // no password
+			continue
+		}
+		log.Printf("VBR connection failed: host=%s port=%d apiVersion=%s: %v", req.Host, req.Port, v, err) // no password
 		writeErr(w, err)
 		return
 	}
@@ -160,6 +177,14 @@ func (s *Server) flow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, g)
+}
+
+// isVersionError: Veeam rejects an unsupported x-api-version with an explicit
+// message; anything else (bad credentials, network) must not trigger a retry.
+func isVersionError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "api-version") || strings.Contains(msg, "api version") ||
+		strings.Contains(msg, "not supported") && strings.Contains(msg, "version")
 }
 
 // --- Red (puertos + iperf) --------------------------------------------------
