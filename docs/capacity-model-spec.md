@@ -222,7 +222,8 @@ El JSON de diagnóstico ahora incluye `analyzed`: los veredictos por job y el as
 
 The job selector unions three sources: `v1/jobs` (classic types only), `v1/jobs/states` (adds plugin platforms — Nutanix AHV, Proxmox VE backup, NAS, Object Storage — as type `Unknown`), and the session history (paginated three pages deep, because system sessions can crowd real runs out of the first page). Even with all three, the following are NOT exposed anywhere in the v13 REST API and therefore cannot appear in the tool:
 
-- HPE Morpheus VM Essentials jobs (absent from `jobs`, `jobs/states` and `sessions`). Cause: Morpheus support is a separate plug-in module installed on the backup server that orchestrates its own workflows (and talks to the Enterprise Manager API), so its jobs live outside the native VBR job model that the standard REST API exposes.
+- HPE Morpheus VM Essentials jobs (absent from `jobs`, `jobs/states` and `sessions`). Cause: Morpheus support is a separate plug-in module on the backup server that orchestrates its own workers and talks to the VME Manager directly; there is no EJobType for it, so its jobs live outside the native VBR job model.
+- Revision matters: the 1.3-rev2 Jobs model (v13.1) documents NutanixAHVBackupJob, ProxmoxBackupJob, FileBackup and ObjectStorageBackup as EJobType values, so `v1/jobs` under `x-api-version: 1.3-rev2` may return those natively. The omissions above were observed against 1.3-rev0, which is what this tool requests today.
 - Proxmox VE **replica** jobs (the Proxmox backup job is listed; its replica is not).
 - Tape jobs (Backup to Tape, File to Tape, GFS) and SureBackup jobs are absent from `jobs/states`; they are not capacity subjects for this tool, so only their absence from the selector is affected.
 - Plugin-platform jobs publish no sessions, so a per-job analysis of one honestly reports "no runs in the window"; only their name, type and last result (from `jobs/states`) are available.
