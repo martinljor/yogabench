@@ -217,3 +217,14 @@ El modo **Global** ahora abre con el veredicto del entorno (headline + KPIs + ac
 
 ## Diagnóstico
 El JSON de diagnóstico ahora incluye `analyzed`: los veredictos por job y el assessment que el usuario **ya vio en pantalla** (cacheados en la sesión, cero REST extra) → se reproduce offline lo que vio y se calibran las reglas.
+
+## REST API coverage limits (v13, verified in the field 2026-09)
+
+The job selector unions three sources: `v1/jobs` (classic types only), `v1/jobs/states` (adds plugin platforms — Nutanix AHV, Proxmox VE backup, NAS, Object Storage — as type `Unknown`), and the session history (paginated three pages deep, because system sessions can crowd real runs out of the first page). Even with all three, the following are NOT exposed anywhere in the v13 REST API and therefore cannot appear in the tool:
+
+- HPE Morpheus VM Essentials jobs (absent from `jobs`, `jobs/states` and `sessions`).
+- Proxmox VE **replica** jobs (the Proxmox backup job is listed; its replica is not).
+- Tape jobs (Backup to Tape, File to Tape, GFS) and SureBackup jobs are absent from `jobs/states`; they are not capacity subjects for this tool, so only their absence from the selector is affected.
+- Plugin-platform jobs publish no sessions, so a per-job analysis of one honestly reports "no runs in the window"; only their name, type and last result (from `jobs/states`) are available.
+
+`pagination.total` on `v1/jobs` counts all jobs including the omitted ones; the payload does not include them. This is an API limitation, not a filter of this tool.
